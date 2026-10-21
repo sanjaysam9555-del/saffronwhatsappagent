@@ -41,8 +41,8 @@ The agent never quotes prices, packages, availability or dates, and never confir
    - `Daily Summary`: Date, New leads, Summaries sent, WA leads started, WA leads completed, WA leads confirmed, IG nudges sent, IG nudges failed, WA finish sent, Quiet follow-ups, Vendor links, Escalations, Opt-outs, Awaiting team, Open nudges, Urgent nudges, Details
 4. **ManyChat:** create an API token (Pro plan) → `MANYCHAT_API_TOKEN`.
 5. **Templates to submit in Wati** (variables can't contain line breaks):
-   - `lead_followup_v1`: Hi {{1}}, thank you for reaching out to Saffron Collective! 🌼 We have received your details: {{2}}. Please confirm if this is correct, or reply here with anything you would like to add.
-   - `lead_finish_v1`: Hi {{1}}, thank you for reaching out to Saffron Collective on Instagram! 🌼 Here is what we have noted so far: {{2}}. We would like a few more details before we can share a quote or some designs with you: {{3}}. Could you reply here with them?
+   - `lead_followup_v1` (6 variables): "Hi {{1}}, thanks for reaching out to Saffron Collective! 🌼 We have received your details: Name: {{2}} Event: {{3}} Date: {{4}} Location: {{5}} Service Required: {{6}} Please confirm if this is correct, or reply here with anything you would like to add." (one field per line)
+   - `lead_finish_v1` (7 variables): same layout as `lead_followup_v1` (Hi {{1}}, Name {{2}}, Event {{3}}, Date {{4}}, Location {{5}}, Service Required {{6}}), then "We would like a few more details before we can share a quote or some designs with you: {{7}}."
    - `quiet_followup_1`, `_2`, `_3`: Hi {{1}}, just following up from Saffron Collective. Would you like to continue our conversation about your event? Reply here whenever you are ready 🌼 (vary the wording across the three)
    - `team_digest_v1`: Good morning! {{1}} Instagram leads need a follow-up today, {{2}} urgent. Open the sheet: {{3}}
    - `owner_summary_v1`: Saffron daily summary {{1}}: {{2}} new leads, {{3}} completed, {{4}} follow-ups sent, {{5}} waiting on you. Full details: {{6}}

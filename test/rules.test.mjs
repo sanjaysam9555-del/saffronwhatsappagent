@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { decide, MONEY } from "../lib/rules.mjs";
 import { normalizePhone } from "../lib/phone.mjs";
-import { assess, missingFields, suggestNudge, igNudgeText, summaryLine, rowFields } from "../lib/leadfields.mjs";
+import { assess, missingFields, suggestNudge, igNudgeText, summaryLine, rowFields, confirmParams } from "../lib/leadfields.mjs";
 import { newState, advance } from "../lib/qualify.mjs";
 import { checkReply, parseModelJson } from "../lib/claude.mjs";
 import { stage, CFG } from "../netlify/functions/lead-followup.mjs";
@@ -207,4 +207,10 @@ test("a message typed in the Business App means the team has spoken; the agent's
   // an agent send long ago does not hide a later team message
   assert.equal(analyse(chat, [T - 3 * H]).teamSpoke, true);
   assert.equal(analyse([], []).teamSpoke, false);
+});
+
+test("confirmation template gets one clean value per line, never empty", () => {
+  const f = rowFields(["Rahul Sharma", "9923459988", "Jaipur", "9 March", "Wedding", "Planning +\nDecoration"]);
+  assert.deepEqual(confirmParams("Rahul Sharma", f), ["Rahul", "Rahul Sharma", "Wedding", "9 March", "Jaipur", "Planning + Decoration"]);
+  assert.deepEqual(confirmParams("", { date: "", location: "", occasion: "", requirement: "" }), ["there", "Not provided", "Not provided", "Not provided", "Not provided", "Not provided"]);
 });

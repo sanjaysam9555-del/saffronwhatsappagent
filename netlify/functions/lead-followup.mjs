@@ -5,7 +5,7 @@ import { sinceChange, getFlag, setFlag } from "../../lib/state.mjs";
 import { saveContact } from "../../lib/contacts.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { sheetsClient, live } from "../../lib/sheet.mjs";
-import { COL, assess, rowFields, summaryLine, joinList, firstName, igNudgeText, suggestNudge } from "../../lib/leadfields.mjs";
+import { COL, assess, rowFields, confirmParams, summaryLine, joinList, firstName, igNudgeText, suggestNudge } from "../../lib/leadfields.mjs";
 import { newState } from "../../lib/qualify.mjs";
 
 // Runs every 5 minutes over the ManyChat-filled leads sheet. The flow asks: date, location, number, occasion, requirement.
@@ -100,13 +100,13 @@ export default async () => {
 
     if (action === "SEND_SUMMARY") {
       const f = rowFields(row);
-      await wa(process.env.LEAD_TEMPLATE_NAME, [firstName(row[COL.name]), summaryLine(f) || "your enquiry"], "SENT", "summaries_sent",
+      await wa(process.env.LEAD_TEMPLATE_NAME, confirmParams(row[COL.name], f), "SENT", "summaries_sent",
         // their next WhatsApp reply is handled as confirmation or additions
         () => saveContact(a.waId, { q: { ...newState(f, "Instagram"), stage: "confirm" }, name: row[COL.name] }));
     } else if (action === "SEND_FINISH") {
       const f = rowFields(row);
       const need = joinList(a.missing.filter((m) => m.key !== "number").map((m) => m.label));
-      await wa(process.env.FINISH_TEMPLATE_NAME, [firstName(row[COL.name]), summaryLine(f) || "your enquiry", need || "a few details"], "FINISH_SENT", "wa_finish_sent");
+      await wa(process.env.FINISH_TEMPLATE_NAME, [...confirmParams(row[COL.name], f), need || "a few details"], "FINISH_SENT", "wa_finish_sent");
     } else if (action === "SEND_IG") {
       try {
         await sendInstagramText(mcId, igNudgeText(row, a));
