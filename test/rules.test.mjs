@@ -10,6 +10,7 @@ import { isEligible } from "../netlify/functions/quiet-followup.mjs";
 import { summarise } from "../netlify/functions/morning-digest.mjs";
 import { buildSummary } from "../netlify/functions/daily-summary.mjs";
 import { analyse } from "../lib/team.mjs";
+import { testAllows, testMode } from "../lib/testmode.mjs";
 
 process.env.VENDOR_SIGNUP_URL = "https://saffron.planningstudio.in/vendor-onboarding";
 const H = 3600_000, M = 60_000, DAY = 24 * H;
@@ -213,4 +214,19 @@ test("confirmation template gets one clean value per line, never empty", () => {
   const f = rowFields(["Rahul Sharma", "9923459988", "Jaipur", "9 March", "Wedding", "Planning +\nDecoration"]);
   assert.deepEqual(confirmParams("Rahul Sharma", f), { first_name: "Rahul", full_name: "Rahul Sharma", event: "Wedding", event_date: "9 March", location: "Jaipur", service: "Planning + Decoration" });
   assert.deepEqual(confirmParams("", { date: "", location: "", occasion: "", requirement: "" }), { first_name: "there", full_name: "Not provided", event: "Not provided", event_date: "Not provided", location: "Not provided", service: "Not provided" });
+});
+
+test("test mode only lets your own test numbers and ManyChat ids through", () => {
+  delete process.env.TEST_ONLY_NUMBERS; delete process.env.TEST_ONLY_MC_IDS;
+  assert.equal(testMode(), false);
+  assert.equal(testAllows({ waId: "919811111111" }), true);
+  process.env.TEST_ONLY_NUMBERS = "+91 98765 43210, 9555879555";
+  process.env.TEST_ONLY_MC_IDS = "12345";
+  assert.equal(testMode(), true);
+  assert.equal(testAllows({ waId: "919876543210" }), true);
+  assert.equal(testAllows({ waId: "919555879555" }), true);
+  assert.equal(testAllows({ waId: "919811111111" }), false);
+  assert.equal(testAllows({ waId: null, mcId: "12345" }), true);
+  assert.equal(testAllows({ waId: null, mcId: "999" }), false);
+  delete process.env.TEST_ONLY_NUMBERS; delete process.env.TEST_ONLY_MC_IDS;
 });

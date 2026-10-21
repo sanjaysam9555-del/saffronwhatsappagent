@@ -66,3 +66,7 @@ Open `https://<site>.netlify.app/.netlify/functions/backfill-chats-background?ke
 ## Editing
 
 Reply wording and keyword rules: `lib/rules.mjs`. The WhatsApp questions and field order: `lib/leadfields.mjs`. Claude's instructions and output checks: `lib/claude.mjs`. Timings are env settings (see `.env.example`). Run `npm test` after any change.
+
+## First live run: test mode
+
+Before `DRY_RUN=false`, set `TEST_ONLY_NUMBERS` (your own test phones, with country code, comma-separated) and `TEST_ONLY_MC_IDS` (your ManyChat test contact id). While either is set, the agent ignores everyone else: no replies, no follow-ups, no sheet writes for other leads. Clear both variables when you are happy to go live for everyone.

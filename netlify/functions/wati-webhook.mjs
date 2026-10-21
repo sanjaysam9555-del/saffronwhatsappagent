@@ -1,6 +1,7 @@
 import { decide, ESCALATION_ACK, MONEY } from "../../lib/rules.mjs";
 import { sendSessionMessage, updateContactAttributes, getRecentMessages } from "../../lib/wati.mjs";
 import { readChat } from "../../lib/team.mjs";
+import { testAllows } from "../../lib/testmode.mjs";
 import { draftReply, extractFields } from "../../lib/claude.mjs";
 import { lookupContact } from "../../lib/planning-studio.mjs";
 import { allow } from "../../lib/state.mjs";
@@ -32,6 +33,7 @@ export default async (req) => {
   if (!evt.waId) return ok("ignored");
   if (!isSentEvent(evt.eventType) && evt.eventType !== "message") console.log("wati event ignored:", evt.eventType);
   const waId = String(evt.waId);
+  if (!testAllows({ waId })) return ok("test mode: ignored");
 
   // ---- Outbound (our team, the Business App, or the agent) ----
   const isOutbound = isSentEvent(evt.eventType) || (evt.eventType === "message" && evt.owner === true);

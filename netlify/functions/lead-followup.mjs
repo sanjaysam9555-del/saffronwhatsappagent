@@ -3,6 +3,7 @@ import { sendTemplateMessage } from "../../lib/wati.mjs";
 import { sendInstagramText } from "../../lib/manychat.mjs";
 import { sinceChange, getFlag, setFlag } from "../../lib/state.mjs";
 import { saveContact } from "../../lib/contacts.mjs";
+import { testAllows } from "../../lib/testmode.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { sheetsClient, live } from "../../lib/sheet.mjs";
 import { COL, assess, rowFields, confirmParams, summaryLine, joinList, firstName, igNudgeText, suggestNudge } from "../../lib/leadfields.mjs";
@@ -72,6 +73,7 @@ export default async () => {
     const sheetRow = i + 1;
     const key = row[COL.psId] || `r${sheetRow}`;
     const a = assess(row);
+    if (!testAllows({ waId: a.waId, mcId: row[COL.mcId] })) continue; // test mode: only your own test leads
     const hash = [...row.slice(0, 12), row[COL.lastMsg]].join("|"); // ignores our own status columns
     const { quiet, created } = await sinceChange(`lead:${key}`, hash);
     if (created) await incr("new_leads");
