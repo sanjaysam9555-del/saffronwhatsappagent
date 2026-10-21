@@ -23,6 +23,10 @@ export default async (req) => {
   if (url.searchParams.get("key") !== process.env.WEBHOOK_SECRET) return new Response("forbidden", { status: 403 });
   let evt;
   try { evt = await req.json(); } catch { return new Response("bad json", { status: 400 }); }
+  if (process.env.DEBUG_EVENTS === "true") {
+    const { text, ...rest } = evt;
+    console.log("wati evt:", JSON.stringify({ ...rest, textStart: String(text ?? "").slice(0, 25), textLen: String(text ?? "").length }).slice(0, 1500));
+  }
   if (!evt.waId) return ok("ignored");
   if (!isSentEvent(evt.eventType) && evt.eventType !== "message") console.log("wati event ignored:", evt.eventType);
   const waId = String(evt.waId);
