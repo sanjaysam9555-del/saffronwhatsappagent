@@ -27,7 +27,7 @@ export default async () => {
 
   await sendTemplateMessage(
     to, process.env.TEAM_DIGEST_TEMPLATE,
-    [String(total), String(urgent), `https://docs.google.com/spreadsheets/d/${process.env.LEADS_SHEET_ID}`],
+    { lead_count: String(total), urgent_count: String(urgent), sheet_link: `https://docs.google.com/spreadsheets/d/${process.env.LEADS_SHEET_ID}` },
     "team-digest",
   );
 };

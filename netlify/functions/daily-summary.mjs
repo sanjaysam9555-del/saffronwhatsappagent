@@ -64,9 +64,10 @@ export default async () => {
   if (to && process.env.OWNER_SUMMARY_TEMPLATE) {
     const completed = n("summaries_sent") + n("wa_leads_completed");
     const followups = n("ig_nudges_sent") + n("wa_finish_sent") + n("quiet_followups_sent");
-    await sendTemplateMessage(to, process.env.OWNER_SUMMARY_TEMPLATE, [
-      day, String(n("new_leads") + n("wa_leads_started")), String(completed), String(followups),
-      String(open.awaiting + urgent), `https://docs.google.com/spreadsheets/d/${process.env.LEADS_SHEET_ID}`,
-    ], "owner-summary");
+    await sendTemplateMessage(to, process.env.OWNER_SUMMARY_TEMPLATE, {
+      summary_date: day, new_leads: String(n("new_leads") + n("wa_leads_started")), details_completed: String(completed),
+      followups_sent: String(followups), waiting_on_you: String(open.awaiting + urgent),
+      sheet_link: `https://docs.google.com/spreadsheets/d/${process.env.LEADS_SHEET_ID}`,
+    }, "owner-summary");
   }
 };

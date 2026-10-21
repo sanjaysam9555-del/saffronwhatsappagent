@@ -106,7 +106,7 @@ export default async () => {
     } else if (action === "SEND_FINISH") {
       const f = rowFields(row);
       const need = joinList(a.missing.filter((m) => m.key !== "number").map((m) => m.label));
-      await wa(process.env.FINISH_TEMPLATE_NAME, [...confirmParams(row[COL.name], f), need || "a few details"], "FINISH_SENT", "wa_finish_sent");
+      await wa(process.env.FINISH_TEMPLATE_NAME, { ...confirmParams(row[COL.name], f), missing_details: need || "a few details" }, "FINISH_SENT", "wa_finish_sent");
     } else if (action === "SEND_IG") {
       try {
         await sendInstagramText(mcId, igNudgeText(row, a));

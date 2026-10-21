@@ -211,6 +211,6 @@ test("a message typed in the Business App means the team has spoken; the agent's
 
 test("confirmation template gets one clean value per line, never empty", () => {
   const f = rowFields(["Rahul Sharma", "9923459988", "Jaipur", "9 March", "Wedding", "Planning +\nDecoration"]);
-  assert.deepEqual(confirmParams("Rahul Sharma", f), ["Rahul", "Rahul Sharma", "Wedding", "9 March", "Jaipur", "Planning + Decoration"]);
-  assert.deepEqual(confirmParams("", { date: "", location: "", occasion: "", requirement: "" }), ["there", "Not provided", "Not provided", "Not provided", "Not provided", "Not provided"]);
+  assert.deepEqual(confirmParams("Rahul Sharma", f), { first_name: "Rahul", full_name: "Rahul Sharma", event: "Wedding", event_date: "9 March", location: "Jaipur", service: "Planning + Decoration" });
+  assert.deepEqual(confirmParams("", { date: "", location: "", occasion: "", requirement: "" }), { first_name: "there", full_name: "Not provided", event: "Not provided", event_date: "Not provided", location: "Not provided", service: "Not provided" });
 });

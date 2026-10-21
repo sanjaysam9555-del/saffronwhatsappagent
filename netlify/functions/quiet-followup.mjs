@@ -70,7 +70,7 @@ export default async () => {
     const n = c.followups || 0;
     try {
       await saveContact(waId, { agentSent: Date.now() }); // so the Sent event isn't mistaken for a human
-      await sendTemplateMessage(waId, templates[n], [(c.name || "there").split(" ")[0]], "quiet-followup");
+      await sendTemplateMessage(waId, templates[n], { first_name: (c.name || "there").split(" ")[0] }, "quiet-followup");
       await saveContact(waId, { followups: n + 1, lastOut: Date.now(), agentSent: Date.now() });
       await incr("quiet_followups_sent");
       sent++;
