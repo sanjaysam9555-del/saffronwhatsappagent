@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { decide, MONEY } from "../lib/rules.mjs";
+import { decide, MONEY, vendorStrong, CLIENT } from "../lib/rules.mjs";
 import { normalizePhone } from "../lib/phone.mjs";
 import { assess, missingFields, suggestNudge, igNudgeText, summaryLine, rowFields, confirmParams } from "../lib/leadfields.mjs";
 import { newState, advance } from "../lib/qualify.mjs";
@@ -229,4 +229,18 @@ test("test mode only lets your own test numbers and ManyChat ids through", () =>
   assert.equal(testAllows({ waId: null, mcId: "12345" }), true);
   assert.equal(testAllows({ waId: null, mcId: "999" }), false);
   delete process.env.TEST_ONLY_NUMBERS; delete process.env.TEST_ONLY_MC_IDS;
+});
+
+test("vendors are told apart from clients: a role word alone is not enough", () => {
+  for (const v of ["I am a photographer, how do I work with you?", "We are a wedding decorator team", "Looking for work as a makeup artist",
+    "I'm a DJ, can I collaborate with you", "please add me to your vendor list"]) assert.equal(vendorStrong(v), true, v);
+  for (const c of ["We need a photographer and decorator for our wedding", "Looking for a wedding photographer in Jaipur",
+    "Planning + Decoration", "Only Decoration", "we are planning a wedding in March"]) assert.equal(vendorStrong(c), false, c);
+  assert.equal(decide("I am a photographer, how do I work with you?").intent, "vendor_signup");
+  assert.equal(decide("Looking for a wedding photographer").action, "escalate");
+});
+
+test("existing-client phrases go to a person", () => {
+  for (const t of ["I have already booked with you", "this is regarding my wedding with you", "I paid the advance last week", "who is my planner?"]) assert.ok(CLIENT.test(t), t);
+  for (const t of ["Hi, planning a wedding in Jaipur", "Need a planner for December"]) assert.ok(!CLIENT.test(t), t);
 });

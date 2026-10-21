@@ -1,4 +1,4 @@
-import { decide, ESCALATION_ACK, MONEY } from "../../lib/rules.mjs";
+import { decide, ESCALATION_ACK, MONEY, CLIENT } from "../../lib/rules.mjs";
 import { sendSessionMessage, updateContactAttributes, getRecentMessages } from "../../lib/wati.mjs";
 import { readChat } from "../../lib/team.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
@@ -100,9 +100,16 @@ export default async (req) => {
       return ok();
     }
 
-    // 3. Vendor asking for work: sign-up link (not while a lead is mid-flow).
-    if (!inFlow && d.intent === "vendor_signup") {
-      await saveContact(waId, { kind: "vendor" });
+    // 2b. Someone who says they are already a client (often writing from another number): a person answers.
+    if (CLIENT.test(text)) {
+      await toHuman("existing-client");
+      return ok();
+    }
+
+    // 3. Vendor asking for work: sign-up link. Mid-flow, only an unmistakable offer of services ("I am a photographer",
+    // "I want to work with you") switches the chat to the vendor link; ordinary answers like "decoration" never do.
+    if (d.intent === "vendor_signup" && (!inFlow || d.strong)) {
+      await saveContact(waId, { kind: "vendor", ...(c.q ? { q: { ...c.q, stage: "done" } } : {}) });
       if (await allow(`reply:${waId}:vendor_signup`, 6 * HOUR)) {
         await agentSend(d.text);
         await incr("vendor_links_sent");
