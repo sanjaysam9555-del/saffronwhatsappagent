@@ -1,3 +1,5 @@
+// TEMPORARY diagnostics: shows the raw chat history and contact list shapes from Wati. Delete after setup.
+// Open: https://<site>.netlify.app/.netlify/functions/debug-wati?key=<WEBHOOK_SECRET>&waId=<number with country code>
 export default async (req) => {
   const url = new URL(req.url);
   if (url.searchParams.get("key") !== process.env.WEBHOOK_SECRET) return new Response("forbidden", { status: 403 });

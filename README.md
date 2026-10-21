@@ -57,7 +57,7 @@ Open `https://<site>.netlify.app/.netlify/functions/backfill-chats-background?ke
 
 - **ManyChat send format:** `lib/manychat.mjs` follows ManyChat's v2 content format, and I could not confirm that the API works for Instagram subscribers. Check `sendContent` in ManyChat's Swagger and test with one subscriber. If it fails, the agent falls back to the IG Nudges tab for that lead.
 - **Wati formats:** the template `parameters` shape, webhook field names (`waId`, `owner`, `type`, `text`, `eventType`), event names (`sessionMessageSent`, `templateMessageSent`, `templateMessageSent_v2`; unknown ones are logged as `wati event ignored:`), `WATI_CHANNEL_NUMBER` on template sends, and the `getContacts` / `getMessages` response shapes come from Wati's public docs and are parsed defensively. Do one test of each.
-- **Coexistence:** the quiet follow-up and "a person spoke" detection rely on messages you type in the Business App reaching the webhook as outbound events. Confirm that on your account.
+- **Coexistence (tested):** messages typed in the Business App do **not** reliably reach the Wati webhook, but they are in Wati's stored chat history with `owner: true`. So the agent reads that history before replying to anyone (and before each daily follow-up) and stays out of any chat where your team has already written. If the history can't be read, it hands the chat to your team when live.
 - **Netlify:** the lead check runs every 5 minutes; confirm your plan allows that schedule.
 - **Opt-in:** Meta expects people to have agreed to hear from you on WhatsApp. Leads who gave their number on Instagram generally have; check the same holds for everyone you message.
 - **Wati trial:** broadcast quota is limited.

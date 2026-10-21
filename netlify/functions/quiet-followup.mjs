@@ -1,4 +1,5 @@
 import { sendTemplateMessage } from "../../lib/wati.mjs";
+import { readChat } from "../../lib/team.mjs";
 import { listContacts, saveContact } from "../../lib/contacts.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { sheetsClient, sheetReady, live } from "../../lib/sheet.mjs";
@@ -50,9 +51,21 @@ export default async () => {
 
   await applyApprovals();
   const max = Number(process.env.MAX_PER_RUN || 10);
-  let sent = 0;
-  for (const [waId, c] of await listContacts()) {
+  let sent = 0, refreshed = 0;
+  for (const [waId, c0] of await listContacts()) {
     if (sent >= max) break;
+    let c = c0;
+    // Business-App messages never reach the webhook, so re-read the stored chat before deciding. Approved or live contacts only.
+    if (!c.dnc && !c.hold && !c.skip && !c.esc && c.kind !== "vendor" && refreshed < 80) {
+      refreshed++;
+      const chat = await readChat(waId, c);
+      if (!chat) continue; // can't see the chat: don't guess
+      c = await saveContact(waId, {
+        humanSpoke: c.humanSpoke || chat.teamSpoke,
+        ...(chat.lastOutAt ? { lastOut: chat.lastOutAt } : {}),
+        ...(chat.lastCustomerAt ? { lastIn: chat.lastCustomerAt } : {}),
+      });
+    }
     if (!isEligible(c)) continue;
     const n = c.followups || 0;
     try {

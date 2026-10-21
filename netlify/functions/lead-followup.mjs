@@ -90,6 +90,7 @@ export default async () => {
     const wa = async (template, params, status, metric, afterSend) => {
       if (sent >= max) return;
       try {
+        if (isLive) await saveContact(a.waId, { agentSent: Date.now(), lastOut: Date.now() });
         await sendTemplateMessage(a.waId, template, params, "lead-followup");
         sent++;
         mark(status);

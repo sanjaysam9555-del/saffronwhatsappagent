@@ -9,6 +9,7 @@ import { stage, CFG } from "../netlify/functions/lead-followup.mjs";
 import { isEligible } from "../netlify/functions/quiet-followup.mjs";
 import { summarise } from "../netlify/functions/morning-digest.mjs";
 import { buildSummary } from "../netlify/functions/daily-summary.mjs";
+import { analyse } from "../lib/team.mjs";
 
 process.env.VENDOR_SIGNUP_URL = "https://saffron.planningstudio.in/vendor-onboarding";
 const H = 3600_000, M = 60_000, DAY = 24 * H;
@@ -185,4 +186,25 @@ test("Claude output guard blocks money, bad categories and foreign links", () =>
   assert.equal(checkReply("signup_help", "Join: https://saffron.planningstudio.in/vendor-onboarding").ok, true);
   assert.deepEqual(parseModelJson('Sure {"category":"thanks","reply":"Welcome!"}'), { category: "thanks", reply: "Welcome!" });
   assert.equal(parseModelJson("no json"), null);
+});
+
+// ---------- team detection from Wati's stored chat (Business-App messages never reach the webhook) ----------
+test("a message typed in the Business App means the team has spoken; the agent's own sends do not", () => {
+  const T = Date.parse("2026-10-21T11:08:00Z");
+  const chat = [
+    { from: "customer", text: "Hi, Planning a wedding", t: T },
+    { from: "us", text: "Hi, thanks for reaching out.", t: T + 2 * M },
+    { from: "customer", text: "Hi", t: T + 8 * M },
+  ];
+  const a = analyse(chat, []);
+  assert.equal(a.teamSpoke, true);
+  assert.equal(a.lastTeamAt, T + 2 * M);
+  assert.equal(a.lastCustomerAt, T + 8 * M);
+  // the same reply, but the agent recorded sending at that moment
+  const b = analyse(chat, [T + 2 * M + 4000]);
+  assert.equal(b.teamSpoke, false);
+  assert.equal(b.lastOutAt, T + 2 * M);
+  // an agent send long ago does not hide a later team message
+  assert.equal(analyse(chat, [T - 3 * H]).teamSpoke, true);
+  assert.equal(analyse([], []).teamSpoke, false);
 });

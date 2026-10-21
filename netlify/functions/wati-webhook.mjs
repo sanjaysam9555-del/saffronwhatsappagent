@@ -1,12 +1,13 @@
 import { decide, ESCALATION_ACK, MONEY } from "../../lib/rules.mjs";
 import { sendSessionMessage, updateContactAttributes, getRecentMessages } from "../../lib/wati.mjs";
+import { readChat } from "../../lib/team.mjs";
 import { draftReply, extractFields } from "../../lib/claude.mjs";
 import { lookupContact } from "../../lib/planning-studio.mjs";
 import { allow } from "../../lib/state.mjs";
 import { getContact, saveContact, AGENT_ECHO_MS } from "../../lib/contacts.mjs";
 import { newState, advance } from "../../lib/qualify.mjs";
 import { rowFields } from "../../lib/leadfields.mjs";
-import { findLead, saveLead } from "../../lib/sheet.mjs";
+import { findLead, saveLead, live } from "../../lib/sheet.mjs";
 import { GREETING } from "../../lib/rules.mjs";
 import { incr } from "../../lib/metrics.mjs";
 
@@ -24,6 +25,7 @@ export default async (req) => {
   let evt;
   try { evt = await req.json(); } catch { return new Response("bad json", { status: 400 }); }
   if (process.env.DEBUG_EVENTS === "true") {
+    // Temporary diagnostics: shows how Wati labels each event (team replies vs customer messages).
     const { text, ...rest } = evt;
     console.log("wati evt:", JSON.stringify({ ...rest, textStart: String(text ?? "").slice(0, 25), textLen: String(text ?? "").length }).slice(0, 1500));
   }
@@ -74,6 +76,17 @@ export default async (req) => {
       return ok();
     }
 
+    // 1b. If your team has already spoken in this chat (Business App, Wati inbox), the agent stays out and a person answers.
+    // Wati does not send Business-App messages to the webhook, so this reads the stored chat history instead.
+    // If the history cannot be read, the agent fails safe and hands over to the team when live.
+    const chat = await readChat(waId, c);
+    if (chat?.teamSpoke || (!chat && live())) {
+      await saveContact(waId, { humanSpoke: chat?.teamSpoke ? true : c.humanSpoke, ...(chat ? { lastOut: chat.lastOutAt || c.lastOut } : {}) });
+      await toHuman(chat ? "team-already-in-chat" : "history-unavailable", false);
+      return ok();
+    }
+    if (!chat) console.warn("chat history unavailable; continuing because DRY_RUN");
+
     const inFlow = c.q?.stage === "asking" || c.q?.stage === "confirm";
     const isVendor = c.kind === "vendor" || contact?.kind === "vendor";
     const canQualify = !c.humanSpoke && !c.esc && !isVendor && c.q?.stage !== "done";
@@ -121,7 +134,7 @@ export default async (req) => {
     // 5. Everyone else: simple rules, then Claude for light replies, otherwise a human.
     let out = d;
     if (d.action === "escalate" && d.reason === "unclear" && process.env.ANTHROPIC_API_KEY) {
-      const history = await getRecentMessages(waId);
+      const history = (await getRecentMessages(waId)) || [];
       const cl = await draftReply({ text, name: contact?.name || name, history });
       if (cl?.reply) out = { action: "reply", intent: `claude_${cl.category}`, text: cl.reply };
       else if (cl?.reason) out = { action: "escalate", reason: cl.reason };

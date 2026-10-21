@@ -22,12 +22,15 @@ export default async (req) => {
   const review = [];
   const stats = { seen: 0, held: 0, awaitingTeam: 0, vendors: 0, optOuts: 0, skippedLive: 0 };
 
-  for (let page = 1; page <= 50; page++) {
+  const t0 = Date.now(), BUDGET_MS = 12 * 60_000; // Netlify background functions stop at 15 minutes
+  const startPage = Number(url.searchParams.get("page") || 1);
+  for (let page = startPage; page <= 200; page++) {
+    if (Date.now() - t0 > BUDGET_MS) { console.log(`Time budget reached. Run again with &page=${page} to continue.`); break; }
     const contacts = await getContactsPage(page, 100);
     if (!contacts.length) break;
     for (const c of contacts) {
       if (c.updated && c.updated < cutoff) continue;
-      const msgs = (await getRecentMessages(c.waId, 30)).filter((m) => m.t >= cutoff);
+      const msgs = ((await getRecentMessages(c.waId, 30)) || []).filter((m) => m.t >= cutoff);
       if (!msgs.length) continue;
       stats.seen++;
       const existing = await getContact(c.waId);
