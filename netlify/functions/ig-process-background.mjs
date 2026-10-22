@@ -6,7 +6,7 @@ import { extractFields, draftOpening, draftAck, draftHold, classifySender } from
 import { newState, advance, pendingQuestion } from "../../lib/qualify.mjs";
 import { isMediaOnly, recordMedia, REF_THANKS, REF_NOTE, REF_OPEN } from "../../lib/media.mjs";
 import { sendInstagramText } from "../../lib/manychat.mjs";
-import { getIg, saveIg, queueMessage, claimQueue } from "../../lib/igstate.mjs";
+import { getIg, saveIg, queueMessage, claimQueue, resetIg } from "../../lib/igstate.mjs";
 import { upsertInstagramLead } from "../../lib/sheet.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
@@ -48,6 +48,11 @@ export default async (req) => {
   const stripped = String(evt.text ?? "").replace(/^\s*agenttest\b[\s:,.-]*/i, "").trim();
   const rawText = stripped || (/^\s*agenttest\b/i.test(String(evt.text ?? "")) ? "Hi" : "") || "[attachment]";
   if (!sid || !testAllows({ mcId: sid })) return ok("ignored");
+  if (/^\s*agenttest\s+reset\b/i.test(String(evt.text ?? ""))) { // test helper: start over
+    await resetIg(sid);
+    await sendInstagramText(sid, "Test reset done. Send \"agenttest\" followed by your message to start again.");
+    return ok("reset");
+  }
   if (!(await allow(`igevt:${sid}:${rawText.slice(0, 40)}`, 15_000))) return ok("duplicate"); // ManyChat can fire twice
 
   // Burst handling: only the last message of a burst answers, to all of them.
