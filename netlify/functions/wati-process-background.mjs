@@ -11,9 +11,9 @@ import { draftReply, extractFields, draftOpening, draftAck, draftHold, classifyS
 import { lookupContact } from "../../lib/planning-studio.mjs";
 import { allow } from "../../lib/state.mjs";
 import { getContact, saveContact, AGENT_ECHO_MS } from "../../lib/contacts.mjs";
-import { newState, advance, pendingQuestion } from "../../lib/qualify.mjs";
+import { newState, advance, pendingQuestion, serviceLine, ORDER } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult } from "../../lib/calendar.mjs";
-import { startConsult, consultTurn, detailsText } from "../../lib/consult.mjs";
+import { startConsult, consultTurn, detailsText, fastTrack, wantsCall } from "../../lib/consult.mjs";
 import { recordMedia, isMediaOnly, REF_THANKS, REF_NOTE, REF_OPEN } from "../../lib/media.mjs";
 import { knownType } from "../../lib/known.mjs";
 import { rowFields } from "../../lib/leadfields.mjs";
@@ -251,6 +251,22 @@ export default async (req) => {
           if (cr.escalate) await toHuman(cr.escalate, false);
           return ok();
         }
+      }
+      // They opened by asking to talk: offer times straight away (no questions, no price list), the way a person would.
+      if (firstTouch && !dupAnswered && calendarEnabled() && wantsCall(text) && !GREETING.test(text)) {
+        try {
+          const fields = { ...q.fields, number: `+${waId}` };
+          for (const k of ORDER) if (extracted[k]) fields[k] = String(extracted[k]).slice(0, 80);
+          const ft = await fastTrack({ ...q, fields }, { name, svc: serviceLine(text), deps: consultDeps });
+          if (ft) {
+            const nq = { ...ft.q, notes: [ft.q.notes, "Asked for a call in their first message"].filter(Boolean).join(" / ") };
+            await saveContact(waId, { q: nq });
+            await saveLead(waId, name, nq, { notes: nq.notes, country: country.name });
+            await agentSend(ft.reply);
+            await incr("calls_requested");
+            return ok();
+          }
+        } catch (e) { console.error("fast-track call offer failed:", e.message); }
       }
       let r = advance(q, dupAnswered ? "" : text, extracted, name, opener, "", pre);
       // A personal reaction only where it adds something: their location, an extra detail they added, or a vague/unsure answer.

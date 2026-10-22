@@ -612,3 +612,31 @@ test("a greeted lead who also says what they want gets the line without a second
   assert.ok(r.reply.startsWith("We would love to help you with the decor."));
   assert.ok(!/Thank you for reaching out/.test(r.reply));
 });
+
+test("a first message asking to talk is offered times straight away, with no questions and no price list", async () => {
+  const { wantsCall, fastTrack, consultTurn } = await import("../lib/consult.mjs");
+  assert.ok(wantsCall("Hi! I'm getting married next year and would love to explore wedding planning services. Can we connect to discuss the details and pricing?"));
+  assert.ok(wantsCall("can you call me tomorrow"));
+  assert.ok(!wantsCall("what are your charges for decor?"));
+  assert.ok(!wantsCall("Hi can you help with decor for my wedding?"));
+  const slots = [IST("2026-10-23T12:00:00"), IST("2026-10-24T16:30:00"), IST("2026-10-26T12:30:00")];
+  const booked = [];
+  const deps = { offer: async () => slots, book: async (a) => { booked.push(a); return { ok: true, meetLink: "https://meet.google.com/abc", start: a.start }; } };
+  const q0 = newState({}, "Instagram", "instagram");
+  const ft = await fastTrack(q0, { name: "Manya Bhutani", svc: serviceLine("wedding planning services"), deps });
+  assert.equal(ft.q.stage, "slots");
+  assert.ok(ft.reply.startsWith("Hello Manya!\n\nThank you for reaching out to Saffron Collective 🌼\n\nWe would love to help you with the planning.\n\nHere are a few available slots."));
+  assert.match(ft.reply, /1\. Fri, 23 Oct, 12:00 pm/);
+  assert.doesNotMatch(ft.reply, /₹|flat fee|quick questions|mobile number/);
+  // they pick a time; we ask for the email AND the mobile number we never asked for
+  const c = await consultTurn(ft.q, "2", deps);
+  assert.match(c.reply, /email address and your mobile number/);
+  const e = await consultTurn(c.q, "riya@example.com and 9876543210", deps);
+  assert.equal(e.kind, "call-booked");
+  assert.equal(booked[0].phone, "+919876543210");
+  // nothing to offer: the caller falls back to the normal questions
+  assert.equal(await fastTrack(q0, { name: "A", deps: { offer: async () => [] } }), null);
+  // already greeted: no second welcome
+  const g = await fastTrack({ ...q0, greeted: true }, { name: "A", svc: "", deps });
+  assert.ok(g.reply.startsWith("Here are a few available slots."));
+});

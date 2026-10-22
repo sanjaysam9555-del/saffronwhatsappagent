@@ -3,9 +3,9 @@ import { hardMoney, isPriceQuestion, priceAnswer, budgetLakhs, MIN_BUDGET_LAKHS 
 import { guidesFor, guideText } from "../../lib/guides.mjs";
 import { extractPhone } from "../../lib/phone.mjs";
 import { extractFields, draftOpening, draftAck, draftHold, classifySender } from "../../lib/claude.mjs";
-import { newState, advance, pendingQuestion } from "../../lib/qualify.mjs";
+import { newState, advance, pendingQuestion, serviceLine, ORDER } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult } from "../../lib/calendar.mjs";
-import { startConsult, consultTurn, detailsText } from "../../lib/consult.mjs";
+import { startConsult, consultTurn, detailsText, fastTrack, wantsCall } from "../../lib/consult.mjs";
 import { isMediaOnly, recordMedia, REF_THANKS, REF_NOTE, REF_OPEN } from "../../lib/media.mjs";
 import { sendInstagramText } from "../../lib/manychat.mjs";
 import { getIg, saveIg, queueMessage, claimQueue, resetIg } from "../../lib/igstate.mjs";
@@ -182,6 +182,22 @@ export default async (req) => {
         if (cr.escalate) await toHuman(cr.escalate, false);
         return ok();
       }
+    }
+    // They opened by asking to talk: offer times straight away (no questions, no price list), the way a person would.
+    if (firstTouch && calendarEnabled() && wantsCall(text) && !GREETING.test(text)) {
+      try {
+        const fields = { ...q.fields };
+        for (const k of ["number", ...ORDER]) if (extracted[k]) fields[k] = String(extracted[k]).slice(0, 80);
+        const ft = await fastTrack({ ...q, fields }, { name: name || label, svc: serviceLine(text), deps: consultDeps });
+        if (ft) {
+          const nq = { ...ft.q, notes: [ft.q.notes, "Asked for a call in their first message"].filter(Boolean).join(" / ") };
+          await saveIg(sid, { q: nq });
+          await upsertInstagramLead(sid, name || label, nq, { notes: nq.notes, lastMsg: text.slice(0, 200) });
+          await send(ft.reply);
+          await incr("calls_requested");
+          return ok();
+        }
+      } catch (e) { console.error("fast-track call offer failed:", e.message); }
     }
     let r = advance(q, text, extracted, name, opener, "", pre);
     const worthReacting = q.asked === "location" || r.kind === "addition" || /\b(not sure|don'?t know|maybe|undecided|tbd|haven'?t decided)\b/i.test(text);
