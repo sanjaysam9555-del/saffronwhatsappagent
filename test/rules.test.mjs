@@ -739,3 +739,31 @@ test("the lead's message can be read from ManyChat when the request carries only
     if (tok === undefined) delete process.env.MANYCHAT_API_TOKEN; else process.env.MANYCHAT_API_TOKEN = tok;
   }
 });
+
+test("the WhatsApp call confirmation: details, call time, and one page to read picked from what they need", async () => {
+  const { callBookedParams, serviceWords } = await import("../lib/leadfields.mjs");
+  const { readingFor } = await import("../lib/guides.mjs");
+  assert.equal(serviceWords("Both"), "Planning and Decoration");
+  assert.equal(serviceWords("Only Decoration"), "Decoration");
+  assert.equal(serviceWords("Planning"), "Planning");
+  assert.equal(serviceWords("Pending"), "");
+  assert.match(readingFor({ requirement: "Both" }).url, /\/planning-process$/);
+  assert.match(readingFor({ requirement: "Planning" }).url, /\/planning-process$/);
+  assert.match(readingFor({ requirement: "Only Decoration" }).url, /\/services\/wedding-decoration$/);
+  assert.match(readingFor({}).url, /\/planning-process$/);
+  const p = callBookedParams("Priya Shah", { occasion: "Wedding", date: "November next year", location: "Chandigarh or Jaipur", guests: "150-200", requirement: "Both" }, "Mon, 26 Oct, 4:30 pm IST", readingFor({ requirement: "Both" }));
+  assert.equal(p.first_name, "Priya"); assert.equal(p.service, "Planning and Decoration"); assert.equal(p.call_time, "Mon, 26 Oct, 4:30 pm IST");
+  for (const v of Object.values(p)) assert.doesNotMatch(v, /\n/); // template variables cannot hold line breaks
+  assert.equal(callBookedParams("", {}, "x", null).guests, "Not provided"); // blanks never reach the template empty
+});
+
+test("the booking confirmation says Founders once", async () => {
+  const { consultTurn } = await import("../lib/consult.mjs");
+  const slot = Date.UTC(2026, 9, 26, 11, 0);
+  const deps = { offer: async () => [slot], book: async () => ({ ok: true, meetLink: "" }), now: () => slot - 86400000 };
+  const q = { stage: "email", chosen: slot, callPref: "phone", fields: { number: "+919899287314" }, tries: 0 };
+  const r = await consultTurn(q, "me@example.com", deps);
+  assert.equal(r.kind, "call-booked");
+  assert.equal((r.reply.match(/Founders/g) || []).length, 1);
+  assert.match(r.reply, /They will call you on \+919899287314/);
+});

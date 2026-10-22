@@ -1,7 +1,9 @@
 import { decide, ESCALATION_ACK, CLIENT, GREETING, OPTOUT } from "../../lib/rules.mjs";
 import { hardMoney, isPriceQuestion, priceAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
-import { guidesFor, guideText } from "../../lib/guides.mjs";
+import { guidesFor, guideText, readingFor } from "../../lib/guides.mjs";
 import { extractPhone } from "../../lib/phone.mjs";
+import { sendTemplateMessage } from "../../lib/wati.mjs";
+import { callBookedParams } from "../../lib/leadfields.mjs";
 import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playbook.mjs";
 import { extractFields, draftOpening, draftAck, draftHold, draftAfter, classifySender } from "../../lib/claude.mjs";
 import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter } from "../../lib/qualify.mjs";
@@ -90,6 +92,25 @@ export default async (req) => {
     await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason, lastMsg: text, reply: ack ? "(holding reply sent)" : "" });
   };
 
+  // Once a call is booked and we hold their number: a WhatsApp with what they told us, the call time and one page to read.
+  // Needs the approved template named in CALL_TEMPLATE_NAME; without it nothing is sent. Sent once per lead. Never throws.
+  const confirmOnWhatsApp = async (q) => {
+    try {
+      const tpl = process.env.CALL_TEMPLATE_NAME;
+      const num = String(q?.fields?.number || "");
+      const waId = /pending|not shared/i.test(num) ? "" : num.replace(/\D/g, "");
+      if (!tpl || !q?.callBooked || q.waConfirmSent || waId.length < 8 || waId.length > 15) return q;
+      await sendTemplateMessage(waId, tpl, callBookedParams(name, q.fields, q.callBooked.label, readingFor(q.fields)), "call-confirmation");
+      await incr("call_confirmations_sent");
+      await logExchange({ channel: "Instagram", contact: label, lead: "(call booked)", agent: `WhatsApp confirmation sent to +${waId}` });
+      return { ...q, waConfirmSent: true };
+    } catch (e) {
+      console.error("call confirmation on WhatsApp failed:", e.message);
+      await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "call-confirmation-failed", lastMsg: text }).catch(() => {});
+      return q;
+    }
+  };
+
   try {
     let c = await saveIg(sid, { lastIn: Date.now(), name: name || undefined, username: username || undefined });
     pendingAsk = c.q?.stage === "asking" ? pendingQuestion(c.q) : "";
@@ -156,6 +177,7 @@ export default async (req) => {
       await upsertInstagramLead(sid, name || label, nq, { notes: nq.notes, lastMsg: text.slice(0, 200) });
       await send(out.reply);
       if (out.news) await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "lead-added-details", lastMsg: text });
+      if (shared.number) { const sent = await confirmOnWhatsApp(nq); if (sent.waConfirmSent) await saveIg(sid, { q: sent }); } // their number arrived after the booking
       return ok();
     }
     if (!canQualify && !inFlow) return ok("not a client chat");
@@ -203,7 +225,11 @@ export default async (req) => {
         await saveIg(sid, { q: nq });
         await upsertInstagramLead(sid, name || label, nq, { notes: nq.notes, lastMsg: text.slice(0, 200), done: true });
         await send(cr.reply);
-        if (cr.booked) await incr("calls_booked");
+        if (cr.booked) {
+          await incr("calls_booked");
+          const sent = await confirmOnWhatsApp(nq);
+          if (sent.waConfirmSent) await saveIg(sid, { q: sent });
+        }
         if (cr.escalate) await toHuman(cr.escalate, false);
         return ok();
       }
