@@ -57,7 +57,8 @@ export default async (req) => {
   // The text normally comes in the request. If it is missing (the body may carry only the subscriber id), read it from ManyChat.
   let evtText = String(evt.text ?? "");
   const sentLen = evtText.trim().length;
-  if (!evtText.trim() && sid) evtText = await getInstagramLastText(sid);
+  // ManyChat may not have stored the message yet (a phone number can take a moment), so look a few times before giving up.
+  for (let i = 0; i < 3 && !evtText.trim() && sid; i++) { if (i) await sleep(1500); evtText = await getInstagramLastText(sid); }
   console.log(`ig-in: fields=${Object.keys(evt).join(",")} textFromManyChat=${sentLen} chars, afterApiLookup=${String(evtText).trim().length} chars`); // lengths only, never the message itself
   const stripped = String(evtText).replace(/^\s*agenttest\b[\s:,.-]*/i, "").trim();
   const blankText = !String(evtText).trim(); // nothing readable arrived: a photo, or a typed message that did not come through
