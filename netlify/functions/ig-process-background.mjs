@@ -74,6 +74,8 @@ export default async (req) => {
 
   const label = username ? `@${username}` : `ig:${sid}`;
   let pendingAsk = ""; // the question we were waiting for, repeated after a taught answer
+  let vendorChat = false, leadQ = null; // set once the chat is loaded; used to give every real lead a row, even one who asks a question and goes quiet
+  const ROW_REASONS = new Set(["lead-question", "money-or-commitment", "pricing-or-availability-question", "call-time-request"]);
   const send = async (msg) => {
     await logExchange({ channel: "Instagram", contact: label, lead: text, agent: msg });
     for (const part of chunk(msg)) { await sendInstagramText(sid, part); await sleep(400); }
@@ -90,6 +92,7 @@ export default async (req) => {
     await incr("ig_escalations");
     console.log(`ESCALATE ig ${sid} (${reason}): ${text.slice(0, 120)}`);
     await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason, lastMsg: text, reply: ack ? "(holding reply sent)" : "" });
+    if (ROW_REASONS.has(reason) && !vendorChat) await upsertInstagramLead(sid, name || label, leadQ || { fields: {}, stage: "new" }, { notes: `Asked: ${text.slice(0, 120)}`, lastMsg: text.slice(0, 200) });
   };
 
   // Once a call is booked and we hold their number: a WhatsApp with what they told us, the call time and one page to read.
@@ -114,6 +117,7 @@ export default async (req) => {
   try {
     let c = await saveIg(sid, { lastIn: Date.now(), name: name || undefined, username: username || undefined });
     pendingAsk = c.q?.stage === "asking" ? pendingQuestion(c.q) : "";
+    leadQ = c.q || null;
     const d = decide(text, { name });
 
     if (OPTOUT.test(text)) {
@@ -151,6 +155,7 @@ export default async (req) => {
 
     const inFlow = ["asking", "confirm", "call", "slots", "email"].includes(c.q?.stage);
     const isVendor = c.kind === "vendor";
+    vendorChat = isVendor;
     const canQualify = !isVendor && c.q?.stage !== "done";
     const priceQ = isPriceQuestion(text);
     const guides = guidesFor(text); // a page on the website answers this in detail: share the link
@@ -271,7 +276,7 @@ export default async (req) => {
     }
 
     await saveIg(sid, { q: r.q });
-    if (Object.keys(r.q.fields).length) {
+    { // every real lead gets a row, even one who has not answered a question yet
       await upsertInstagramLead(sid, name || label, r.q, {
         notes: r.q.notes, lastMsg: text.slice(0, 200),
         done: ["confirmed", "call-pref", "call-declined"].includes(r.kind), // stops the 5-minute follow-up job from also messaging them

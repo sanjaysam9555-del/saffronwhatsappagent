@@ -107,6 +107,8 @@ export default async (req) => {
     await saveContact(waId, { agentSent: Date.now(), lastOut: Date.now() });
     return sendSessionMessage(waId, msg);
   };
+  let vendorChat = false, leadQ = null; // set once the chat is loaded; used to give every real lead a row, even one who asks a question and goes quiet
+  const ROW_REASONS = new Set(["lead-question", "money-or-commitment", "pricing-or-availability-question", "call-time-request"]);
   const toHuman = async (reason, ack = true) => {
     if (reason === "lead-question") { // an answer you have already taught the agent is used before anyone is bothered
       const taught = await answerFromPlaybook(text);
@@ -121,11 +123,13 @@ export default async (req) => {
     await incr("escalations");
     console.log(`ESCALATE ${waId} (${reason}): ${text.slice(0, 120)}`);
     await logNeedsTeam({ waId, name, reason, lastMsg: text, reply: ack ? "(holding reply sent)" : "" });
+    if (ROW_REASONS.has(reason) && !vendorChat) await saveLead(waId, name, leadQ || { fields: {}, stage: "new" }, { notes: `Asked: ${text.slice(0, 120)}`, country: countryOf(waId).name });
   };
 
   try {
     const c = await saveContact(waId, { lastIn: Date.now(), followups: 0, nudges: 0, name }); // a reply resets quiet follow-ups and nudges
     pendingAsk = c.q?.stage === "asking" ? pendingQuestion(c.q) : "";
+    leadQ = c.q || null;
     const contact = await lookupContact(waId); // null until Planning Studio is wired
     const d = decide(text, { name: contact?.name || name, isVendor: contact?.kind === "vendor" });
 
@@ -160,6 +164,7 @@ export default async (req) => {
 
     const inFlow = ["asking", "confirm", "call", "slots", "email"].includes(c.q?.stage);
     const isVendor = c.kind === "vendor" || contact?.kind === "vendor";
+    vendorChat = isVendor;
     const canQualify = !c.humanSpoke && !c.esc && !isVendor && c.q?.stage !== "done";
 
     // 2. Money is always for a human. (During the question flow only money counts: "date" and "book" are normal words there.)

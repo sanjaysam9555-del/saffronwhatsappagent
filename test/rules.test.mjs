@@ -437,11 +437,11 @@ test("questions a website page answers get the page link; the AI never writes a 
   assert.match(priceAnswer("how much do you charge"), /saffroncollective\.in\/pricing/);
 });
 
-test("mainRow builds a 17-column row and the sheet module has no undefined helpers", async () => {
+test("mainRow builds an 18-column row and the sheet module has no undefined helpers", async () => {
   const { mainRow } = await import("../lib/sheet.mjs");
-  const r = mainRow({ name: "A", mobile: "+919876543210", location: "Jaipur", date: "12 Feb 2027", occasion: "Wedding", requirement: "Planning", source: "Instagram", notes: "n", lastMsg: "hi", mcId: "123" });
-  assert.equal(r.length, 17);
-  assert.deepEqual([r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[10], r[15], r[16]], ["A", "+919876543210", "Jaipur", "12 Feb 2027", "Wedding", "Planning", "Instagram", "n", "hi", "123"]);
+  const r = mainRow({ name: "A", mobile: "+919876543210", location: "Jaipur", date: "12 Feb 2027", occasion: "Wedding", requirement: "Planning", source: "Instagram", notes: "n", lastMsg: "hi", mcId: "123", priority: "HOT" });
+  assert.equal(r.length, 18);
+  assert.deepEqual([r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[10], r[15], r[16], r[17]], ["A", "+919876543210", "Jaipur", "12 Feb 2027", "Wedding", "Planning", "Instagram", "n", "hi", "123", "HOT"]);
 });
 
 test("a lead who was already greeted is not welcomed a second time", () => {
@@ -871,4 +871,64 @@ test("slot stage: 'is it IST?' is answered, 'any other day' shows more, a named 
   assert.doesNotMatch(w.reply, /fully booked/);
   const o = await consultTurn(s.q, "any other day?", deps);
   assert.equal(o.kind, "slots-offered"); assert.match(o.reply, /few more options/);
+});
+
+test("Hindi / Hinglish leads get the fixed questions in their language, and it sticks", async () => {
+  const { detectLang } = await import("../lib/lang.mjs");
+  const { newState, advance, nudgeAsk } = await import("../lib/qualify.mjs");
+  assert.equal(detectLang("Hume shaadi ki planning chahiye"), "hi");
+  assert.equal(detectLang("मुझे डेकोर चाहिए"), "hi");
+  assert.equal(detectLang("Hi, we are planning a wedding in Udaipur"), "en");
+  assert.equal(detectLang("Delhi", "hi"), "hi");               // a short answer never flips it back
+  assert.equal(detectLang("Yes we would like to plan the wedding in Goa", "hi"), "en"); // a whole English sentence does
+  const q = newState({}, "WhatsApp", "whatsapp");
+  const a = advance(q, "Mujhe shaadi ki planning chahiye, aap batao kya karna hoga", { requirement: "Planning" }, "Riya");
+  assert.equal(a.q.lang, "hi");
+  assert.match(a.reply, /Namaste Riya/);
+  assert.match(a.reply, /sawaal/);
+  assert.match(a.reply, /shaadi ke liye hai, reception/);
+  const b = advance(a.q, "Shaadi", { occasion: "Wedding" }, "Riya");
+  assert.equal(b.q.lang, "hi");
+  assert.match(b.reply, /Aap apna event kis date/);
+  assert.match(nudgeAsk(b.q), /Aap apna event kis date/);
+  // the summary is in Hinglish too
+  const f = { ...b.q, stage: "asking", asked: "requirement", fields: { occasion: "Wedding", date: "March 2027", location: "Udaipur", guests: "200" } };
+  const c = advance(f, "dono", { requirement: "Both" }, "Riya");
+  assert.equal(c.kind, "summary");
+  assert.match(c.reply, /Humne yeh details note ki hain/);
+  assert.match(c.reply, /Aapko chahiye: Planning aur Decoration/);
+  // English leads are untouched
+  const e = advance(newState({}, "WhatsApp", "whatsapp"), "Hello, planning a wedding", {}, "Riya");
+  assert.equal(e.q.lang, "en"); assert.match(e.reply, /Thank you for reaching out/);
+});
+
+test("Hindi call times and booking confirmation", async () => {
+  const { startConsult, consultTurn } = await import("../lib/consult.mjs");
+  const base = Date.parse("2026-10-22T05:00:00Z");
+  const day = (n, h) => Date.parse(`2026-10-${n}T00:00:00+05:30`) + h * 3600_000;
+  const deps = { now: () => base, offer: async () => [day(23, 12), day(24, 12), day(25, 12)], book: async () => ({ ok: true, meetLink: "https://meet.google.com/x" }) };
+  const s = await startConsult({ stage: "asking", fields: { number: "+919876543210" }, callPref: "meet", lang: "hi" }, deps);
+  assert.match(s.reply, /Bahut badhiya/); assert.match(s.reply, /Jo time suit kare/);
+  const tz = await consultTurn(s.q, "kya ye IST hai?", deps);
+  assert.equal(tz.kind, "slots-info"); assert.match(tz.reply, /Indian Standard Time/);
+  const c = await consultTurn(s.q, "2", deps);
+  assert.match(c.reply, /email address/); assert.match(c.reply, /Bahut badhiya/);
+  const b = await consultTurn(c.q, "riya@example.com", deps);
+  assert.equal(b.kind, "call-booked"); assert.match(b.reply, /Sab set hai/); assert.match(b.reply, /calendar invite/);
+});
+
+test("hot-lead flag", async () => {
+  const { leadPriority, monthsAway } = await import("../lib/priority.mjs");
+  const now = Date.parse("2026-10-22T08:00:00Z");
+  assert.equal(monthsAway("November next year", now), 13);
+  assert.equal(monthsAway("March 2027", now), 5);
+  assert.equal(monthsAway("sometime", now), null);
+  const full = { occasion: "Wedding", date: "March 2027", location: "Udaipur", guests: "200", requirement: "Planning + Decoration" };
+  assert.equal(leadPriority({ fields: full }, now), "HOT");                                  // everything in, within 9 months
+  assert.equal(leadPriority({ fields: { ...full, date: "November 2027" } }, now), "WARM");   // everything in, but far away
+  assert.equal(leadPriority({ fields: { ...full, date: "November 2027" }, callPref: "meet" }, now), "HOT"); // wants a call
+  assert.equal(leadPriority({ fields: { ...full, date: "November 2027", guests: "350" } }, now), "HOT");    // very large
+  assert.equal(leadPriority({ fields: { occasion: "Wedding" } }, now), "");
+  assert.equal(leadPriority({ fields: { occasion: "Wedding", location: "Goa", date: "Dec 2026" } }, now), "WARM");
+  assert.equal(leadPriority({ stage: "slots", fields: {} }, now), "HOT");
 });
