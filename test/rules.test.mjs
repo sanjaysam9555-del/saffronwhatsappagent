@@ -1056,3 +1056,14 @@ test("ManyChat requests with line breaks or quotes in the message are still read
   assert.equal(full.text, "line1\nline2");
   assert.equal(parseManychatEvent("nonsense"), null);
 });
+
+test("full contact data with a line break in last_input_text is still read", async () => {
+  const { parseManychatEvent } = await import("../lib/manychat.mjs");
+  const raw = '{"key":"user:1","id":"1549599050","page_id":"9","first_name":"Swati","name":"Swati Sharma","last_input_text":"Maybe\nJaipur","optin_phone":false,"phone":null,"ig_username":"swati","custom_fields":{"city":"x"}}';
+  assert.throws(() => JSON.parse(raw));
+  const e = parseManychatEvent(raw);
+  assert.equal(e.subscriber_id, "1549599050");
+  assert.equal(e.text, "Maybe\nJaipur");
+  assert.equal(e.name, "Swati Sharma");
+  assert.equal(e.ig_username, "swati");
+});

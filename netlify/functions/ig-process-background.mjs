@@ -46,8 +46,9 @@ export function chunk(text, max = 900) {
 export default async (req) => {
   const url = new URL(req.url);
   if (url.searchParams.get("key") !== process.env.WEBHOOK_SECRET) return new Response("forbidden", { status: 403 });
-  const evt = parseManychatEvent(await req.text().catch(() => ""));
-  if (!evt) return new Response("bad json", { status: 400 });
+  const rawBody = await req.text().catch(() => "");
+  const evt = parseManychatEvent(rawBody);
+  if (!evt) { console.error(`ig-in: could not read the request (${rawBody.length} chars)`); return new Response("bad json", { status: 400 }); }
   const sid = String(evt.subscriber_id || "").trim();
   const username = String(evt.ig_username || "").replace(/^@/, "");
   const name = cleanName(evt.name);
