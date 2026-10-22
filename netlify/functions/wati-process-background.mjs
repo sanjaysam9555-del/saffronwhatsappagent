@@ -16,7 +16,8 @@ import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, ap
 import { calendarEnabled, offerSlots, bookConsult, moveConsult } from "../../lib/calendar.mjs";
 import { recordCall, callRecord } from "../../lib/calls.mjs";
 import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail, wantsReschedule, wantsCancel, startReschedule } from "../../lib/consult.mjs";
-import { recordMedia, isMediaOnly, REF_THANKS, REF_NOTE, REF_OPEN } from "../../lib/media.mjs";
+import { recordMedia, isMediaOnly, REF_THANKS, REF_NOTE, refOpen, greetingText } from "../../lib/media.mjs";
+import { greetName } from "../../lib/leadfields.mjs";
 import { knownType } from "../../lib/known.mjs";
 import { rowFields } from "../../lib/leadfields.mjs";
 import { findLead, saveLead, live } from "../../lib/sheet.mjs";
@@ -51,7 +52,7 @@ async function mediaRef(waId, name, label) {
     await new Promise((r) => setTimeout(r, 6000));
     const again = await getContact(waId);
     if (again.q || again.greeted || again.esc) return;
-    if (await allow(`reply:${waId}:open`, 6 * HOUR)) { await saveContact(waId, { greeted: true }); await send(REF_OPEN); }
+    if (await allow(`reply:${waId}:open`, 6 * HOUR)) { await saveContact(waId, { greeted: true }); await send(refOpen(greetName(name))); }
   } else if (["asking", "confirm", "call", "slots", "email"].includes(c.q.stage) && (await allow(`mediaack:${waId}`, 10 * 60_000))) {
     const again = c.q.stage === "asking" ? pendingQuestion(c.q) : "";
     await send(again ? `${REF_THANKS}\n\n${again}` : REF_THANKS);
@@ -100,6 +101,7 @@ export default async (req) => {
   if (!incoming || !evt.text) return ok("ignored");
   const text = String(evt.text);
   const name = evt.senderName || "";
+  const who = greetName(name); // first name for greetings, only when the profile name looks like a person
   if (isMediaOnly(text)) { await mediaRef(waId, name, "link"); return ok("link reference"); } // a pasted reel or Pinterest link
 
   let pendingAsk = ""; // the question we were waiting for, repeated after a taught answer
@@ -125,7 +127,7 @@ export default async (req) => {
     }
     await saveContact(waId, { esc: true, escText: text.slice(0, 160), escAt: Date.now() });
     await updateContactAttributes(waId, { needs_human: "true", needs_human_reason: reason });
-    if (ack && (await allow(`ack:${waId}`, 6 * HOUR))) await agentSend((await draftHold({ text, name })) || ESCALATION_ACK);
+    if (ack && (await allow(`ack:${waId}`, 6 * HOUR))) await agentSend((await draftHold({ text, name: who })) || ESCALATION_ACK);
     await incr("escalations");
     console.log(`ESCALATE ${waId} (${reason}): ${text.slice(0, 120)}`);
     await logNeedsTeam({ waId, name, reason, lastMsg: text, reply: ack ? "(holding reply sent)" : "" });
@@ -216,7 +218,7 @@ export default async (req) => {
       }
       const ph = extractPhone(text), em = extractEmail(text);
       const shared = { number: ph.status === "ok" ? `+${ph.number}` : "", email: em };
-      const out = await draftAfter({ text, name, context: doneContext(c.q), shared, greeted: true });
+      const out = await draftAfter({ text, name: who, context: doneContext(c.q), shared, greeted: true });
       if (!out || out.handover !== "none") { await toHuman(out?.handover === "change" ? "call-time-request" : "lead-question"); return ok(); }
       const nq = applyAfter(c.q, text, { ...shared, fields: out.fields });
       await saveContact(waId, { q: nq });
@@ -232,17 +234,17 @@ export default async (req) => {
       if (firstTouch && GREETING.test(text)) {
         if (await allow(`reply:${waId}:open`, 6 * HOUR)) {
           await saveContact(waId, { greeted: true });
-          await agentSend("Hello!\n\nThank you for reaching out to Saffron Collective 🌼\n\nHow can we help you today?");
+          await agentSend(greetingText(who));
           await incr("open_greetings");
         }
         return ok();
       }
       // First real message: work out who is writing. Only a likely new client gets the questions; vendors and unclear go to a person.
       if (firstTouch) {
-        const who = await classifySender({ text, name });
-        if (who !== "client") {
-          if (who === "vendor") await saveContact(waId, { kind: "vendor" });
-          await toHuman(who === "vendor" ? "looks-like-vendor" : "who-is-this");
+        const sender = await classifySender({ text, name });
+        if (sender !== "client") {
+          if (sender === "vendor") await saveContact(waId, { kind: "vendor" });
+          await toHuman(sender === "vendor" ? "looks-like-vendor" : "who-is-this");
           return ok();
         }
       }
@@ -280,7 +282,7 @@ export default async (req) => {
       const asking = q.stage === "new" || q.stage === "asking";
       const extracted = q.stage === "asking" || q.stage === "new" ? (!GREETING.test(text) && !dupAnswered ? await extractFields(text, q.asked) : {}) : {};
       let opener = "";
-      if (firstTouch && !GREETING.test(text)) opener = (await draftOpening({ text, name, greeted: c.greeted })) || "";
+      if (firstTouch && !GREETING.test(text)) opener = (await draftOpening({ text, name: who, greeted: c.greeted })) || "";
       const pre = asking && !dupAnswered ? [priceQ ? priceAnswer(text) : "", guides.length ? guideText(guides) : ""].filter(Boolean).join("\n\n") : "";
       if (guides.length && ["confirm", "call"].includes(q.stage) && (await allow(`guide:${waId}:${guides[0].url}`, 6 * HOUR))) {
         await agentSend(guideText(guides)); await incr("guide_links_sent"); return ok(); // after the summary: just the link, state unchanged
@@ -321,7 +323,7 @@ export default async (req) => {
       // Everywhere else the next question simply follows, so it never feels over-done.
       const worthReacting = q.asked === "location" || r.kind === "addition" || /\b(not sure|don'?t know|maybe|undecided|tbd|haven'?t decided|pata nahi|abhi nahi)\b/i.test(text);
       if (!firstTouch && !dupAnswered && !pre && worthReacting && ["ask", "summary", "addition"].includes(r.kind) && !GREETING.test(text)) {
-        const ack = await draftAck({ text, name, kind: r.kind, asked: q.asked, fields: r.q.fields });
+        const ack = await draftAck({ text, name: who, kind: r.kind, asked: q.asked, fields: r.q.fields });
         if (ack) r = advance(q, text, extracted, name, opener, ack);
       }
 

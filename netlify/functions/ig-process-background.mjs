@@ -10,7 +10,8 @@ import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, ap
 import { calendarEnabled, offerSlots, bookConsult, moveConsult } from "../../lib/calendar.mjs";
 import { recordCall, callRecord } from "../../lib/calls.mjs";
 import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail, wantsReschedule, wantsCancel, startReschedule } from "../../lib/consult.mjs";
-import { isMediaOnly, recordMedia, REF_THANKS, REF_NOTE, REF_OPEN } from "../../lib/media.mjs";
+import { isMediaOnly, recordMedia, REF_THANKS, REF_UNSURE, REF_NOTE, refOpen, greetingText } from "../../lib/media.mjs";
+import { greetName } from "../../lib/leadfields.mjs";
 import { sendInstagramText, getInstagramLastText } from "../../lib/manychat.mjs";
 import { getIg, saveIg, queueMessage, claimQueue, resetIg } from "../../lib/igstate.mjs";
 import { upsertInstagramLead } from "../../lib/sheet.mjs";
@@ -50,11 +51,13 @@ export default async (req) => {
   const sid = String(evt.subscriber_id || "").trim();
   const username = String(evt.ig_username || "").replace(/^@/, "");
   const name = cleanName(evt.name);
+  const who = greetName(name); // first name for greetings, only when the profile name looks like a person
   // "agenttest" is the keyword that routes test messages in ManyChat; it is never part of what a lead means.
   // The text normally comes in the request. If it is missing (the body may carry only the subscriber id), read it from ManyChat.
   let evtText = String(evt.text ?? "");
   if (!evtText.trim() && sid) evtText = await getInstagramLastText(sid);
   const stripped = String(evtText).replace(/^\s*agenttest\b[\s:,.-]*/i, "").trim();
+  const blankText = !String(evtText).trim(); // nothing readable arrived: a photo, or a typed message that did not come through
   const rawText = stripped || (/^\s*agenttest\b/i.test(evtText) ? "Hi" : "") || "[attachment]";
   if (!sid || !testAllows({ mcId: sid })) return ok("ignored");
   if (/^\s*agenttest\s+reset\b/i.test(evtText)) { // test helper: start over
@@ -89,7 +92,7 @@ export default async (req) => {
       await recordQuestion({ channel: "Instagram", text });
     }
     await saveIg(sid, { esc: true, escAt: Date.now() });
-    if (ack && (await allow(`igack:${sid}`, 6 * HOUR))) await send((await draftHold({ text, name })) || ESCALATION_ACK);
+    if (ack && (await allow(`igack:${sid}`, 6 * HOUR))) await send((await draftHold({ text, name: who })) || ESCALATION_ACK);
     await incr("ig_escalations");
     console.log(`ESCALATE ig ${sid} (${reason}): ${text.slice(0, 120)}`);
     await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason, lastMsg: text, reply: ack ? "(holding reply sent)" : "" });
@@ -151,11 +154,13 @@ export default async (req) => {
     }
     if (c.esc || c.q?.stage === "paused" || c.kind === "vendor") return ok("with team"); // after a hand-over the agent stays quiet
     if (mediaCount && !message) {
-      if (!c.q) { if (await allow(`igreply:${sid}:open`, 6 * HOUR)) { await saveIg(sid, { greeted: true }); await send(REF_OPEN); } }
-      else if (["asking", "confirm", "call", "slots", "email"].includes(c.q.stage) && (await allow(`igmediaack:${sid}`, 10 * 60_000))) {
+      if (!c.q) { if (await allow(`igreply:${sid}:open`, 6 * HOUR)) { await saveIg(sid, { greeted: true }); await send(refOpen(who)); } }
+      else if (["asking", "confirm", "call", "slots", "email"].includes(c.q.stage) && (await allow(`igmediaack:${sid}`, blankText ? 90_000 : 10 * 60_000))) {
         const again = c.q.stage === "asking" ? pendingQuestion(c.q) : "";
-        await send(again ? `${REF_THANKS}\n\n${again}` : REF_THANKS);
+        const thanks = blankText ? REF_UNSURE : REF_THANKS; // blank text: it may have been their answer, so ask again instead of just thanking
+        await send(again ? `${thanks}\n\n${again}` : thanks);
       }
+      if (blankText && c.q && (await allow(`igblankteam:${sid}`, HOUR))) await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "unreadable-message", lastMsg: "(a message with no readable text)" });
       return ok("media reference");
     }
     if (mediaCount) text = message; // answer the words; the file is noted below
@@ -189,7 +194,7 @@ export default async (req) => {
       }
       const ph = extractPhone(text), em = extractEmail(text);
       const shared = { number: ph.status === "ok" ? `+${ph.number}` : "", email: em };
-      const out = await draftAfter({ text, name, context: doneContext(c.q), shared, greeted: true });
+      const out = await draftAfter({ text, name: who, context: doneContext(c.q), shared, greeted: true });
       if (!out || out.handover !== "none") { await toHuman(out?.handover === "change" ? "call-time-request" : "lead-question"); return ok(); }
       const nq = applyAfter(c.q, text, { ...shared, fields: out.fields });
       await saveIg(sid, { q: nq });
@@ -205,16 +210,16 @@ export default async (req) => {
     if (firstTouch && GREETING.test(text)) {
       if (await allow(`igreply:${sid}:open`, 6 * HOUR)) {
         await saveIg(sid, { greeted: true });
-        await send("Hello!\n\nThank you for reaching out to Saffron Collective 🌼\n\nHow can we help you today?");
+        await send(greetingText(who));
         await incr("ig_open_greetings");
       }
       return ok();
     }
     if (firstTouch) {
-      const who = await classifySender({ text, name });
-      if (who !== "client") {
-        if (who === "vendor") await saveIg(sid, { kind: "vendor" });
-        await toHuman(who === "vendor" ? "looks-like-vendor" : "who-is-this");
+      const sender = await classifySender({ text, name });
+      if (sender !== "client") {
+        if (sender === "vendor") await saveIg(sid, { kind: "vendor" });
+        await toHuman(sender === "vendor" ? "looks-like-vendor" : "who-is-this");
         return ok();
       }
     }
@@ -229,7 +234,7 @@ export default async (req) => {
     if (ph.status === "ok") extracted.number = `+${ph.number}`;
     if (ph.status === "ambiguous") extracted.numberAmbiguous = true;
     let opener = "";
-    if (firstTouch && !GREETING.test(text)) opener = (await draftOpening({ text, name, greeted: c.greeted })) || "";
+    if (firstTouch && !GREETING.test(text)) opener = (await draftOpening({ text, name: who, greeted: c.greeted })) || "";
     const pre = asking ? [priceQ ? priceAnswer(text) : "", guides.length ? guideText(guides) : ""].filter(Boolean).join("\n\n") : "";
     if (guides.length && ["confirm", "call"].includes(q.stage) && (await allow(`igguide:${sid}:${guides[0].url}`, 6 * HOUR))) {
       await send(guideText(guides)); await incr("guide_links_sent"); return ok(); // after the summary: just the link, state unchanged
@@ -273,7 +278,7 @@ export default async (req) => {
     let r = advance(q, text, extracted, name, opener, "", pre);
     const worthReacting = q.asked === "location" || r.kind === "addition" || /\b(not sure|don'?t know|maybe|undecided|tbd|haven'?t decided)\b/i.test(text);
     if (!firstTouch && !pre && worthReacting && ["ask", "summary", "addition"].includes(r.kind) && !GREETING.test(text)) {
-      const ack = await draftAck({ text, name, kind: r.kind, asked: q.asked, fields: r.q.fields });
+      const ack = await draftAck({ text, name: who, kind: r.kind, asked: q.asked, fields: r.q.fields });
       if (ack) r = advance(q, text, extracted, name, opener, ack);
     }
     if (r.kind === "escalate") { await toHuman("lead-question"); return ok(); }

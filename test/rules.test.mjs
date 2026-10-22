@@ -596,10 +596,10 @@ test("a lead who wants another day is offered times from that day, not sent to t
 
 test("the opening answers what the lead asked for, and the number ask explains why", () => {
   const q = newState({}, "Instagram", "instagram");
-  const r = advance(q, "Hi can you help with decor for my wedding?", {}, "S Jay");
+  const r = advance(q, "Hi can you help with decor for my wedding?", {}, "Sanjay Jain");
   assert.equal(r.kind, "ask");
   assert.equal(r.reply,
-    "Hello S!\n\nThank you for reaching out to Saffron Collective 🌼\n\nWe would love to help you with the decor.\n\nTo help our planner prepare, I have a few quick questions.\n\n" +
+    "Hello Sanjay!\n\nThank you for reaching out to Saffron Collective 🌼\n\nWe would love to help you with the decor.\n\nTo help our planner prepare, I have a few quick questions.\n\n" +
     "May I have your mobile number? Please include the country code if it is outside India.\n\nThis is required so that we can quickly confirm a few details for sharing the quote/design.");
 });
 
@@ -1026,4 +1026,19 @@ test("weekly review: numbers, unhappy chats, and only approved suggestions are u
   // a suggestion is used only after the owner types Y; her own answer always wins
   const vals = [["h"], ["t", "IG", "Do you do Goa?", "", 1, "Waiting", "Yes, we do destination weddings.", ""], ["t", "IG", "Do you do Jaipur?", "", 1, "Waiting", "Yes, Jaipur too.", "Y"], ["t", "IG", "Q3?", "Mine", 1, "Waiting", "Sugg", "Y"], ["t", "IG", "Q4?", "", 1, "Ignore", "S", "Y"]];
   assert.deepEqual(usableAnswers(vals), [{ q: "Do you do Jaipur?", a: "Yes, Jaipur too." }, { q: "Q3?", a: "Mine" }]);
+});
+
+test("greetName uses a first name only when the profile name looks like a person", async () => {
+  const { greetName } = await import("../lib/leadfields.mjs");
+  assert.equal(greetName("Riya Sharma"), "Riya");
+  assert.equal(greetName("priya"), "Priya");
+  assert.equal(greetName("ANANYA K"), "Ananya");
+  assert.equal(greetName("✨ Neha ✨"), "Neha");
+  for (const bad of ["", "S", "S Jay", "Planning Studio India", "dreamweddings.events", "rahul_1987", "@riya", "Sharma Photography", "xyzcompanyhandle", "Royal Decor Pvt Ltd"]) assert.equal(greetName(bad), "", bad);
+});
+
+test("the opening says plain Hello when the profile name is a business", () => {
+  const q = newState({}, "Instagram", "instagram");
+  const r = advance(q, "Hi can you help with decor for my wedding?", {}, "Royal Decor Studio");
+  assert.ok(r.reply.startsWith("Hello!\n\nThank you for reaching out"));
 });

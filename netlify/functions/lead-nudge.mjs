@@ -7,6 +7,7 @@ import { live } from "../../lib/sheet.mjs";
 import { logExchange } from "../../lib/playbook.mjs";
 import { draftFollowUp, draftNudge } from "../../lib/claude.mjs";
 import { nudgeAsk } from "../../lib/qualify.mjs";
+import { greetName } from "../../lib/leadfields.mjs";
 import { nudgeKind, NUDGE_CFG } from "../../lib/nudge.mjs";
 
 // Every 30 minutes, 10:00-20:00 IST only. See lib/nudge.mjs for the rules. Nothing is sent unless the agent is live.
@@ -43,7 +44,7 @@ export default async () => {
     const kind = nudgeKind(c, now, h);
     if (!kind || (kind === "TEMPLATE" && !template)) continue;
     const n = c.nudges || 0;
-    const first = String(c.name || "").split(" ")[0] || "there";
+    const first = greetName(c.name) || "there";
     try {
       if (kind === "SESSION") {
         let msg = "";
