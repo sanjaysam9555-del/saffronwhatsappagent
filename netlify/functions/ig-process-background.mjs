@@ -44,7 +44,9 @@ export default async (req) => {
   const sid = String(evt.subscriber_id || "").trim();
   const username = String(evt.ig_username || "").replace(/^@/, "");
   const name = cleanName(evt.name);
-  const rawText = String(evt.text ?? "").trim() || "[attachment]";
+  // "agenttest" is the keyword that routes test messages in ManyChat; it is never part of what a lead means.
+  const stripped = String(evt.text ?? "").replace(/^\s*agenttest\b[\s:,.-]*/i, "").trim();
+  const rawText = stripped || (/^\s*agenttest\b/i.test(String(evt.text ?? "")) ? "Hi" : "") || "[attachment]";
   if (!sid || !testAllows({ mcId: sid })) return ok("ignored");
   if (!(await allow(`igevt:${sid}:${rawText.slice(0, 40)}`, 15_000))) return ok("duplicate"); // ManyChat can fire twice
 
