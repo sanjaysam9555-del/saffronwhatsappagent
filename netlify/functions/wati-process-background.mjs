@@ -268,7 +268,7 @@ export default async (req) => {
         await agentSend(guideText(guides)); await incr("guide_links_sent"); return ok(); // after the summary: just the link, state unchanged
       }
       // Booking the Founders' call: they choose a time, then give an email, then the event is created.
-      const consultDeps = { waId, offer: () => offerSlots(), book: (a) => bookConsult({ ...a, name, source: "WhatsApp", details: detailsText(a.fields) }) };
+      const consultDeps = { waId, offer: (req) => offerSlots(req), book: (a) => bookConsult({ ...a, name, source: "WhatsApp", details: detailsText(a.fields) }) };
       if (["slots", "email"].includes(q.stage) && calendarEnabled()) {
         const cr = await consultTurn(q, text, consultDeps);
         if (cr) {

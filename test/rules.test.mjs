@@ -577,10 +577,15 @@ test("a lead who wants another day is offered times from that day, not sent to t
   assert.equal((await consultTurn(ev.q, "2", deps)).q.stage, "email");
   // a day that is full: says so and offers the next available days
   const full = await consultTurn(q, "next Tuesday please", deps);
-  assert.match(full.reply, /fully booked on that day/);
+  assert.match(full.reply, /do not have an opening on that day/);
   assert.ok(full.q.slots.every((s) => !fmtIST(s).startsWith("Tue, 27 Oct")));
-  // nothing usable in their words: asks for a day and time
-  const ask = await consultTurn(q, "none of these work", deps);
+  // no day named ("none of these work"): shows the next options, after those already offered
+  const more = await consultTurn(q, "none of these work", deps);
+  assert.equal(more.kind, "slots-offered");
+  assert.match(more.reply, /few more options/);
+  assert.ok(more.q.slots.every((s) => s > first.at(-1)));
+  // nothing usable and nothing to continue from: asks for a day and time
+  const ask = await consultTurn({ ...q, slots: [] }, "hmm none", deps);
   assert.equal(ask.kind, "slots-ask");
   assert.match(ask.reply, /Which day and time/);
   // only after several rounds does a person step in
@@ -710,11 +715,11 @@ test("one line that answers several questions is read in full, and nothing alrea
   // Claude's reading unavailable: the plain-code reading still stops the date being asked again
   const q = { ...newState({ number: "Not shared" }, "Instagram", "instagram"), stage: "asking", asked: "occasion", greeted: true };
   const r = advance(q, "Wedding in november next year", localFields("Wedding in november next year", "occasion"));
-  assert.equal(r.q.fields.occasion, "Wedding"); assert.equal(r.q.fields.date, "november next year");
+  assert.equal(r.q.fields.occasion, "Wedding"); assert.match(r.q.fields.date, /^November 20\d\d$/);
   assert.match(r.reply, /city or destination/); assert.doesNotMatch(r.reply, /What date/);
   // a date given where the occasion was asked is not stored as the occasion
   const r2 = advance(q, "In March", { date: "March" });
-  assert.equal(r2.q.fields.date, "March"); assert.equal(r2.q.fields.occasion, undefined);
+  assert.match(r2.q.fields.date, /^March 20\d\d$/); assert.equal(r2.q.fields.occasion, undefined);
   assert.match(r2.reply, /wedding, a reception/);
 });
 
@@ -823,4 +828,47 @@ test("follow-ups: whoever asked last (agent or your team), once in the chat; age
     assert.match(await draftNudge({ name: "Priya", fields: { date: "November" } }), /Jaipur/);
     say("Are you still interested?"); assert.equal(await draftNudge({ name: "x" }), null);
   } finally { globalThis.fetch = realFetch; if (key === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = key; }
+});
+
+test("summaries are tidy: service wording, a year on the date, one gentle question for a vague date", async () => {
+  const { normalizeRequirement, normalizeDate, isVagueDate, showService, newState, advance } = await import("../lib/qualify.mjs");
+  assert.equal(normalizeRequirement("Both"), "Planning + Decoration");
+  assert.equal(normalizeRequirement("only decor"), "Only Decoration");
+  assert.equal(normalizeRequirement("planning"), "Planning");
+  assert.equal(normalizeRequirement("still deciding"), "still deciding");
+  assert.equal(showService("Planning + Decoration"), "Planning and Decoration");
+  const oct22 = Date.parse("2026-10-22T08:00:00Z");
+  assert.equal(normalizeDate("november next year", oct22), "November 2027");
+  assert.equal(normalizeDate("12-13 feb", oct22), "12-13 feb 2027".replace("feb", "feb"));
+  assert.equal(normalizeDate("December", oct22), "December 2026");
+  assert.equal(normalizeDate("March", oct22), "March 2027");
+  assert.equal(normalizeDate("12 Feb 2027", oct22), "12 Feb 2027");
+  assert.equal(isVagueDate("next year"), true);
+  assert.equal(isVagueDate("winter"), true);
+  assert.equal(isVagueDate("November next year"), false);
+  assert.equal(isVagueDate("not sure yet"), false);
+  assert.equal(isVagueDate("12 Feb 2027"), false);
+  // vague date: asked once more, then accepted
+  const q = { ...newState({ number: "Not shared" }, "Instagram", "instagram"), stage: "asking", asked: "date", greeted: true, fields: { occasion: "Wedding" } };
+  const a = advance(q, "next year", { date: "next year" });
+  assert.equal(a.q.asked, "date"); assert.match(a.reply, /approximate month/);
+  const b = advance(a.q, "winter", { date: "winter" });
+  assert.equal(b.q.fields.date, "Winter");
+  assert.doesNotMatch(b.reply, /approximate month/);
+});
+
+test("slot stage: 'is it IST?' is answered, 'any other day' shows more, a named day is really searched", async () => {
+  const { startConsult, consultTurn } = await import("../lib/consult.mjs");
+  const base = Date.parse("2026-10-22T05:00:00Z");
+  const day = (n, h) => Date.parse(`2026-10-${n}T00:00:00+05:30`) + h * 3600_000;
+  const asked = [];
+  const deps = { now: () => base, offer: async (req) => { asked.push(req); return req?.dayMs ? [day(28, 11.5), day(28, 16), day(28, 18)] : [day(23, 12), day(24, 12), day(25, 12)]; }, book: async () => ({ ok: true, meetLink: "x" }) };
+  const s = await startConsult({ stage: "asking", fields: {}, callPref: "meet" }, deps);
+  const tzr = await consultTurn(s.q, "Is it IST?", deps);
+  assert.equal(tzr.kind, "slots-info"); assert.match(tzr.reply, /Indian Standard Time/); assert.equal(tzr.q.stage, "slots"); assert.equal(tzr.escalate, undefined);
+  const w = await consultTurn(s.q, "anything on Wednesday?", deps);
+  assert.equal(w.kind, "slots-offered"); assert.ok(asked.some((r) => r?.dayMs), "the requested day is passed to the calendar");
+  assert.doesNotMatch(w.reply, /fully booked/);
+  const o = await consultTurn(s.q, "any other day?", deps);
+  assert.equal(o.kind, "slots-offered"); assert.match(o.reply, /few more options/);
 });
