@@ -932,3 +932,62 @@ test("hot-lead flag", async () => {
   assert.equal(leadPriority({ fields: { occasion: "Wedding", location: "Goa", date: "Dec 2026" } }, now), "WARM");
   assert.equal(leadPriority({ stage: "slots", fields: {} }, now), "HOT");
 });
+
+test("call reminders: the day before in the morning, and about an hour before", async () => {
+  const { dueReminders, reminderParams, callRecord } = await import("../lib/calls.mjs");
+  const IST = (s) => Date.parse(`${s}+05:30`);
+  const call = (over = {}) => ({ id: "c1", waId: "919876543210", name: "Riya Kapoor", label: "Fri, 23 Oct, 4:30 pm IST", join: "Google Meet link: https://meet.google.com/abc", start: IST("2026-10-23T16:30:00"), bookedAt: IST("2026-10-20T12:00:00"), sent: {}, ...over });
+  assert.deepEqual(dueReminders([call()], IST("2026-10-22T10:30:00")).map((d) => d.kind), ["day"]);   // day before, 10:30
+  assert.deepEqual(dueReminders([call()], IST("2026-10-22T08:00:00")), []);                           // too early
+  assert.deepEqual(dueReminders([call()], IST("2026-10-22T14:00:00")), []);                           // window missed: no late "tomorrow" reminder
+  assert.deepEqual(dueReminders([call({ sent: { day: 1 } })], IST("2026-10-22T10:30:00")), []);      // already sent
+  assert.deepEqual(dueReminders([call()], IST("2026-10-23T15:30:00")).map((d) => d.kind), ["hour"]); // an hour before
+  assert.deepEqual(dueReminders([call()], IST("2026-10-23T14:00:00")), []);                           // too early for the hour reminder
+  assert.deepEqual(dueReminders([call()], IST("2026-10-23T17:00:00")), []);                           // already started
+  assert.deepEqual(dueReminders([call({ waId: "" })], IST("2026-10-23T15:30:00")), []);               // nobody to remind
+  assert.deepEqual(dueReminders([call({ bookedAt: IST("2026-10-22T09:00:00") })], IST("2026-10-22T10:30:00")), []); // booked an hour ago: no reminder straight after booking
+  assert.deepEqual(reminderParams(call()), { first_name: "Riya", call_time: "Fri, 23 Oct, 4:30 pm IST", join_info: "Google Meet link: https://meet.google.com/abc" });
+  const r = callRecord({ id: "e1", start: 1, label: "x", name: "Riya", number: "+91 98765 43210", pref: "phone", meetLink: "https://meet.google.com/abc" });
+  assert.equal(r.waId, "919876543210"); assert.match(r.join, /call you on this number/);
+  assert.equal(callRecord({ id: "e2", start: 1, label: "x", number: "Not shared" }).waId, "");
+});
+
+test("a lead with a booked call can move it, keep it, or ask to cancel", async () => {
+  const { consultTurn, startReschedule, wantsReschedule, wantsCancel } = await import("../lib/consult.mjs");
+  assert.equal(wantsReschedule("Can we reschedule the call?"), true);
+  assert.equal(wantsReschedule("Sorry, I can't make it at that time"), true);
+  assert.equal(wantsReschedule("Thank you, see you then"), false);
+  assert.equal(wantsCancel("Please cancel the call"), true);
+  const base = Date.parse("2026-10-22T05:00:00Z");
+  const day = (n, h) => Date.parse(`2026-10-${n}T00:00:00+05:30`) + h * 3600_000;
+  const moves = [];
+  const deps = { now: () => base, offer: async () => [day(26, 12), day(27, 12), day(28, 12)], move: async (a) => { moves.push(a); return { ok: true, start: a.start }; }, book: async () => { throw new Error("must not create a second event"); } };
+  const booked = { stage: "done", fields: { number: "+919876543210" }, callPref: "meet", callBooked: { start: day(23, 16.5), label: "Fri, 23 Oct, 4:30 pm IST", eventId: "ev1", meetLink: "m" }, notes: "" };
+  assert.equal(await startReschedule({ ...booked, callBooked: { ...booked.callBooked, eventId: "" } }, "reschedule", deps), null); // an older booking has no event id: a person handles it
+  const rs = await startReschedule(booked, "can we reschedule?", deps);
+  assert.equal(rs.kind, "reschedule-offered"); assert.equal(rs.q.stage, "slots"); assert.match(rs.reply, /other times for your call/);
+  const mv = await consultTurn(rs.q, "2", deps);
+  assert.equal(mv.kind, "call-moved"); assert.equal(moves[0].eventId, "ev1"); assert.equal(moves[0].start, day(27, 12));
+  assert.match(mv.reply, /moved to Tue, 27 Oct, 12:00 pm IST/);
+  assert.equal(mv.q.stage, "done"); assert.equal(mv.q.callBooked.eventId, "ev1"); assert.equal(mv.q.callBooked.start, day(27, 12)); assert.equal(mv.q.reschedule, undefined);
+  assert.match(mv.q.notes, /Call moved to/);
+  // changed their mind: the booking stays
+  const keep = await consultTurn(rs.q, "no, keep it as it is", deps);
+  assert.equal(keep.kind, "reschedule-dropped"); assert.match(keep.reply, /stays as planned for Fri, 23 Oct/); assert.equal(keep.q.callBooked.eventId, "ev1");
+  // the new time was just taken: other times are offered, nothing is moved
+  const taken = await consultTurn(rs.q, "1", { ...deps, move: async () => ({ ok: false, taken: true }) });
+  assert.equal(taken.kind, "slots-offered"); assert.match(taken.reply, /just taken/);
+  // the calendar fails: a person finishes it
+  const boom = await consultTurn(rs.q, "1", { ...deps, move: async () => { throw new Error("calendar down"); } });
+  assert.equal(boom.escalate, "call-time-request");
+});
+
+test("team alert says who, why and what they wrote, on one line each", async () => {
+  const { alertParams, describe, isUrgent } = await import("../lib/needsteam.mjs");
+  const p = alertParams({ name: "Riya", channel: "Instagram", why: "Asked a question during the questions", lastMsg: "Do you do\nUdaipur  weddings?", sheetLink: "https://docs.google.com/spreadsheets/d/x" });
+  assert.deepEqual(p, { lead: "Riya (Instagram)", reason: "Asked a question during the questions", message: "Do you do Udaipur weddings?", sheet_link: "https://docs.google.com/spreadsheets/d/x" });
+  assert.equal(alertParams({ channel: "WhatsApp", waId: "919876543210" }).lead, "+919876543210 (WhatsApp)");
+  assert.equal(alertParams({}).message, "-");
+  assert.equal(isUrgent("agent-error"), true); assert.equal(isUrgent("call-cancel-request"), true); assert.equal(isUrgent("reminder-failed"), false);
+  assert.ok(describe("agent-error")[0].length > 10);
+});

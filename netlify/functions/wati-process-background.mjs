@@ -13,8 +13,9 @@ import { lookupContact } from "../../lib/planning-studio.mjs";
 import { allow } from "../../lib/state.mjs";
 import { getContact, saveContact, AGENT_ECHO_MS } from "../../lib/contacts.mjs";
 import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter } from "../../lib/qualify.mjs";
-import { calendarEnabled, offerSlots, bookConsult } from "../../lib/calendar.mjs";
-import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail } from "../../lib/consult.mjs";
+import { calendarEnabled, offerSlots, bookConsult, moveConsult } from "../../lib/calendar.mjs";
+import { recordCall, callRecord } from "../../lib/calls.mjs";
+import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail, wantsReschedule, wantsCancel, startReschedule } from "../../lib/consult.mjs";
 import { recordMedia, isMediaOnly, REF_THANKS, REF_NOTE, REF_OPEN } from "../../lib/media.mjs";
 import { knownType } from "../../lib/known.mjs";
 import { rowFields } from "../../lib/leadfields.mjs";
@@ -106,6 +107,11 @@ export default async (req) => {
     await logExchange({ channel: "WhatsApp", contact: `+${waId}`, lead: text, agent: msg });
     await saveContact(waId, { agentSent: Date.now(), lastOut: Date.now() });
     return sendSessionMessage(waId, msg);
+  };
+  const consultDeps = { waId, offer: (req) => offerSlots(req), move: (a) => moveConsult(a), book: (a) => bookConsult({ ...a, name, source: "WhatsApp", details: detailsText(a.fields) }) };
+  // Remember a booked (or moved) call so the lead is reminded. On WhatsApp their number is the chat itself.
+  const keepCall = async (q, booked, id) => {
+    try { await recordCall(callRecord({ id: id || `wa-${waId}-${booked.start}`, start: booked.start, label: booked.label, name, number: waId, channel: "WhatsApp", pref: q.callPref, meetLink: q.callBooked?.meetLink })); } catch (e) { console.warn("keepCall:", e.message); }
   };
   let vendorChat = false, leadQ = null; // set once the chat is loaded; used to give every real lead a row, even one who asks a question and goes quiet
   const ROW_REASONS = new Set(["lead-question", "money-or-commitment", "pricing-or-availability-question", "call-time-request"]);
@@ -201,6 +207,13 @@ export default async (req) => {
 
     // 3b. The chat is finished (call booked, declined, ...). Whatever they send now is answered in context by Claude, like a person would.
     if (!c.humanSpoke && !c.esc && !isVendor && c.q?.stage === "done") {
+      if (c.q.callBooked?.eventId && calendarEnabled()) {
+        if (wantsCancel(text)) { await toHuman("call-cancel-request"); return ok(); }
+        if (wantsReschedule(text)) {
+          const rs = await startReschedule(c.q, text, consultDeps);
+          if (rs) { await saveContact(waId, { q: rs.q }); await agentSend(rs.reply); return ok(); }
+        }
+      }
       const ph = extractPhone(text), em = extractEmail(text);
       const shared = { number: ph.status === "ok" ? `+${ph.number}` : "", email: em };
       const out = await draftAfter({ text, name, context: doneContext(c.q), shared, greeted: true });
@@ -273,7 +286,6 @@ export default async (req) => {
         await agentSend(guideText(guides)); await incr("guide_links_sent"); return ok(); // after the summary: just the link, state unchanged
       }
       // Booking the Founders' call: they choose a time, then give an email, then the event is created.
-      const consultDeps = { waId, offer: (req) => offerSlots(req), book: (a) => bookConsult({ ...a, name, source: "WhatsApp", details: detailsText(a.fields) }) };
       if (["slots", "email"].includes(q.stage) && calendarEnabled()) {
         const cr = await consultTurn(q, text, consultDeps);
         if (cr) {
@@ -282,7 +294,8 @@ export default async (req) => {
           await saveContact(waId, { q: nq });
           await saveLead(waId, name, nq, { notes: nq.notes, country: country.name });
           await agentSend(cr.reply);
-          if (cr.booked) await incr("calls_booked");
+          if (cr.booked) { await incr("calls_booked"); await keepCall(nq, cr.booked, cr.booked.eventId); }
+          if (cr.moved) { await incr("calls_moved"); await keepCall(nq, cr.moved, cr.moved.eventId); }
           if (cr.escalate) await toHuman(cr.escalate, false);
           return ok();
         }
@@ -366,6 +379,7 @@ export default async (req) => {
     }
   } catch (e) {
     console.error("webhook error", e);
+    await logNeedsTeam({ waId, name, reason: "agent-error", lastMsg: text }).catch(() => {}); // the lead may be waiting: tell the team
   }
   return ok();
 };

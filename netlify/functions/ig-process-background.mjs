@@ -7,8 +7,9 @@ import { callBookedParams } from "../../lib/leadfields.mjs";
 import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playbook.mjs";
 import { extractFields, draftOpening, draftAck, draftHold, draftAfter, classifySender } from "../../lib/claude.mjs";
 import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter } from "../../lib/qualify.mjs";
-import { calendarEnabled, offerSlots, bookConsult } from "../../lib/calendar.mjs";
-import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail } from "../../lib/consult.mjs";
+import { calendarEnabled, offerSlots, bookConsult, moveConsult } from "../../lib/calendar.mjs";
+import { recordCall, callRecord } from "../../lib/calls.mjs";
+import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail, wantsReschedule, wantsCancel, startReschedule } from "../../lib/consult.mjs";
 import { isMediaOnly, recordMedia, REF_THANKS, REF_NOTE, REF_OPEN } from "../../lib/media.mjs";
 import { sendInstagramText, getInstagramLastText } from "../../lib/manychat.mjs";
 import { getIg, saveIg, queueMessage, claimQueue, resetIg } from "../../lib/igstate.mjs";
@@ -114,6 +115,12 @@ export default async (req) => {
     }
   };
 
+  const consultDeps = { offer: (req) => offerSlots(req), move: (a) => moveConsult(a), book: (a) => bookConsult({ ...a, name: name || label, source: "Instagram", details: detailsText(a.fields) }) };
+  // Remember a booked (or moved) call so the lead is reminded on WhatsApp. Needs their number; without one there is nobody to remind.
+  const keepCall = async (q, booked, id) => {
+    try { await recordCall(callRecord({ id: id || `ig-${sid}-${booked.start}`, start: booked.start, label: booked.label, name, number: q.fields?.number, channel: "Instagram", pref: q.callPref, meetLink: q.callBooked?.meetLink })); } catch (e) { console.warn("keepCall:", e.message); }
+  };
+
   try {
     let c = await saveIg(sid, { lastIn: Date.now(), name: name || undefined, username: username || undefined });
     pendingAsk = c.q?.stage === "asking" ? pendingQuestion(c.q) : "";
@@ -173,6 +180,13 @@ export default async (req) => {
 
     // The chat is finished (call booked, declined, ...). Whatever they send now is answered in context by Claude, like a person would.
     if (!isVendor && c.q?.stage === "done") {
+      if (c.q.callBooked?.eventId && calendarEnabled()) {
+        if (wantsCancel(text)) { await toHuman("call-cancel-request"); return ok(); }
+        if (wantsReschedule(text)) {
+          const rs = await startReschedule(c.q, text, consultDeps);
+          if (rs) { await saveIg(sid, { q: rs.q }); await send(rs.reply); return ok(); }
+        }
+      }
       const ph = extractPhone(text), em = extractEmail(text);
       const shared = { number: ph.status === "ok" ? `+${ph.number}` : "", email: em };
       const out = await draftAfter({ text, name, context: doneContext(c.q), shared, greeted: true });
@@ -221,7 +235,6 @@ export default async (req) => {
       await send(guideText(guides)); await incr("guide_links_sent"); return ok(); // after the summary: just the link, state unchanged
     }
     // Booking the Founders' call: they choose a time, then give an email, then the event is created.
-    const consultDeps = { offer: (req) => offerSlots(req), book: (a) => bookConsult({ ...a, name: name || label, source: "Instagram", details: detailsText(a.fields) }) };
     if (["slots", "email"].includes(q.stage) && calendarEnabled()) {
       const cr = await consultTurn(q, text, consultDeps);
       if (cr) {
@@ -232,9 +245,11 @@ export default async (req) => {
         await send(cr.reply);
         if (cr.booked) {
           await incr("calls_booked");
+          await keepCall(nq, cr.booked, cr.booked.eventId);
           const sent = await confirmOnWhatsApp(nq);
           if (sent.waConfirmSent) await saveIg(sid, { q: sent });
         }
+        if (cr.moved) { await incr("calls_moved"); await keepCall(nq, cr.moved, cr.moved.eventId); }
         if (cr.escalate) await toHuman(cr.escalate, false);
         return ok();
       }

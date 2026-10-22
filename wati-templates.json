@@ -1,1 +1,940 @@
-[{"Id": "", "TenantId": "10223625", "WabaContextId": null, "ClareTemplateId": null, "Status": {"ClareTemplateId": null, "WATemplateId": null, "NewStatus": 0, "Feedback": null, "SubmittedAt": "0001-01-01T00:00:00", "CurrencyMigration": false}, "TemplateParamMapping": [{"Index": 1, "ParamName": "first_name"}, {"Index": 2, "ParamName": "full_name"}, {"Index": 3, "ParamName": "event"}, {"Index": 4, "ParamName": "event_date"}, {"Index": 5, "ParamName": "location"}, {"Index": 6, "ParamName": "service"}], "WATemplateId": "", "ElementName": "lead_followup_v1", "Category": "UTILITY", "CorrectCategory": null, "SubCategory": "STANDARD", "CatalogInfo": null, "Language": "en", "CustomParams": [{"ParamName": "first_name", "ParamValue": "Priya"}, {"ParamName": "full_name", "ParamValue": "Priya Shah"}, {"ParamName": "event", "ParamValue": "Wedding"}, {"ParamName": "event_date", "ParamValue": "12 December"}, {"ParamName": "location", "ParamValue": "Jaipur"}, {"ParamName": "service", "ParamValue": "Planning and Decoration"}], "Hsm": null, "HsmOriginal": "", "LocalizableParams": null, "LastModified": "10-21-2026", "Created": "10-21-2026", "LastSynchronized": "10-21-2026", "Type": 1, "Header": null, "Body": "Hi {{first_name}},\n\nThanks for reaching out to Saffron Collective! 🌼\n\nWe have received your details:\nName: {{full_name}}\nEvent: {{event}}\nDate: {{event_date}}\nLocation: {{location}}\nService Required: {{service}}\n\nPlease confirm if this is correct, or reply here with anything you would like to add.", "BodyOriginal": "", "Footer": null, "Buttons": [], "CarouselCards": null, "ButtonsType": 0, "LastSubmitAttemptDate": null, "SubmittedUserId": "", "WABACheckPendingStatusTimes": 0, "LastWABACheckStatusDate": null, "ExpiresIn": 0, "IncludeExpiryTime": false, "AddSecurityRecommendation": false, "IsUrlBtnClickTrackingEnabled": false, "LimitedTimeOffer": null, "Quality": 0, "CreationMethod": 0, "ShopifyTrigger": 0, "IncludeCoupon": false, "CouponType": 0, "DiscountValue": null, "CouponCode": null, "EnableThirdPartyCheckout": false, "AttributionDays": 2, "TrackingUrlType": 0, "TrackingUrlVersion": 1, "ClientName": null, "FromTrial": false}, {"Id": "", "TenantId": "10223625", "WabaContextId": null, "ClareTemplateId": null, "Status": {"ClareTemplateId": null, "WATemplateId": null, "NewStatus": 0, "Feedback": null, "SubmittedAt": "0001-01-01T00:00:00", "CurrencyMigration": false}, "TemplateParamMapping": [{"Index": 1, "ParamName": "first_name"}, {"Index": 2, "ParamName": "full_name"}, {"Index": 3, "ParamName": "event"}, {"Index": 4, "ParamName": "event_date"}, {"Index": 5, "ParamName": "location"}, {"Index": 6, "ParamName": "service"}, {"Index": 7, "ParamName": "missing_details"}], "WATemplateId": "", "ElementName": "lead_finish_v1", "Category": "UTILITY", "CorrectCategory": null, "SubCategory": "STANDARD", "CatalogInfo": null, "Language": "en", "CustomParams": [{"ParamName": "first_name", "ParamValue": "Priya"}, {"ParamName": "full_name", "ParamValue": "Priya Shah"}, {"ParamName": "event", "ParamValue": "Wedding"}, {"ParamName": "event_date", "ParamValue": "12 December"}, {"ParamName": "location", "ParamValue": "Not provided"}, {"ParamName": "service", "ParamValue": "Planning and Decoration"}, {"ParamName": "missing_details", "ParamValue": "your location and budget"}], "Hsm": null, "HsmOriginal": "", "LocalizableParams": null, "LastModified": "10-21-2026", "Created": "10-21-2026", "LastSynchronized": "10-21-2026", "Type": 1, "Header": null, "Body": "Hi {{first_name}},\n\nThanks for reaching out to Saffron Collective on Instagram! 🌼\n\nHere is what we have noted so far:\nName: {{full_name}}\nEvent: {{event}}\nDate: {{event_date}}\nLocation: {{location}}\nService Required: {{service}}\n\nWe would like a few more details before we can share a quote or some designs with you: {{missing_details}}.\n\nCould you please reply here with them?", "BodyOriginal": "", "Footer": null, "Buttons": [], "CarouselCards": null, "ButtonsType": 0, "LastSubmitAttemptDate": null, "SubmittedUserId": "", "WABACheckPendingStatusTimes": 0, "LastWABACheckStatusDate": null, "ExpiresIn": 0, "IncludeExpiryTime": false, "AddSecurityRecommendation": false, "IsUrlBtnClickTrackingEnabled": false, "LimitedTimeOffer": null, "Quality": 0, "CreationMethod": 0, "ShopifyTrigger": 0, "IncludeCoupon": false, "CouponType": 0, "DiscountValue": null, "CouponCode": null, "EnableThirdPartyCheckout": false, "AttributionDays": 2, "TrackingUrlType": 0, "TrackingUrlVersion": 1, "ClientName": null, "FromTrial": false}, {"Id": "", "TenantId": "10223625", "WabaContextId": null, "ClareTemplateId": null, "Status": {"ClareTemplateId": null, "WATemplateId": null, "NewStatus": 0, "Feedback": null, "SubmittedAt": "0001-01-01T00:00:00", "CurrencyMigration": false}, "TemplateParamMapping": [{"Index": 1, "ParamName": "first_name"}], "WATemplateId": "", "ElementName": "quiet_followup_1", "Category": "MARKETING", "CorrectCategory": null, "SubCategory": "STANDARD", "CatalogInfo": null, "Language": "en", "CustomParams": [{"ParamName": "first_name", "ParamValue": "Priya"}], "Hsm": null, "HsmOriginal": "", "LocalizableParams": null, "LastModified": "10-21-2026", "Created": "10-21-2026", "LastSynchronized": "10-21-2026", "Type": 1, "Header": null, "Body": "Hi {{first_name}},\n\nJust following up from Saffron Collective. Would you like to continue our conversation about your event?\n\nReply here whenever you are ready 🌼", "BodyOriginal": "", "Footer": null, "Buttons": [], "CarouselCards": null, "ButtonsType": 0, "LastSubmitAttemptDate": null, "SubmittedUserId": "", "WABACheckPendingStatusTimes": 0, "LastWABACheckStatusDate": null, "ExpiresIn": 0, "IncludeExpiryTime": false, "AddSecurityRecommendation": false, "IsUrlBtnClickTrackingEnabled": false, "LimitedTimeOffer": null, "Quality": 0, "CreationMethod": 0, "ShopifyTrigger": 0, "IncludeCoupon": false, "CouponType": 0, "DiscountValue": null, "CouponCode": null, "EnableThirdPartyCheckout": false, "AttributionDays": 2, "TrackingUrlType": 0, "TrackingUrlVersion": 1, "ClientName": null, "FromTrial": false}, {"Id": "", "TenantId": "10223625", "WabaContextId": null, "ClareTemplateId": null, "Status": {"ClareTemplateId": null, "WATemplateId": null, "NewStatus": 0, "Feedback": null, "SubmittedAt": "0001-01-01T00:00:00", "CurrencyMigration": false}, "TemplateParamMapping": [{"Index": 1, "ParamName": "first_name"}], "WATemplateId": "", "ElementName": "quiet_followup_2", "Category": "MARKETING", "CorrectCategory": null, "SubCategory": "STANDARD", "CatalogInfo": null, "Language": "en", "CustomParams": [{"ParamName": "first_name", "ParamValue": "Priya"}], "Hsm": null, "HsmOriginal": "", "LocalizableParams": null, "LastModified": "10-21-2026", "Created": "10-21-2026", "LastSynchronized": "10-21-2026", "Type": 1, "Header": null, "Body": "Hi {{first_name}},\n\nA gentle reminder from Saffron Collective. We would love to help with your event.\n\nPlease reply here if you would like to pick up where we left off 🌼", "BodyOriginal": "", "Footer": null, "Buttons": [], "CarouselCards": null, "ButtonsType": 0, "LastSubmitAttemptDate": null, "SubmittedUserId": "", "WABACheckPendingStatusTimes": 0, "LastWABACheckStatusDate": null, "ExpiresIn": 0, "IncludeExpiryTime": false, "AddSecurityRecommendation": false, "IsUrlBtnClickTrackingEnabled": false, "LimitedTimeOffer": null, "Quality": 0, "CreationMethod": 0, "ShopifyTrigger": 0, "IncludeCoupon": false, "CouponType": 0, "DiscountValue": null, "CouponCode": null, "EnableThirdPartyCheckout": false, "AttributionDays": 2, "TrackingUrlType": 0, "TrackingUrlVersion": 1, "ClientName": null, "FromTrial": false}, {"Id": "", "TenantId": "10223625", "WabaContextId": null, "ClareTemplateId": null, "Status": {"ClareTemplateId": null, "WATemplateId": null, "NewStatus": 0, "Feedback": null, "SubmittedAt": "0001-01-01T00:00:00", "CurrencyMigration": false}, "TemplateParamMapping": [{"Index": 1, "ParamName": "first_name"}], "WATemplateId": "", "ElementName": "quiet_followup_3", "Category": "MARKETING", "CorrectCategory": null, "SubCategory": "STANDARD", "CatalogInfo": null, "Language": "en", "CustomParams": [{"ParamName": "first_name", "ParamValue": "Priya"}], "Hsm": null, "HsmOriginal": "", "LocalizableParams": null, "LastModified": "10-21-2026", "Created": "10-21-2026", "LastSynchronized": "10-21-2026", "Type": 1, "Header": null, "Body": "Hi {{first_name}},\n\nOne last note from Saffron Collective. If you are still planning your event, just reply here and we will be happy to continue.\n\nWishing you all the best! 🌼", "BodyOriginal": "", "Footer": null, "Buttons": [], "CarouselCards": null, "ButtonsType": 0, "LastSubmitAttemptDate": null, "SubmittedUserId": "", "WABACheckPendingStatusTimes": 0, "LastWABACheckStatusDate": null, "ExpiresIn": 0, "IncludeExpiryTime": false, "AddSecurityRecommendation": false, "IsUrlBtnClickTrackingEnabled": false, "LimitedTimeOffer": null, "Quality": 0, "CreationMethod": 0, "ShopifyTrigger": 0, "IncludeCoupon": false, "CouponType": 0, "DiscountValue": null, "CouponCode": null, "EnableThirdPartyCheckout": false, "AttributionDays": 2, "TrackingUrlType": 0, "TrackingUrlVersion": 1, "ClientName": null, "FromTrial": false}, {"Id": "", "TenantId": "10223625", "WabaContextId": null, "ClareTemplateId": null, "Status": {"ClareTemplateId": null, "WATemplateId": null, "NewStatus": 0, "Feedback": null, "SubmittedAt": "0001-01-01T00:00:00", "CurrencyMigration": false}, "TemplateParamMapping": [{"Index": 1, "ParamName": "lead_count"}, {"Index": 2, "ParamName": "urgent_count"}, {"Index": 3, "ParamName": "sheet_link"}], "WATemplateId": "", "ElementName": "team_digest_v1", "Category": "UTILITY", "CorrectCategory": null, "SubCategory": "STANDARD", "CatalogInfo": null, "Language": "en", "CustomParams": [{"ParamName": "lead_count", "ParamValue": "5"}, {"ParamName": "urgent_count", "ParamValue": "2"}, {"ParamName": "sheet_link", "ParamValue": "https://docs.google.com/spreadsheets/d/EXAMPLE"}], "Hsm": null, "HsmOriginal": "", "LocalizableParams": null, "LastModified": "10-21-2026", "Created": "10-21-2026", "LastSynchronized": "10-21-2026", "Type": 1, "Header": null, "Body": "Good morning team! 🌼\n\nInstagram leads needing a follow-up today: {{lead_count}}\nUrgent: {{urgent_count}}\n\nPlease open the leads sheet to see them: {{sheet_link}}\n\nThank you!", "BodyOriginal": "", "Footer": null, "Buttons": [], "CarouselCards": null, "ButtonsType": 0, "LastSubmitAttemptDate": null, "SubmittedUserId": "", "WABACheckPendingStatusTimes": 0, "LastWABACheckStatusDate": null, "ExpiresIn": 0, "IncludeExpiryTime": false, "AddSecurityRecommendation": false, "IsUrlBtnClickTrackingEnabled": false, "LimitedTimeOffer": null, "Quality": 0, "CreationMethod": 0, "ShopifyTrigger": 0, "IncludeCoupon": false, "CouponType": 0, "DiscountValue": null, "CouponCode": null, "EnableThirdPartyCheckout": false, "AttributionDays": 2, "TrackingUrlType": 0, "TrackingUrlVersion": 1, "ClientName": null, "FromTrial": false}, {"Id": "", "TenantId": "10223625", "WabaContextId": null, "ClareTemplateId": null, "Status": {"ClareTemplateId": null, "WATemplateId": null, "NewStatus": 0, "Feedback": null, "SubmittedAt": "0001-01-01T00:00:00", "CurrencyMigration": false}, "TemplateParamMapping": [{"Index": 1, "ParamName": "summary_date"}, {"Index": 2, "ParamName": "new_leads"}, {"Index": 3, "ParamName": "details_completed"}, {"Index": 4, "ParamName": "followups_sent"}, {"Index": 5, "ParamName": "waiting_on_you"}, {"Index": 6, "ParamName": "sheet_link"}], "WATemplateId": "", "ElementName": "owner_summary_v1", "Category": "UTILITY", "CorrectCategory": null, "SubCategory": "STANDARD", "CatalogInfo": null, "Language": "en", "CustomParams": [{"ParamName": "summary_date", "ParamValue": "21 Oct"}, {"ParamName": "new_leads", "ParamValue": "7"}, {"ParamName": "details_completed", "ParamValue": "4"}, {"ParamName": "followups_sent", "ParamValue": "9"}, {"ParamName": "waiting_on_you", "ParamValue": "2"}, {"ParamName": "sheet_link", "ParamValue": "https://docs.google.com/spreadsheets/d/EXAMPLE"}], "Hsm": null, "HsmOriginal": "", "LocalizableParams": null, "LastModified": "10-21-2026", "Created": "10-21-2026", "LastSynchronized": "10-21-2026", "Type": 1, "Header": null, "Body": "Hello! Here is your Saffron daily summary for {{summary_date}}. 🌼\n\nNew leads: {{new_leads}}\nDetails completed: {{details_completed}}\nFollow-ups sent: {{followups_sent}}\nWaiting on you: {{waiting_on_you}}\n\nFull breakdown in your leads sheet: {{sheet_link}}\n\nHave a great evening!", "BodyOriginal": "", "Footer": null, "Buttons": [], "CarouselCards": null, "ButtonsType": 0, "LastSubmitAttemptDate": null, "SubmittedUserId": "", "WABACheckPendingStatusTimes": 0, "LastWABACheckStatusDate": null, "ExpiresIn": 0, "IncludeExpiryTime": false, "AddSecurityRecommendation": false, "IsUrlBtnClickTrackingEnabled": false, "LimitedTimeOffer": null, "Quality": 0, "CreationMethod": 0, "ShopifyTrigger": 0, "IncludeCoupon": false, "CouponType": 0, "DiscountValue": null, "CouponCode": null, "EnableThirdPartyCheckout": false, "AttributionDays": 2, "TrackingUrlType": 0, "TrackingUrlVersion": 1, "ClientName": null, "FromTrial": false}]
+[
+ {
+  "Id": "",
+  "TenantId": "10223625",
+  "WabaContextId": null,
+  "ClareTemplateId": null,
+  "Status": {
+   "ClareTemplateId": null,
+   "WATemplateId": null,
+   "NewStatus": 0,
+   "Feedback": null,
+   "SubmittedAt": "0001-01-01T00:00:00",
+   "CurrencyMigration": false
+  },
+  "TemplateParamMapping": [
+   {
+    "Index": 1,
+    "ParamName": "first_name"
+   },
+   {
+    "Index": 2,
+    "ParamName": "full_name"
+   },
+   {
+    "Index": 3,
+    "ParamName": "event"
+   },
+   {
+    "Index": 4,
+    "ParamName": "event_date"
+   },
+   {
+    "Index": 5,
+    "ParamName": "location"
+   },
+   {
+    "Index": 6,
+    "ParamName": "service"
+   }
+  ],
+  "WATemplateId": "",
+  "ElementName": "lead_followup_v1",
+  "Category": "UTILITY",
+  "CorrectCategory": null,
+  "SubCategory": "STANDARD",
+  "CatalogInfo": null,
+  "Language": "en",
+  "CustomParams": [
+   {
+    "ParamName": "first_name",
+    "ParamValue": "Priya"
+   },
+   {
+    "ParamName": "full_name",
+    "ParamValue": "Priya Shah"
+   },
+   {
+    "ParamName": "event",
+    "ParamValue": "Wedding"
+   },
+   {
+    "ParamName": "event_date",
+    "ParamValue": "12 December"
+   },
+   {
+    "ParamName": "location",
+    "ParamValue": "Jaipur"
+   },
+   {
+    "ParamName": "service",
+    "ParamValue": "Planning and Decoration"
+   }
+  ],
+  "Hsm": null,
+  "HsmOriginal": "",
+  "LocalizableParams": null,
+  "LastModified": "10-21-2026",
+  "Created": "10-21-2026",
+  "LastSynchronized": "10-21-2026",
+  "Type": 1,
+  "Header": null,
+  "Body": "Hi {{first_name}},\n\nThanks for reaching out to Saffron Collective! 🌼\n\nWe have received your details:\nName: {{full_name}}\nEvent: {{event}}\nDate: {{event_date}}\nLocation: {{location}}\nService Required: {{service}}\n\nPlease confirm if this is correct, or reply here with anything you would like to add.",
+  "BodyOriginal": "",
+  "Footer": null,
+  "Buttons": [],
+  "CarouselCards": null,
+  "ButtonsType": 0,
+  "LastSubmitAttemptDate": null,
+  "SubmittedUserId": "",
+  "WABACheckPendingStatusTimes": 0,
+  "LastWABACheckStatusDate": null,
+  "ExpiresIn": 0,
+  "IncludeExpiryTime": false,
+  "AddSecurityRecommendation": false,
+  "IsUrlBtnClickTrackingEnabled": false,
+  "LimitedTimeOffer": null,
+  "Quality": 0,
+  "CreationMethod": 0,
+  "ShopifyTrigger": 0,
+  "IncludeCoupon": false,
+  "CouponType": 0,
+  "DiscountValue": null,
+  "CouponCode": null,
+  "EnableThirdPartyCheckout": false,
+  "AttributionDays": 2,
+  "TrackingUrlType": 0,
+  "TrackingUrlVersion": 1,
+  "ClientName": null,
+  "FromTrial": false
+ },
+ {
+  "Id": "",
+  "TenantId": "10223625",
+  "WabaContextId": null,
+  "ClareTemplateId": null,
+  "Status": {
+   "ClareTemplateId": null,
+   "WATemplateId": null,
+   "NewStatus": 0,
+   "Feedback": null,
+   "SubmittedAt": "0001-01-01T00:00:00",
+   "CurrencyMigration": false
+  },
+  "TemplateParamMapping": [
+   {
+    "Index": 1,
+    "ParamName": "first_name"
+   },
+   {
+    "Index": 2,
+    "ParamName": "full_name"
+   },
+   {
+    "Index": 3,
+    "ParamName": "event"
+   },
+   {
+    "Index": 4,
+    "ParamName": "event_date"
+   },
+   {
+    "Index": 5,
+    "ParamName": "location"
+   },
+   {
+    "Index": 6,
+    "ParamName": "service"
+   },
+   {
+    "Index": 7,
+    "ParamName": "missing_details"
+   }
+  ],
+  "WATemplateId": "",
+  "ElementName": "lead_finish_v1",
+  "Category": "UTILITY",
+  "CorrectCategory": null,
+  "SubCategory": "STANDARD",
+  "CatalogInfo": null,
+  "Language": "en",
+  "CustomParams": [
+   {
+    "ParamName": "first_name",
+    "ParamValue": "Priya"
+   },
+   {
+    "ParamName": "full_name",
+    "ParamValue": "Priya Shah"
+   },
+   {
+    "ParamName": "event",
+    "ParamValue": "Wedding"
+   },
+   {
+    "ParamName": "event_date",
+    "ParamValue": "12 December"
+   },
+   {
+    "ParamName": "location",
+    "ParamValue": "Not provided"
+   },
+   {
+    "ParamName": "service",
+    "ParamValue": "Planning and Decoration"
+   },
+   {
+    "ParamName": "missing_details",
+    "ParamValue": "your location and budget"
+   }
+  ],
+  "Hsm": null,
+  "HsmOriginal": "",
+  "LocalizableParams": null,
+  "LastModified": "10-21-2026",
+  "Created": "10-21-2026",
+  "LastSynchronized": "10-21-2026",
+  "Type": 1,
+  "Header": null,
+  "Body": "Hi {{first_name}},\n\nThanks for reaching out to Saffron Collective on Instagram! 🌼\n\nHere is what we have noted so far:\nName: {{full_name}}\nEvent: {{event}}\nDate: {{event_date}}\nLocation: {{location}}\nService Required: {{service}}\n\nWe would like a few more details before we can share a quote or some designs with you: {{missing_details}}.\n\nCould you please reply here with them?",
+  "BodyOriginal": "",
+  "Footer": null,
+  "Buttons": [],
+  "CarouselCards": null,
+  "ButtonsType": 0,
+  "LastSubmitAttemptDate": null,
+  "SubmittedUserId": "",
+  "WABACheckPendingStatusTimes": 0,
+  "LastWABACheckStatusDate": null,
+  "ExpiresIn": 0,
+  "IncludeExpiryTime": false,
+  "AddSecurityRecommendation": false,
+  "IsUrlBtnClickTrackingEnabled": false,
+  "LimitedTimeOffer": null,
+  "Quality": 0,
+  "CreationMethod": 0,
+  "ShopifyTrigger": 0,
+  "IncludeCoupon": false,
+  "CouponType": 0,
+  "DiscountValue": null,
+  "CouponCode": null,
+  "EnableThirdPartyCheckout": false,
+  "AttributionDays": 2,
+  "TrackingUrlType": 0,
+  "TrackingUrlVersion": 1,
+  "ClientName": null,
+  "FromTrial": false
+ },
+ {
+  "Id": "",
+  "TenantId": "10223625",
+  "WabaContextId": null,
+  "ClareTemplateId": null,
+  "Status": {
+   "ClareTemplateId": null,
+   "WATemplateId": null,
+   "NewStatus": 0,
+   "Feedback": null,
+   "SubmittedAt": "0001-01-01T00:00:00",
+   "CurrencyMigration": false
+  },
+  "TemplateParamMapping": [
+   {
+    "Index": 1,
+    "ParamName": "first_name"
+   }
+  ],
+  "WATemplateId": "",
+  "ElementName": "quiet_followup_1",
+  "Category": "MARKETING",
+  "CorrectCategory": null,
+  "SubCategory": "STANDARD",
+  "CatalogInfo": null,
+  "Language": "en",
+  "CustomParams": [
+   {
+    "ParamName": "first_name",
+    "ParamValue": "Priya"
+   }
+  ],
+  "Hsm": null,
+  "HsmOriginal": "",
+  "LocalizableParams": null,
+  "LastModified": "10-21-2026",
+  "Created": "10-21-2026",
+  "LastSynchronized": "10-21-2026",
+  "Type": 1,
+  "Header": null,
+  "Body": "Hi {{first_name}},\n\nJust following up from Saffron Collective. Would you like to continue our conversation about your event?\n\nReply here whenever you are ready 🌼",
+  "BodyOriginal": "",
+  "Footer": null,
+  "Buttons": [],
+  "CarouselCards": null,
+  "ButtonsType": 0,
+  "LastSubmitAttemptDate": null,
+  "SubmittedUserId": "",
+  "WABACheckPendingStatusTimes": 0,
+  "LastWABACheckStatusDate": null,
+  "ExpiresIn": 0,
+  "IncludeExpiryTime": false,
+  "AddSecurityRecommendation": false,
+  "IsUrlBtnClickTrackingEnabled": false,
+  "LimitedTimeOffer": null,
+  "Quality": 0,
+  "CreationMethod": 0,
+  "ShopifyTrigger": 0,
+  "IncludeCoupon": false,
+  "CouponType": 0,
+  "DiscountValue": null,
+  "CouponCode": null,
+  "EnableThirdPartyCheckout": false,
+  "AttributionDays": 2,
+  "TrackingUrlType": 0,
+  "TrackingUrlVersion": 1,
+  "ClientName": null,
+  "FromTrial": false
+ },
+ {
+  "Id": "",
+  "TenantId": "10223625",
+  "WabaContextId": null,
+  "ClareTemplateId": null,
+  "Status": {
+   "ClareTemplateId": null,
+   "WATemplateId": null,
+   "NewStatus": 0,
+   "Feedback": null,
+   "SubmittedAt": "0001-01-01T00:00:00",
+   "CurrencyMigration": false
+  },
+  "TemplateParamMapping": [
+   {
+    "Index": 1,
+    "ParamName": "first_name"
+   }
+  ],
+  "WATemplateId": "",
+  "ElementName": "quiet_followup_2",
+  "Category": "MARKETING",
+  "CorrectCategory": null,
+  "SubCategory": "STANDARD",
+  "CatalogInfo": null,
+  "Language": "en",
+  "CustomParams": [
+   {
+    "ParamName": "first_name",
+    "ParamValue": "Priya"
+   }
+  ],
+  "Hsm": null,
+  "HsmOriginal": "",
+  "LocalizableParams": null,
+  "LastModified": "10-21-2026",
+  "Created": "10-21-2026",
+  "LastSynchronized": "10-21-2026",
+  "Type": 1,
+  "Header": null,
+  "Body": "Hi {{first_name}},\n\nA gentle reminder from Saffron Collective. We would love to help with your event.\n\nPlease reply here if you would like to pick up where we left off 🌼",
+  "BodyOriginal": "",
+  "Footer": null,
+  "Buttons": [],
+  "CarouselCards": null,
+  "ButtonsType": 0,
+  "LastSubmitAttemptDate": null,
+  "SubmittedUserId": "",
+  "WABACheckPendingStatusTimes": 0,
+  "LastWABACheckStatusDate": null,
+  "ExpiresIn": 0,
+  "IncludeExpiryTime": false,
+  "AddSecurityRecommendation": false,
+  "IsUrlBtnClickTrackingEnabled": false,
+  "LimitedTimeOffer": null,
+  "Quality": 0,
+  "CreationMethod": 0,
+  "ShopifyTrigger": 0,
+  "IncludeCoupon": false,
+  "CouponType": 0,
+  "DiscountValue": null,
+  "CouponCode": null,
+  "EnableThirdPartyCheckout": false,
+  "AttributionDays": 2,
+  "TrackingUrlType": 0,
+  "TrackingUrlVersion": 1,
+  "ClientName": null,
+  "FromTrial": false
+ },
+ {
+  "Id": "",
+  "TenantId": "10223625",
+  "WabaContextId": null,
+  "ClareTemplateId": null,
+  "Status": {
+   "ClareTemplateId": null,
+   "WATemplateId": null,
+   "NewStatus": 0,
+   "Feedback": null,
+   "SubmittedAt": "0001-01-01T00:00:00",
+   "CurrencyMigration": false
+  },
+  "TemplateParamMapping": [
+   {
+    "Index": 1,
+    "ParamName": "first_name"
+   }
+  ],
+  "WATemplateId": "",
+  "ElementName": "quiet_followup_3",
+  "Category": "MARKETING",
+  "CorrectCategory": null,
+  "SubCategory": "STANDARD",
+  "CatalogInfo": null,
+  "Language": "en",
+  "CustomParams": [
+   {
+    "ParamName": "first_name",
+    "ParamValue": "Priya"
+   }
+  ],
+  "Hsm": null,
+  "HsmOriginal": "",
+  "LocalizableParams": null,
+  "LastModified": "10-21-2026",
+  "Created": "10-21-2026",
+  "LastSynchronized": "10-21-2026",
+  "Type": 1,
+  "Header": null,
+  "Body": "Hi {{first_name}},\n\nOne last note from Saffron Collective. If you are still planning your event, just reply here and we will be happy to continue.\n\nWishing you all the best! 🌼",
+  "BodyOriginal": "",
+  "Footer": null,
+  "Buttons": [],
+  "CarouselCards": null,
+  "ButtonsType": 0,
+  "LastSubmitAttemptDate": null,
+  "SubmittedUserId": "",
+  "WABACheckPendingStatusTimes": 0,
+  "LastWABACheckStatusDate": null,
+  "ExpiresIn": 0,
+  "IncludeExpiryTime": false,
+  "AddSecurityRecommendation": false,
+  "IsUrlBtnClickTrackingEnabled": false,
+  "LimitedTimeOffer": null,
+  "Quality": 0,
+  "CreationMethod": 0,
+  "ShopifyTrigger": 0,
+  "IncludeCoupon": false,
+  "CouponType": 0,
+  "DiscountValue": null,
+  "CouponCode": null,
+  "EnableThirdPartyCheckout": false,
+  "AttributionDays": 2,
+  "TrackingUrlType": 0,
+  "TrackingUrlVersion": 1,
+  "ClientName": null,
+  "FromTrial": false
+ },
+ {
+  "Id": "",
+  "TenantId": "10223625",
+  "WabaContextId": null,
+  "ClareTemplateId": null,
+  "Status": {
+   "ClareTemplateId": null,
+   "WATemplateId": null,
+   "NewStatus": 0,
+   "Feedback": null,
+   "SubmittedAt": "0001-01-01T00:00:00",
+   "CurrencyMigration": false
+  },
+  "TemplateParamMapping": [
+   {
+    "Index": 1,
+    "ParamName": "lead_count"
+   },
+   {
+    "Index": 2,
+    "ParamName": "urgent_count"
+   },
+   {
+    "Index": 3,
+    "ParamName": "sheet_link"
+   }
+  ],
+  "WATemplateId": "",
+  "ElementName": "team_digest_v1",
+  "Category": "UTILITY",
+  "CorrectCategory": null,
+  "SubCategory": "STANDARD",
+  "CatalogInfo": null,
+  "Language": "en",
+  "CustomParams": [
+   {
+    "ParamName": "lead_count",
+    "ParamValue": "5"
+   },
+   {
+    "ParamName": "urgent_count",
+    "ParamValue": "2"
+   },
+   {
+    "ParamName": "sheet_link",
+    "ParamValue": "https://docs.google.com/spreadsheets/d/EXAMPLE"
+   }
+  ],
+  "Hsm": null,
+  "HsmOriginal": "",
+  "LocalizableParams": null,
+  "LastModified": "10-21-2026",
+  "Created": "10-21-2026",
+  "LastSynchronized": "10-21-2026",
+  "Type": 1,
+  "Header": null,
+  "Body": "Good morning team! 🌼\n\nInstagram leads needing a follow-up today: {{lead_count}}\nUrgent: {{urgent_count}}\n\nPlease open the leads sheet to see them: {{sheet_link}}\n\nThank you!",
+  "BodyOriginal": "",
+  "Footer": null,
+  "Buttons": [],
+  "CarouselCards": null,
+  "ButtonsType": 0,
+  "LastSubmitAttemptDate": null,
+  "SubmittedUserId": "",
+  "WABACheckPendingStatusTimes": 0,
+  "LastWABACheckStatusDate": null,
+  "ExpiresIn": 0,
+  "IncludeExpiryTime": false,
+  "AddSecurityRecommendation": false,
+  "IsUrlBtnClickTrackingEnabled": false,
+  "LimitedTimeOffer": null,
+  "Quality": 0,
+  "CreationMethod": 0,
+  "ShopifyTrigger": 0,
+  "IncludeCoupon": false,
+  "CouponType": 0,
+  "DiscountValue": null,
+  "CouponCode": null,
+  "EnableThirdPartyCheckout": false,
+  "AttributionDays": 2,
+  "TrackingUrlType": 0,
+  "TrackingUrlVersion": 1,
+  "ClientName": null,
+  "FromTrial": false
+ },
+ {
+  "Id": "",
+  "TenantId": "10223625",
+  "WabaContextId": null,
+  "ClareTemplateId": null,
+  "Status": {
+   "ClareTemplateId": null,
+   "WATemplateId": null,
+   "NewStatus": 0,
+   "Feedback": null,
+   "SubmittedAt": "0001-01-01T00:00:00",
+   "CurrencyMigration": false
+  },
+  "TemplateParamMapping": [
+   {
+    "Index": 1,
+    "ParamName": "summary_date"
+   },
+   {
+    "Index": 2,
+    "ParamName": "new_leads"
+   },
+   {
+    "Index": 3,
+    "ParamName": "details_completed"
+   },
+   {
+    "Index": 4,
+    "ParamName": "followups_sent"
+   },
+   {
+    "Index": 5,
+    "ParamName": "waiting_on_you"
+   },
+   {
+    "Index": 6,
+    "ParamName": "sheet_link"
+   }
+  ],
+  "WATemplateId": "",
+  "ElementName": "owner_summary_v1",
+  "Category": "UTILITY",
+  "CorrectCategory": null,
+  "SubCategory": "STANDARD",
+  "CatalogInfo": null,
+  "Language": "en",
+  "CustomParams": [
+   {
+    "ParamName": "summary_date",
+    "ParamValue": "21 Oct"
+   },
+   {
+    "ParamName": "new_leads",
+    "ParamValue": "7"
+   },
+   {
+    "ParamName": "details_completed",
+    "ParamValue": "4"
+   },
+   {
+    "ParamName": "followups_sent",
+    "ParamValue": "9"
+   },
+   {
+    "ParamName": "waiting_on_you",
+    "ParamValue": "2"
+   },
+   {
+    "ParamName": "sheet_link",
+    "ParamValue": "https://docs.google.com/spreadsheets/d/EXAMPLE"
+   }
+  ],
+  "Hsm": null,
+  "HsmOriginal": "",
+  "LocalizableParams": null,
+  "LastModified": "10-21-2026",
+  "Created": "10-21-2026",
+  "LastSynchronized": "10-21-2026",
+  "Type": 1,
+  "Header": null,
+  "Body": "Hello! Here is your Saffron daily summary for {{summary_date}}. 🌼\n\nNew leads: {{new_leads}}\nDetails completed: {{details_completed}}\nFollow-ups sent: {{followups_sent}}\nWaiting on you: {{waiting_on_you}}\n\nFull breakdown in your leads sheet: {{sheet_link}}\n\nHave a great evening!",
+  "BodyOriginal": "",
+  "Footer": null,
+  "Buttons": [],
+  "CarouselCards": null,
+  "ButtonsType": 0,
+  "LastSubmitAttemptDate": null,
+  "SubmittedUserId": "",
+  "WABACheckPendingStatusTimes": 0,
+  "LastWABACheckStatusDate": null,
+  "ExpiresIn": 0,
+  "IncludeExpiryTime": false,
+  "AddSecurityRecommendation": false,
+  "IsUrlBtnClickTrackingEnabled": false,
+  "LimitedTimeOffer": null,
+  "Quality": 0,
+  "CreationMethod": 0,
+  "ShopifyTrigger": 0,
+  "IncludeCoupon": false,
+  "CouponType": 0,
+  "DiscountValue": null,
+  "CouponCode": null,
+  "EnableThirdPartyCheckout": false,
+  "AttributionDays": 2,
+  "TrackingUrlType": 0,
+  "TrackingUrlVersion": 1,
+  "ClientName": null,
+  "FromTrial": false
+ },
+ {
+  "Id": "",
+  "TenantId": "10223625",
+  "WabaContextId": null,
+  "ClareTemplateId": null,
+  "Status": {
+   "ClareTemplateId": null,
+   "WATemplateId": null,
+   "NewStatus": 0,
+   "Feedback": null,
+   "SubmittedAt": "0001-01-01T00:00:00",
+   "CurrencyMigration": false
+  },
+  "TemplateParamMapping": [
+   {
+    "Index": 1,
+    "ParamName": "first_name"
+   },
+   {
+    "Index": 2,
+    "ParamName": "occasion"
+   },
+   {
+    "Index": 3,
+    "ParamName": "event_date"
+   },
+   {
+    "Index": 4,
+    "ParamName": "location"
+   },
+   {
+    "Index": 5,
+    "ParamName": "guests"
+   },
+   {
+    "Index": 6,
+    "ParamName": "service"
+   },
+   {
+    "Index": 7,
+    "ParamName": "call_time"
+   },
+   {
+    "Index": 8,
+    "ParamName": "reading_title"
+   },
+   {
+    "Index": 9,
+    "ParamName": "reading_link"
+   }
+  ],
+  "WATemplateId": "",
+  "ElementName": "call_booked_v1",
+  "Category": "UTILITY",
+  "CorrectCategory": null,
+  "SubCategory": "STANDARD",
+  "CatalogInfo": null,
+  "Language": "en",
+  "CustomParams": [
+   {
+    "ParamName": "first_name",
+    "ParamValue": "Priya"
+   },
+   {
+    "ParamName": "occasion",
+    "ParamValue": "Wedding"
+   },
+   {
+    "ParamName": "event_date",
+    "ParamValue": "12 December 2026"
+   },
+   {
+    "ParamName": "location",
+    "ParamValue": "Jaipur"
+   },
+   {
+    "ParamName": "guests",
+    "ParamValue": "150-200"
+   },
+   {
+    "ParamName": "service",
+    "ParamValue": "Planning and Decoration"
+   },
+   {
+    "ParamName": "call_time",
+    "ParamValue": "Mon, 26 Oct, 4:30 pm IST"
+   },
+   {
+    "ParamName": "reading_title",
+    "ParamValue": "Our Planning Process"
+   },
+   {
+    "ParamName": "reading_link",
+    "ParamValue": "https://saffroncollective.in/planning-process"
+   }
+  ],
+  "Hsm": null,
+  "HsmOriginal": "",
+  "LocalizableParams": null,
+  "LastModified": "10-21-2026",
+  "Created": "10-21-2026",
+  "LastSynchronized": "10-21-2026",
+  "Type": 1,
+  "Header": null,
+  "Body": "Hi {{first_name}},\n\nThank you for sharing your details with Saffron Collective. 🌼\n\nHere is what we have noted:\n\nOccasion: {{occasion}}\nDate: {{event_date}}\nLocation: {{location}}\nGuests: {{guests}}\nLooking for: {{service}}\n\nYour call with our Founders is scheduled for:\n{{call_time}}\n\nWe look forward to speaking with you. 🌼\n\nMeanwhile, here is something you may like to read:\n\n{{reading_title}}\n{{reading_link}}\n\nWarm regards,\nTeam Saffron Collective",
+  "BodyOriginal": "",
+  "Footer": null,
+  "Buttons": [],
+  "CarouselCards": null,
+  "ButtonsType": 0,
+  "LastSubmitAttemptDate": null,
+  "SubmittedUserId": "",
+  "WABACheckPendingStatusTimes": 0,
+  "LastWABACheckStatusDate": null,
+  "ExpiresIn": 0,
+  "IncludeExpiryTime": false,
+  "AddSecurityRecommendation": false,
+  "IsUrlBtnClickTrackingEnabled": false,
+  "LimitedTimeOffer": null,
+  "Quality": 0,
+  "CreationMethod": 0,
+  "ShopifyTrigger": 0,
+  "IncludeCoupon": false,
+  "CouponType": 0,
+  "DiscountValue": null,
+  "CouponCode": null,
+  "EnableThirdPartyCheckout": false,
+  "AttributionDays": 2,
+  "TrackingUrlType": 0,
+  "TrackingUrlVersion": 1,
+  "ClientName": null,
+  "FromTrial": false
+ },
+ {
+  "Id": "",
+  "TenantId": "10223625",
+  "WabaContextId": null,
+  "ClareTemplateId": null,
+  "Status": {
+   "ClareTemplateId": null,
+   "WATemplateId": null,
+   "NewStatus": 0,
+   "Feedback": null,
+   "SubmittedAt": "0001-01-01T00:00:00",
+   "CurrencyMigration": false
+  },
+  "TemplateParamMapping": [
+   {
+    "Index": 1,
+    "ParamName": "first_name"
+   },
+   {
+    "Index": 2,
+    "ParamName": "call_time"
+   },
+   {
+    "Index": 3,
+    "ParamName": "join_info"
+   }
+  ],
+  "WATemplateId": "",
+  "ElementName": "call_reminder_v1",
+  "Category": "UTILITY",
+  "CorrectCategory": null,
+  "SubCategory": "STANDARD",
+  "CatalogInfo": null,
+  "Language": "en",
+  "CustomParams": [
+   {
+    "ParamName": "first_name",
+    "ParamValue": "Priya"
+   },
+   {
+    "ParamName": "call_time",
+    "ParamValue": "Fri, 23 Oct, 4:30 pm IST"
+   },
+   {
+    "ParamName": "join_info",
+    "ParamValue": "Google Meet link: https://meet.google.com/abc-defg-hij"
+   }
+  ],
+  "Hsm": null,
+  "HsmOriginal": "",
+  "LocalizableParams": null,
+  "LastModified": "10-21-2026",
+  "Created": "10-21-2026",
+  "LastSynchronized": "10-21-2026",
+  "Type": 1,
+  "Header": null,
+  "Body": "Hi {{first_name}},\n\nA gentle reminder about your call with the Saffron Collective Founders:\n\n{{call_time}}\n\n{{join_info}}\n\nNeed a different time? Just reply to this message and we will help. 🌼\n\nWarm regards,\nTeam Saffron Collective",
+  "BodyOriginal": "",
+  "Footer": null,
+  "Buttons": [],
+  "CarouselCards": null,
+  "ButtonsType": 0,
+  "LastSubmitAttemptDate": null,
+  "SubmittedUserId": "",
+  "WABACheckPendingStatusTimes": 0,
+  "LastWABACheckStatusDate": null,
+  "ExpiresIn": 0,
+  "IncludeExpiryTime": false,
+  "AddSecurityRecommendation": false,
+  "IsUrlBtnClickTrackingEnabled": false,
+  "LimitedTimeOffer": null,
+  "Quality": 0,
+  "CreationMethod": 0,
+  "ShopifyTrigger": 0,
+  "IncludeCoupon": false,
+  "CouponType": 0,
+  "DiscountValue": null,
+  "CouponCode": null,
+  "EnableThirdPartyCheckout": false,
+  "AttributionDays": 2,
+  "TrackingUrlType": 0,
+  "TrackingUrlVersion": 1,
+  "ClientName": null,
+  "FromTrial": false
+ },
+ {
+  "Id": "",
+  "TenantId": "10223625",
+  "WabaContextId": null,
+  "ClareTemplateId": null,
+  "Status": {
+   "ClareTemplateId": null,
+   "WATemplateId": null,
+   "NewStatus": 0,
+   "Feedback": null,
+   "SubmittedAt": "0001-01-01T00:00:00",
+   "CurrencyMigration": false
+  },
+  "TemplateParamMapping": [
+   {
+    "Index": 1,
+    "ParamName": "lead"
+   },
+   {
+    "Index": 2,
+    "ParamName": "reason"
+   },
+   {
+    "Index": 3,
+    "ParamName": "message"
+   },
+   {
+    "Index": 4,
+    "ParamName": "sheet_link"
+   }
+  ],
+  "WATemplateId": "",
+  "ElementName": "team_alert_v1",
+  "Category": "UTILITY",
+  "CorrectCategory": null,
+  "SubCategory": "STANDARD",
+  "CatalogInfo": null,
+  "Language": "en",
+  "CustomParams": [
+   {
+    "ParamName": "lead",
+    "ParamValue": "Priya (Instagram)"
+   },
+   {
+    "ParamName": "reason",
+    "ParamValue": "Asked a question during the questions"
+   },
+   {
+    "ParamName": "message",
+    "ParamValue": "Do you do destination weddings in Udaipur?"
+   },
+   {
+    "ParamName": "sheet_link",
+    "ParamValue": "https://docs.google.com/spreadsheets/d/abc"
+   }
+  ],
+  "Hsm": null,
+  "HsmOriginal": "",
+  "LocalizableParams": null,
+  "LastModified": "10-21-2026",
+  "Created": "10-21-2026",
+  "LastSynchronized": "10-21-2026",
+  "Type": 1,
+  "Header": null,
+  "Body": "Lead needing attention 🔔\n\nLead: {{lead}}\nWhy: {{reason}}\nThey wrote: {{message}}\n\nSheet: {{sheet_link}}\n\nPlease reply to them soon.",
+  "BodyOriginal": "",
+  "Footer": null,
+  "Buttons": [],
+  "CarouselCards": null,
+  "ButtonsType": 0,
+  "LastSubmitAttemptDate": null,
+  "SubmittedUserId": "",
+  "WABACheckPendingStatusTimes": 0,
+  "LastWABACheckStatusDate": null,
+  "ExpiresIn": 0,
+  "IncludeExpiryTime": false,
+  "AddSecurityRecommendation": false,
+  "IsUrlBtnClickTrackingEnabled": false,
+  "LimitedTimeOffer": null,
+  "Quality": 0,
+  "CreationMethod": 0,
+  "ShopifyTrigger": 0,
+  "IncludeCoupon": false,
+  "CouponType": 0,
+  "DiscountValue": null,
+  "CouponCode": null,
+  "EnableThirdPartyCheckout": false,
+  "AttributionDays": 2,
+  "TrackingUrlType": 0,
+  "TrackingUrlVersion": 1,
+  "ClientName": null,
+  "FromTrial": false
+ }
+]
