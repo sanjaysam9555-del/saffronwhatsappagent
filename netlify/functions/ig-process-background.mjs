@@ -2,6 +2,7 @@ import { decide, ESCALATION_ACK, CLIENT, GREETING, OPTOUT } from "../../lib/rule
 import { hardMoney, isPriceQuestion, priceAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
 import { guidesFor, guideText } from "../../lib/guides.mjs";
 import { extractPhone } from "../../lib/phone.mjs";
+import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playbook.mjs";
 import { extractFields, draftOpening, draftAck, draftHold, draftAfter, classifySender } from "../../lib/claude.mjs";
 import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult } from "../../lib/calendar.mjs";
@@ -67,11 +68,18 @@ export default async (req) => {
   }
 
   const label = username ? `@${username}` : `ig:${sid}`;
+  let pendingAsk = ""; // the question we were waiting for, repeated after a taught answer
   const send = async (msg) => {
+    await logExchange({ channel: "Instagram", contact: label, lead: text, agent: msg });
     for (const part of chunk(msg)) { await sendInstagramText(sid, part); await sleep(400); }
     await saveIg(sid, { lastOut: Date.now() });
   };
   const toHuman = async (reason, ack = true) => {
+    if (reason === "lead-question") { // an answer you have already taught the agent is used before anyone is bothered
+      const taught = await answerFromPlaybook(text);
+      if (taught) { await send(pendingAsk ? `${taught}\n\n${pendingAsk}` : taught); await incr("playbook_answers"); return; }
+      await recordQuestion({ channel: "Instagram", text });
+    }
     await saveIg(sid, { esc: true, escAt: Date.now() });
     if (ack && (await allow(`igack:${sid}`, 6 * HOUR))) await send((await draftHold({ text, name })) || ESCALATION_ACK);
     await incr("ig_escalations");
@@ -81,6 +89,7 @@ export default async (req) => {
 
   try {
     let c = await saveIg(sid, { lastIn: Date.now(), name: name || undefined, username: username || undefined });
+    pendingAsk = c.q?.stage === "asking" ? pendingQuestion(c.q) : "";
     const d = decide(text, { name });
 
     if (OPTOUT.test(text)) {

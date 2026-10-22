@@ -4,6 +4,7 @@ import { guidesFor, guideText } from "../../lib/guides.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
 import { findNameCandidate, classify } from "../../lib/match.mjs";
 import { countryOf, extractPhone } from "../../lib/phone.mjs";
+import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playbook.mjs";
 import { sendSessionMessage, updateContactAttributes, getRecentMessages } from "../../lib/wati.mjs";
 import { readChat } from "../../lib/team.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
@@ -95,11 +96,20 @@ export default async (req) => {
   const name = evt.senderName || "";
   if (isMediaOnly(text)) { await mediaRef(waId, name, "link"); return ok("link reference"); } // a pasted reel or Pinterest link
 
+  let pendingAsk = ""; // the question we were waiting for, repeated after a taught answer
   const agentSend = async (msg) => {
+    await logExchange({ channel: "WhatsApp", contact: `+${waId}`, lead: text, agent: msg });
     await saveContact(waId, { agentSent: Date.now(), lastOut: Date.now() });
     return sendSessionMessage(waId, msg);
   };
   const toHuman = async (reason, ack = true) => {
+    if (reason === "lead-question") { // an answer you have already taught the agent is used before anyone is bothered
+      const taught = await answerFromPlaybook(text);
+      if (taught) {
+        await agentSend(pendingAsk ? `${taught}\n\n${pendingAsk}` : taught); await incr("playbook_answers"); return;
+      }
+      await recordQuestion({ channel: "WhatsApp", text });
+    }
     await saveContact(waId, { esc: true, escText: text.slice(0, 160), escAt: Date.now() });
     await updateContactAttributes(waId, { needs_human: "true", needs_human_reason: reason });
     if (ack && (await allow(`ack:${waId}`, 6 * HOUR))) await agentSend((await draftHold({ text, name })) || ESCALATION_ACK);
@@ -110,6 +120,7 @@ export default async (req) => {
 
   try {
     const c = await saveContact(waId, { lastIn: Date.now(), followups: 0, name }); // a reply resets quiet follow-ups
+    pendingAsk = c.q?.stage === "asking" ? pendingQuestion(c.q) : "";
     const contact = await lookupContact(waId); // null until Planning Studio is wired
     const d = decide(text, { name: contact?.name || name, isVendor: contact?.kind === "vendor" });
 

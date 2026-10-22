@@ -675,3 +675,26 @@ test("after the chat is finished, what they share is saved and Claude answers in
     assert.equal(await draftAfter({ text: "hi", context: ctx }), null); // cannot do it safely: the caller hands over
   } finally { globalThis.fetch = realFetch; if (key === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = key; }
 });
+
+test("the improvement loop: taught answers are matched by Claude but written only by you", async () => {
+  const { answerFromPlaybook, normalize, recordQuestion, logExchange } = await import("../lib/playbook.mjs");
+  assert.equal(normalize("Do you do   DESTINATION weddings?!"), "do you do destination weddings");
+  const pairs = [{ q: "Do you plan destination weddings abroad?", a: "Yes, we plan destination weddings in India and abroad. 🌼" }, { q: "Do you provide photographers?", a: "We work with trusted photographers and can recommend a few." }];
+  const realFetch = globalThis.fetch, key = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = "test";
+  const say = (obj) => { globalThis.fetch = async () => ({ ok: true, json: async () => ({ content: [{ text: JSON.stringify(obj) }] }) }); };
+  try {
+    say({ match: 0 });
+    assert.equal(await answerFromPlaybook("can you do a wedding in Bali?", pairs), pairs[0].a); // your words, word for word
+    say({ match: null });
+    assert.equal(await answerFromPlaybook("what is the weather in Udaipur?", pairs), null);
+    say({ match: 7 });
+    assert.equal(await answerFromPlaybook("anything", pairs), null); // out of range: ignored
+    assert.equal(await answerFromPlaybook("anything", []), null); // nothing taught yet
+    globalThis.fetch = async () => ({ ok: false });
+    assert.equal(await answerFromPlaybook("anything", pairs), null);
+    // not live: the sheet is never touched and nothing throws
+    await recordQuestion({ channel: "Instagram", text: "do you do mehendi artists?" });
+    await logExchange({ channel: "Instagram", contact: "@x", lead: "hi", agent: "hello" });
+  } finally { globalThis.fetch = realFetch; if (key === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = key; }
+});
