@@ -9,7 +9,7 @@ import { priceAnswer, isPriceQuestion, hardMoney, budgetLakhs } from "../lib/fac
 import { sameName, sameDate, sameCity, classify } from "../lib/match.mjs";
 import { isUrgent, describe, openCounts, HEADERS } from "../lib/needsteam.mjs";
 import { assess, missingFields, suggestNudge, igNudgeText, summaryLine, rowFields, confirmParams } from "../lib/leadfields.mjs";
-import { newState, advance } from "../lib/qualify.mjs";
+import { newState, advance, serviceLine } from "../lib/qualify.mjs";
 import { checkReply, parseModelJson } from "../lib/claude.mjs";
 import { stage, CFG } from "../netlify/functions/lead-followup.mjs";
 import { isEligible } from "../netlify/functions/quiet-followup.mjs";
@@ -587,4 +587,28 @@ test("a lead who wants another day is offered times from that day, not sent to t
   let cur = q;
   for (let i = 0; i < 3; i++) cur = (await consultTurn(cur, "none of these", deps)).q;
   assert.equal((await consultTurn(cur, "none of these", deps)).escalate, "call-time-request");
+});
+
+test("the opening answers what the lead asked for, and the number ask explains why", () => {
+  const q = newState({}, "Instagram", "instagram");
+  const r = advance(q, "Hi can you help with decor for my wedding?", {}, "S Jay");
+  assert.equal(r.kind, "ask");
+  assert.equal(r.reply,
+    "Hello S!\n\nThank you for reaching out to Saffron Collective 🌼\n\nWe would love to help you with the decor.\n\nTo help our planner prepare, I have a few quick questions.\n\n" +
+    "May I have your mobile number? Please include the country code if it is outside India.\n\nThis is required so that we can quickly confirm a few details for sharing the quote/design.");
+});
+
+test("serviceLine reads decor, planning, both, or nothing", () => {
+  assert.equal(serviceLine("looking for wedding decoration in Jaipur"), "We would love to help you with the decor.");
+  assert.equal(serviceLine("need a wedding planner"), "We would love to help you with the planning.");
+  assert.equal(serviceLine("full planning and decor please"), "We would love to help you with the planning and decor.");
+  assert.equal(serviceLine("Hi"), "");
+  assert.equal(serviceLine("what are your charges?"), "");
+});
+
+test("a greeted lead who also says what they want gets the line without a second welcome", () => {
+  const q = { ...newState({}, "Instagram", "instagram"), greeted: true };
+  const r = advance(q, "can you help with decor?", {}, "S Jay");
+  assert.ok(r.reply.startsWith("We would love to help you with the decor."));
+  assert.ok(!/Thank you for reaching out/.test(r.reply));
 });
