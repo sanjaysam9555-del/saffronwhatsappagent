@@ -12,7 +12,7 @@ import { recordCall, callRecord } from "../../lib/calls.mjs";
 import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail, wantsReschedule, wantsCancel, startReschedule } from "../../lib/consult.mjs";
 import { isMediaOnly, recordMedia, REF_THANKS, REF_UNSURE, REF_NOTE, refOpen, greetingText } from "../../lib/media.mjs";
 import { greetName } from "../../lib/leadfields.mjs";
-import { sendInstagramText, getInstagramLastText } from "../../lib/manychat.mjs";
+import { sendInstagramText, getInstagramLastText, parseManychatEvent } from "../../lib/manychat.mjs";
 import { getIg, saveIg, queueMessage, claimQueue, resetIg } from "../../lib/igstate.mjs";
 import { upsertInstagramLead } from "../../lib/sheet.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
@@ -46,8 +46,8 @@ export function chunk(text, max = 900) {
 export default async (req) => {
   const url = new URL(req.url);
   if (url.searchParams.get("key") !== process.env.WEBHOOK_SECRET) return new Response("forbidden", { status: 403 });
-  let evt;
-  try { evt = await req.json(); } catch { return new Response("bad json", { status: 400 }); }
+  const evt = parseManychatEvent(await req.text().catch(() => ""));
+  if (!evt) return new Response("bad json", { status: 400 });
   const sid = String(evt.subscriber_id || "").trim();
   const username = String(evt.ig_username || "").replace(/^@/, "");
   const name = cleanName(evt.name);

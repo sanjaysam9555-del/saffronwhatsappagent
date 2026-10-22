@@ -1042,3 +1042,17 @@ test("the opening says plain Hello when the profile name is a business", () => {
   const r = advance(q, "Hi can you help with decor for my wedding?", {}, "Royal Decor Studio");
   assert.ok(r.reply.startsWith("Hello!\n\nThank you for reaching out"));
 });
+
+test("ManyChat requests with line breaks or quotes in the message are still read", async () => {
+  const { parseManychatEvent } = await import("../lib/manychat.mjs");
+  const clean = parseManychatEvent('{"subscriber_id":"1","name":"Riya","ig_username":"riya","text":"hello"}');
+  assert.equal(clean.text, "hello");
+  const broken = parseManychatEvent('{\n "subscriber_id": "123",\n "name": "Riya Sharma",\n "ig_username": "riya",\n "text": "Hi\nWedding in Jaipur\n\"Dec\" 2027"\n}');
+  assert.equal(broken.subscriber_id, "123");
+  assert.equal(broken.name, "Riya Sharma");
+  assert.equal(broken.text, 'Hi\nWedding in Jaipur\n"Dec" 2027');
+  const full = parseManychatEvent(JSON.stringify({ id: "9", first_name: "A", name: "Asha Rao", ig_username: "asha", last_input_text: "line1\nline2" }));
+  assert.equal(full.subscriber_id, "9");
+  assert.equal(full.text, "line1\nline2");
+  assert.equal(parseManychatEvent("nonsense"), null);
+});
