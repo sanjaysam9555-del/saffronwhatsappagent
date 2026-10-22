@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { decide, MONEY, vendorStrong, CLIENT } from "../lib/rules.mjs";
-import { normalizePhone } from "../lib/phone.mjs";
+import { normalizePhone, countryOf, theirTime, extractPhone } from "../lib/phone.mjs";
+import { guidesFor, guideText, GUIDES } from "../lib/guides.mjs";
+import { isMediaOnly, recordMedia } from "../lib/media.mjs";
+import { cleanName, chunk } from "../netlify/functions/ig-process-background.mjs";
+import { priceAnswer, isPriceQuestion, hardMoney, budgetLakhs } from "../lib/facts.mjs";
+import { sameName, sameDate, sameCity, classify } from "../lib/match.mjs";
+import { isUrgent, describe, openCounts, HEADERS } from "../lib/needsteam.mjs";
 import { assess, missingFields, suggestNudge, igNudgeText, summaryLine, rowFields, confirmParams } from "../lib/leadfields.mjs";
 import { newState, advance } from "../lib/qualify.mjs";
 import { checkReply, parseModelJson } from "../lib/claude.mjs";
@@ -80,29 +86,94 @@ test("summary line has no line breaks (template safe)", () => {
 });
 
 // ---------- WhatsApp question flow ----------
-test("direct WhatsApp lead: four questions, summary, confirmation", () => {
+test("direct WhatsApp lead: five questions (no number, no budget), summary, confirmation, then the Founders' call", () => {
   let r = advance(newState(), "hi", {}, "Priya Shah");
   assert.equal(r.kind, "ask");
+  assert.match(r.reply, /wedding, a reception/);
+  assert.doesNotMatch(r.reply, /number|budget/i);
+  r = advance(r.q, "wedding", {});
   assert.match(r.reply, /What date/);
   r = advance(r.q, "12 December", {});
   assert.match(r.reply, /Which city/);
   r = advance(r.q, "Jaipur", {});
-  assert.match(r.reply, /wedding, a reception/);
-  r = advance(r.q, "wedding", {});
-  assert.match(r.reply, /planning, decoration/);
+  assert.match(r.reply, /guests/);
+  r = advance(r.q, "around 200", {});
+  assert.match(r.reply, /full planning, decoration only, or both/);
   r = advance(r.q, "both", {}, "Priya Shah");
   assert.equal(r.kind, "summary");
   assert.match(r.reply, /Event date: 12 December/);
+  assert.match(r.reply, /Guests: around 200/);
   assert.match(r.reply, /confirm if this is correct, or reply with anything you would like to add/);
-  const c = advance(r.q, "yes correct");
+  let c = advance(r.q, "yes correct");
   assert.equal(c.kind, "confirmed");
-  assert.equal(c.q.stage, "done");
+  assert.equal(c.q.stage, "call");
+  assert.match(c.reply, /quick 20-minute call with our Founders/);
+  assert.match(c.reply, /Google Meet video call or a phone call/);
+  const v = advance(c.q, "video is fine");
+  assert.equal(v.kind, "call-pref"); assert.equal(v.q.callPref, "meet"); assert.equal(v.q.stage, "done");
+  const ph = advance(c.q, "phone please");
+  assert.equal(ph.q.callPref, "phone"); assert.match(ph.reply, /call you on this number/);
+  assert.equal(advance(c.q, "not now").kind, "call-declined");
+  const u1 = advance(c.q, "hmm ok");
+  assert.equal(u1.kind, "call-ask");
+  assert.equal(advance(u1.q, "ok").q.callPref, "either");
+});
+
+test("asking our fee gets the website answer, then the questions carry on; nothing is invented", () => {
+  const first = advance(newState(), "how much do you charge?", {}, "Riya", "Welcome Riya", "", priceAnswer("how much do you charge?"));
+  assert.match(first.reply, /flat fee, never a percentage/);
+  assert.match(first.reply, /₹3\.5 lakh/);
+  assert.match(first.reply, /quick questions/);
+  assert.equal(first.kind, "ask");
+  const mid = advance({ ...first.q }, "what is the price?", {}, "Riya", "", "", priceAnswer("what is the price?"));
+  assert.equal(mid.kind, "ask");
+  assert.ok(!mid.q.fields[first.q.asked], "a price question is not an answer to the question");
+  assert.equal(priceAnswer("decor price?").includes("₹"), false);
+  assert.match(priceAnswer("do you do partial planning, cost?"), /₹2 lakh/);
+  assert.equal(isPriceQuestion("what is your fee"), true);
+  assert.equal(hardMoney("what is the price?"), false);
+  assert.equal(hardMoney("my budget is 6 lakh"), false);
+  assert.equal(hardMoney("can I get a discount"), true);
+  assert.equal(hardMoney("how do I pay the advance"), true);
+  assert.equal(budgetLakhs("budget 60-70k"), 0.7);
+  assert.equal(budgetLakhs("around 50 lakh"), 50);
+  assert.equal(budgetLakhs("1.5 cr"), 150);
+});
+
+test("numbers from any country get a country and their local time; Indian numbers are unaffected", () => {
+  assert.equal(countryOf("447911123456").name, "UK");
+  assert.equal(countryOf("61412345678").name, "Australia");
+  assert.equal(countryOf("353871234567").name, "Ireland");
+  assert.equal(countryOf("15483337252").name, "US/Canada");
+  assert.equal(countryOf("919876543210").india, true);
+  assert.match(theirTime("61412345678", new Date("2026-10-22T10:00:00Z")), /Thu/);
+});
+
+test("same person on Instagram and WhatsApp: number is certain, name needs date or city, name alone is only a hint", () => {
+  assert.equal(sameName("Priya Sharma", "priya  sharma"), true);
+  assert.equal(sameName("Priya", "Priya Sharma"), false); // one name part is never enough
+  assert.equal(sameName("Priya Sharma", "Priya Verma"), false);
+  assert.equal(sameDate("14 Feb 2027", "February 2027"), true);
+  assert.equal(sameDate("14 Feb", "15 Feb"), false);
+  assert.equal(sameCity("Jaipur", "jaipur, rajasthan"), true);
+  const cand = { name: "Priya Sharma", fields: { date: "14 Feb 2027", location: "Jaipur" } };
+  assert.equal(classify("Priya Sharma", { date: "February 2027" }, cand), "probable");
+  assert.equal(classify("Priya Sharma", { location: "Goa", date: "March" }, cand), "weak");
+  assert.equal(classify("Priya Verma", { date: "February 2027" }, cand), "none");
+});
+
+test("Needs Team: plain-words reasons, urgent ones flagged, open rows counted", () => {
+  assert.equal(isUrgent("ready-for-call"), true);
+  assert.equal(isUrgent("looks-like-vendor"), false);
+  assert.match(describe("money-or-commitment")[0], /payment/);
+  const rows = [HEADERS, ["22 Oct", "WhatsApp", "A", "+91", "", "x", "URGENT", "", "", ""], ["22 Oct", "WhatsApp", "B", "+91", "", "x", "NORMAL", "", "", "Done"], ["22 Oct", "WhatsApp", "C", "+91", "", "x", "NORMAL", "", "", ""]];
+  assert.deepEqual(openCounts(rows), { total: 2, urgent: 1 });
 });
 
 test("a lead who asks a question mid-flow goes to a human; additions after the summary are recorded", () => {
   let r = advance(newState(), "hello", {});
   assert.equal(advance(r.q, "Can you tell me the location of this venue?", {}).kind, "escalate");
-  const filled = newState({ date: "1 Jan", location: "Goa", occasion: "Wedding", requirement: "Both" });
+  const filled = newState({ date: "1 Jan", location: "Goa", occasion: "Wedding", guests: "100", requirement: "Both" });
   r = advance(filled, "hi", {});
   assert.equal(r.kind, "summary");
   const add = advance(r.q, "also please add a sangeet on 2 Jan");
@@ -114,7 +185,7 @@ test("extraction fills several answers at once and skips the questions already a
   let r = advance(newState(), "hi", {});
   r = advance(r.q, "Jaipur wedding in February", { date: "February", location: "Jaipur", occasion: "wedding" });
   assert.equal(r.kind, "ask");
-  assert.match(r.reply, /planning, decoration/);
+  assert.match(r.reply, /guests/);
 });
 
 test("an Instagram lead continuing on WhatsApp is asked only what's missing", () => {
@@ -243,4 +314,125 @@ test("vendors are told apart from clients: a role word alone is not enough", () 
 test("existing-client phrases go to a person", () => {
   for (const t of ["I have already booked with you", "this is regarding my wedding with you", "I paid the advance last week", "who is my planner?"]) assert.ok(CLIENT.test(t), t);
   for (const t of ["Hi, planning a wedding in Jaipur", "Need a planner for December"]) assert.ok(!CLIENT.test(t), t);
+});
+
+// ---- lead audit classification
+import { classifyLead } from "../lib/audit.mjs";
+{
+  const DAYMS = 24 * 3600_000, now = Date.now();
+  const done = { waId: "919999999999", complete: true, missing: [] };
+  const part = { waId: "919999999999", complete: false, missing: [{ label: "event date" }] };
+  const T = (cond, msg) => { if (!cond) { console.error("FAIL audit:", msg); process.exitCode = 1; } };
+  T(classifyLead({ waId: "", missing: [], question: null }, null, null).status === "No valid number", "no number");
+  T(classifyLead(done, [], null).action === "SEND_SUMMARY", "never contacted complete");
+  T(classifyLead(part, [], null).action === "SEND_FINISH", "never contacted partial");
+  T(classifyLead(done, [{ from: "customer", text: "stop", t: now }], { teamSpoke: false, lastOutAt: 0, lastCustomerAt: now }).action === "SKIP", "opt-out");
+  T(classifyLead(done, [{ from: "customer", text: "hi", t: now }], { teamSpoke: true, lastOutAt: now - DAYMS, lastCustomerAt: now }).action === "TEAM", "lead wrote last");
+  T(classifyLead(done, [{ from: "us", text: "x", t: now - 5 * DAYMS }], { teamSpoke: true, lastOutAt: now - 5 * DAYMS, lastCustomerAt: 0 }, 0, now).action === "QUIET_FOLLOWUP", "quiet");
+  T(classifyLead(done, [{ from: "us", text: "x", t: now - DAYMS }], { teamSpoke: true, lastOutAt: now - DAYMS, lastCustomerAt: 0 }, 0, now).action === "WAIT", "recent");
+  T(classifyLead(done, [{ from: "us", text: "x", t: now - 9 * DAYMS }], { teamSpoke: true, lastOutAt: now - 9 * DAYMS, lastCustomerAt: 0 }, 3, now).action === "WAIT", "used up");
+}
+
+// ---- tailored first reply
+import { advance as adv2, newState as ns2 } from "../lib/qualify.mjs";
+{
+  const r = adv2(ns2(), "Hi! I'm getting married next year, can we discuss pricing?", {}, "Manya Bhutani", "Congratulations Manya, welcome to Saffron Collective 🌼 Our planner will walk you through everything.");
+  if (!r.reply.startsWith("Congratulations Manya") || !/wedding, a reception/i.test(r.reply) || r.kind !== "ask") { console.error("FAIL opener", r.reply); process.exitCode = 1; }
+  const r2 = adv2(ns2(), "hello", {}, "Manya");
+  if (!/Thank you for reaching out to Saffron Collective/.test(r2.reply)) { console.error("FAIL default opener"); process.exitCode = 1; }
+}
+
+// ---- tailored reactions during the questions
+import { advance as adv3, newState as ns3 } from "../lib/qualify.mjs";
+{
+  let q = adv3(ns3(), "hello", {}, "Manya").q;
+  const r = adv3(q, "Wedding in December 2027", { occasion: "Wedding", date: "December 2027" }, "Manya", "", "A December wedding, how lovely!");
+  if (!r.reply.startsWith("A December wedding, how lovely!\n\nWhich city")) { console.error("FAIL ack ask", r.reply); process.exitCode = 1; }
+  const f = { date: "Dec 2027", location: "Udaipur", occasion: "Wedding", guests: "150", requirement: "Both" };
+  const s = adv3({ ...q, stage: "asking", asked: "requirement", fields: { ...f, requirement: undefined } }, "Both", { requirement: "Both" }, "Manya", "", "Planning and decoration together, perfect.");
+  if (!s.reply.startsWith("Planning and decoration together, perfect. Here is what we have noted")) { console.error("FAIL ack summary", s.reply); process.exitCode = 1; }
+  const c = adv3({ ...q, stage: "confirm", fields: f }, "yes", {}, "Manya", "", "Wonderful.");
+  if (!c.reply.startsWith("Thank you for confirming!\n\nTo help you better")) { console.error("FAIL ack confirm", c.reply); process.exitCode = 1; }
+}
+
+test("Instagram flow: number asked first, any country accepted, deferral handled without pushing", () => {
+  assert.deepEqual(extractPhone("my number is +44 7911 123456"), { status: "ok", number: "447911123456" });
+  assert.deepEqual(extractPhone("+61 412 345 678"), { status: "ok", number: "61412345678" });
+  assert.deepEqual(extractPhone("0091 98765 43210"), { status: "ok", number: "919876543210" });
+  assert.deepEqual(extractPhone("98765 43210"), { status: "ok", number: "919876543210" });
+  assert.equal(extractPhone("4155550123").status, "ambiguous"); // US-style, no country code
+  assert.equal(extractPhone("12 Feb 2027").status, "none");
+  assert.equal(extractPhone("around 150 guests").status, "none");
+
+  let r = advance(newState({}, "Instagram", "instagram"), "hi, need wedding planning", {}, "Riya Shah", "Hello Riya!");
+  assert.equal(r.kind, "ask");
+  assert.match(r.reply, /mobile number/);
+  assert.match(r.reply, /country code/);
+  // gives a number: moves on to the occasion
+  const given = advance(r.q, "+447911123456", { number: "+447911123456" }, "Riya");
+  assert.equal(given.q.fields.number, "+447911123456");
+  assert.match(given.reply, /wedding, a reception/);
+  // incomplete number: asked once for the country code
+  const amb = advance(r.q, "4155550123", { numberAmbiguous: true }, "Riya");
+  assert.match(amb.reply, /country code/);
+  assert.equal(amb.q.asked, "number");
+  // first deferral: reassured once, then the next question; never stuck
+  const d1 = advance(r.q, "I will share it later", {}, "Riya");
+  assert.equal(d1.q.fields.number, "Pending");
+  assert.match(d1.reply, /Happy to continue here/);
+  assert.match(d1.reply, /wedding, a reception/);
+  // refusal is respected
+  const no = advance(r.q, "I don't want to share my number", {}, "Riya");
+  assert.equal(no.q.fields.number, "Not shared");
+  assert.match(no.reply, /continue right here/);
+  // a number shared later is still picked up
+  const late = advance(d1.q, "ok its +61412345678", { number: "+61412345678" }, "Riya");
+  assert.equal(late.q.fields.number, "+61412345678");
+  // free text is never stored as a number, and a pending number is not shown in the summary
+  let s = { q: d1.q };
+  for (const [t, ex] of [["wedding", { occasion: "Wedding" }], ["Feb 2027", { date: "Feb 2027" }], ["Jaipur", { location: "Jaipur" }], ["150", { guests: "150" }], ["both", { requirement: "both" }]]) s = advance(s.q, t, ex, "Riya");
+  assert.equal(s.kind, "summary");
+  assert.doesNotMatch(s.reply, /Mobile: Pending/);
+  assert.match(s.reply, /share your mobile number here/); // one last gentle ask
+  assert.equal(advance({ ...s.q, stage: "confirm" }, "yes").q.stage, "call");
+});
+
+test("Instagram helpers: odd profile names are dropped, long replies split on paragraphs", () => {
+  assert.equal(cleanName("Priya Sharma"), "Priya Sharma");
+  assert.equal(cleanName("🌸✨"), "");
+  assert.equal(cleanName("user12345"), "");
+  const long = Array.from({ length: 8 }, (_, i) => `Paragraph ${i} ` + "x".repeat(200)).join("\n\n");
+  const parts = chunk(long);
+  assert.ok(parts.length > 1 && parts.every((p) => p.length <= 900));
+  assert.equal(parts.join("\n\n"), long);
+});
+
+test("a shared reel or photo is a reference, not a stop; only a burst of files pauses the chat", () => {
+  for (const t of ["https://www.instagram.com/reel/Cxyz123/", "[attachment]", "[image]", "https://pin.it/abc"]) assert.equal(isMediaOnly(t), true, t);
+  for (const t of ["we want this decor https://www.instagram.com/reel/abc/", "hello", "wedding in feb"]) assert.equal(isMediaOnly(t), false, t);
+  let r = recordMedia([], 1_000_000);
+  assert.equal(r.burst, false);
+  r = recordMedia(r.times, 1_000_000 + 60_000);
+  assert.equal(r.burst, false);
+  r = recordMedia(r.times, 1_000_000 + 120_000);
+  assert.equal(r.burst, true); // third file in 10 minutes
+  assert.equal(recordMedia([1_000_000], 1_000_000 + 20 * 60_000).burst, false); // old ones age out
+});
+
+test("questions a website page answers get the page link; the AI never writes a link", () => {
+  const url = (t) => guidesFor(t).map((g) => g.url.replace("https://saffroncollective.in", ""));
+  assert.deepEqual(url("how much does a wedding cost in Delhi?"), ["/delhi-ncr-wedding-cost-guide"]);
+  assert.deepEqual(url("when should we start booking vendors?"), ["/wedding-planning-timeline-guide"]);
+  assert.deepEqual(url("what does a wedding planner actually do"), ["/what-does-a-wedding-planner-do-guide"]);
+  assert.deepEqual(url("what should I ask the venue before booking"), ["/wedding-venue-questions-guide"]);
+  assert.deepEqual(url("why do planner fees vary so much"), ["/wedding-hospitality-cost-guide"]);
+  assert.deepEqual(url("is destination wedding cheaper than home city"), ["/destination-vs-home-city-wedding-cost-guide"]);
+  assert.deepEqual(url("what is included in your package?"), ["/wedding-services"]);
+  assert.deepEqual(url("can you share your portfolio"), ["/portfolio"]);
+  assert.deepEqual(url("do you do decor?"), ["/services/wedding-decoration"]);
+  assert.deepEqual(url("we are a Jaipur wedding in February, 200 guests"), []);
+  assert.deepEqual(url("hi I need your services"), []);
+  assert.match(guideText(guidesFor("how does it work")), /explained in detail here:\n\nOur Planning Process\nhttps:\/\/saffroncollective\.in\/planning-process/);
+  for (const g of GUIDES) assert.match(g.url, /^https:\/\/saffroncollective\.in\/[a-z0-9\/-]+$/);
+  assert.match(priceAnswer("how much do you charge"), /saffroncollective\.in\/pricing/);
 });
