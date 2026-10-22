@@ -8,7 +8,7 @@ import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, ap
 import { calendarEnabled, offerSlots, bookConsult } from "../../lib/calendar.mjs";
 import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail } from "../../lib/consult.mjs";
 import { isMediaOnly, recordMedia, REF_THANKS, REF_NOTE, REF_OPEN } from "../../lib/media.mjs";
-import { sendInstagramText } from "../../lib/manychat.mjs";
+import { sendInstagramText, getInstagramLastText } from "../../lib/manychat.mjs";
 import { getIg, saveIg, queueMessage, claimQueue, resetIg } from "../../lib/igstate.mjs";
 import { upsertInstagramLead } from "../../lib/sheet.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
@@ -48,10 +48,13 @@ export default async (req) => {
   const username = String(evt.ig_username || "").replace(/^@/, "");
   const name = cleanName(evt.name);
   // "agenttest" is the keyword that routes test messages in ManyChat; it is never part of what a lead means.
-  const stripped = String(evt.text ?? "").replace(/^\s*agenttest\b[\s:,.-]*/i, "").trim();
-  const rawText = stripped || (/^\s*agenttest\b/i.test(String(evt.text ?? "")) ? "Hi" : "") || "[attachment]";
+  // The text normally comes in the request. If it is missing (the body may carry only the subscriber id), read it from ManyChat.
+  let evtText = String(evt.text ?? "");
+  if (!evtText.trim() && sid) evtText = await getInstagramLastText(sid);
+  const stripped = String(evtText).replace(/^\s*agenttest\b[\s:,.-]*/i, "").trim();
+  const rawText = stripped || (/^\s*agenttest\b/i.test(evtText) ? "Hi" : "") || "[attachment]";
   if (!sid || !testAllows({ mcId: sid })) return ok("ignored");
-  if (/^\s*agenttest\s+reset\b/i.test(String(evt.text ?? ""))) { // test helper: start over
+  if (/^\s*agenttest\s+reset\b/i.test(evtText)) { // test helper: start over
     await resetIg(sid);
     await sendInstagramText(sid, "Test reset done. Send \"agenttest\" followed by your message to start again.");
     return ok("reset");

@@ -698,3 +698,44 @@ test("the improvement loop: taught answers are matched by Claude but written onl
     await logExchange({ channel: "Instagram", contact: "@x", lead: "hi", agent: "hello" });
   } finally { globalThis.fetch = realFetch; if (key === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = key; }
 });
+
+test("one line that answers several questions is read in full, and nothing already said is asked again", async () => {
+  const { localFields } = await import("../lib/claude.mjs");
+  const { newState, advance } = await import("../lib/qualify.mjs");
+  assert.deepEqual(localFields("Wedding in november next year", "occasion"), { date: "november next year", occasion: "Wedding" });
+  assert.deepEqual(localFields("Wedding\nIn november next year", "occasion"), { date: "november next year", occasion: "Wedding" });
+  assert.deepEqual(localFields("may i know the price", "date"), {});
+  assert.equal(localFields("12-13 Feb 2027, 200 guests", "date").date, "12-13 Feb 2027");
+  assert.equal(localFields("around 150", "guests").guests, "150");
+  // Claude's reading unavailable: the plain-code reading still stops the date being asked again
+  const q = { ...newState({ number: "Not shared" }, "Instagram", "instagram"), stage: "asking", asked: "occasion", greeted: true };
+  const r = advance(q, "Wedding in november next year", localFields("Wedding in november next year", "occasion"));
+  assert.equal(r.q.fields.occasion, "Wedding"); assert.equal(r.q.fields.date, "november next year");
+  assert.match(r.reply, /city or destination/); assert.doesNotMatch(r.reply, /What date/);
+  // a date given where the occasion was asked is not stored as the occasion
+  const r2 = advance(q, "In March", { date: "March" });
+  assert.equal(r2.q.fields.date, "March"); assert.equal(r2.q.fields.occasion, undefined);
+  assert.match(r2.reply, /wedding, a reception/);
+});
+
+test("the lead's message can be read from ManyChat when the request carries only the subscriber id", async () => {
+  const { getInstagramLastText } = await import("../lib/manychat.mjs");
+  const realFetch = globalThis.fetch, dry = process.env.DRY_RUN, tok = process.env.MANYCHAT_API_TOKEN;
+  try {
+    process.env.DRY_RUN = "true";
+    assert.equal(await getInstagramLastText("123"), ""); // not live: nothing is called
+    process.env.DRY_RUN = "false"; process.env.MANYCHAT_API_TOKEN = "t";
+    let url = "";
+    globalThis.fetch = async (u) => { url = u; return { ok: true, json: async () => ({ status: "success", data: { last_input_text: "Wedding\nIn november next year " } }) }; };
+    assert.equal(await getInstagramLastText("123"), "Wedding\nIn november next year");
+    assert.match(url, /subscriber\/getInfo\?subscriber_id=123/);
+    globalThis.fetch = async () => ({ ok: false, status: 400, json: async () => ({}) });
+    assert.equal(await getInstagramLastText("123"), "");
+    globalThis.fetch = async () => { throw new Error("down"); };
+    assert.equal(await getInstagramLastText("123"), "");
+  } finally {
+    globalThis.fetch = realFetch;
+    if (dry === undefined) delete process.env.DRY_RUN; else process.env.DRY_RUN = dry;
+    if (tok === undefined) delete process.env.MANYCHAT_API_TOKEN; else process.env.MANYCHAT_API_TOKEN = tok;
+  }
+});
