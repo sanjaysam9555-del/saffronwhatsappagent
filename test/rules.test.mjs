@@ -767,3 +767,60 @@ test("the booking confirmation says Founders once", async () => {
   assert.equal((r.reply.match(/Founders/g) || []).length, 1);
   assert.match(r.reply, /They will call you on \+919899287314/);
 });
+
+test("follow-ups: whoever asked last (agent or your team), once in the chat; agent chats also get one template the next day", async () => {
+  const { nudgeKind } = await import("../lib/nudge.mjs");
+  const { nudgeAsk } = await import("../lib/qualify.mjs");
+  const { draftNudge, draftFollowUp } = await import("../lib/claude.mjs");
+  const H = 3600_000, now = Date.parse("2026-10-24T05:30:00Z"); // 11:00 IST
+  const base = { q: { stage: "asking", asked: "location", fields: {} }, lastIn: now - 5 * H, lastOut: now - 5 * H + 1000 };
+  assert.equal(nudgeKind(base, now, 11), "SESSION");
+  assert.equal(nudgeKind({ ...base, lastOut: now - 1 * H, lastIn: now - 1 * H - 1000 }, now, 11), null); // too soon after our question
+  assert.equal(nudgeKind(base, now, 7), null); // outside sending hours
+  assert.equal(nudgeKind(base, now, 21), null);
+  assert.equal(nudgeKind({ ...base, lastIn: now - 6 * H, lastOut: now - 7 * H }, now, 11), null); // the lead spoke last
+  for (const flag of [{ dnc: true }, { hold: true }, { skip: true }, { kind: "vendor" }]) assert.equal(nudgeKind({ ...base, ...flag }, now, 11), null);
+  assert.equal(nudgeKind({ ...base, esc: true }, now, 11), null); // waiting for your team to answer them
+  assert.equal(nudgeKind({ ...base, q: { stage: "done" } }, now, 11), null); // booked or finished, no team chat
+  assert.equal(nudgeKind({ ...base, q: { stage: "paused" } }, now, 11), null);
+  assert.equal(nudgeKind({ ...base, q: undefined }, now, 11), null);
+  assert.equal(nudgeKind({ ...base, lastIn: now - 25 * H, lastOut: now - 25 * H + 1 }, now, 11), null); // the 24h window is closed: no free-form message
+  assert.equal(nudgeKind({ ...base, lastIn: Date.parse("2026-10-22T10:00:00Z"), lastOut: Date.parse("2026-10-22T10:00:01Z") }, Date.parse("2026-10-22T14:00:00Z"), 11), null); // from before this existed
+  // chats your team has been in: they are followed up too, a little later, once; the quiet follow-ups carry on after that
+  const team = { humanSpoke: true, lastIn: now - 8 * H, lastOut: now - 7 * H };
+  assert.equal(nudgeKind(team, now, 11), "SESSION");
+  assert.equal(nudgeKind({ ...team, lastOut: now - 4 * H }, now, 11), null); // team chats wait 6 hours
+  assert.equal(nudgeKind({ ...team, esc: true }, now, 11), "SESSION"); // the team has answered since they were handed over
+  assert.equal(nudgeKind({ ...team, nudges: 1, nudgedAt: now - 20 * H, lastIn: now - 26 * H }, now, 11), null); // no template for team chats
+  // the second nudge in agent chats: a template, the day after, once
+  const sent = { ...base, nudges: 1, nudgedAt: now - 20 * H, lastIn: now - 26 * H, lastOut: now - 20 * H };
+  assert.equal(nudgeKind(sent, now, 11), "TEMPLATE");
+  assert.equal(nudgeKind({ ...sent, nudgedAt: now - 5 * H }, now, 11), null);
+  assert.equal(nudgeKind({ ...sent, lastIn: now - 6 * 24 * H }, now, 11), null); // too old
+  assert.equal(nudgeKind({ ...sent, nudges: 2 }, now, 11), null); // then it stops
+  assert.equal(nudgeKind({ ...sent, lastIn: now - 10 * H }, now, 11), null); // window still open: no template yet
+  assert.match(nudgeAsk({ stage: "asking", asked: "location" }), /city or destination/);
+  assert.match(nudgeAsk({ stage: "confirm" }), /yes/);
+  assert.equal(nudgeAsk({ stage: "done" }), "");
+  const realFetch = globalThis.fetch, key = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = "test";
+  const say = (obj) => { globalThis.fetch = async () => ({ ok: true, json: async () => ({ content: [{ text: typeof obj === "string" ? obj : JSON.stringify(obj) }] }) }); };
+  const chat = [{ from: "us", text: "Could you share the guest count and the preferred venue?" }];
+  try {
+    // written from the real chat; Claude decides whether we are waiting on them
+    say({ waiting: true, reply: "Whenever you are ready, we would love to hear your rough guest count and venue thoughts. 🌼" });
+    assert.deepEqual(await draftFollowUp({ name: "Priya", history: chat }), { send: true, reply: "Whenever you are ready, we would love to hear your rough guest count and venue thoughts. 🌼" });
+    say({ waiting: false, reply: "" });
+    assert.deepEqual(await draftFollowUp({ name: "Priya", history: chat }), { send: false });
+    for (const bad of ["Are you free tomorrow? Or today?", "We can offer a discount if you reply today", "Our package is ₹5 lakh", "See https://example.com", "Line one\nLine two", "x".repeat(400)]) {
+      say({ waiting: true, reply: bad }); assert.equal(await draftFollowUp({ name: "x", history: chat }), null);
+    }
+    say("not json"); assert.equal(await draftFollowUp({ name: "x", history: chat }), null);
+    assert.equal(await draftFollowUp({ name: "x", history: [] }), null); // nothing to read
+    globalThis.fetch = async () => ({ ok: false }); assert.equal(await draftFollowUp({ name: "x", history: chat }), null);
+    // the plain fallback line for agent chats
+    say("Your November wedding in Jaipur sounds lovely, we would love to continue whenever you are ready. 🌼");
+    assert.match(await draftNudge({ name: "Priya", fields: { date: "November" } }), /Jaipur/);
+    say("Are you still interested?"); assert.equal(await draftNudge({ name: "x" }), null);
+  } finally { globalThis.fetch = realFetch; if (key === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = key; }
+});

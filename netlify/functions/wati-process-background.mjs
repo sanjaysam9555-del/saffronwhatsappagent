@@ -66,6 +66,11 @@ export default async (req) => {
   let evt;
   try { evt = await req.json(); } catch { return new Response("bad json", { status: 400 }); }
   if (evt.id && !(await allow(`evt:${evt.eventType}:${evt.id}`, 6 * 3600_000))) return ok("duplicate"); // Wati retries
+  if (process.env.DEBUG_EVENTS === "true") {
+    // Temporary diagnostics: shows how Wati labels each event (team replies vs customer messages).
+    const { text, ...rest } = evt;
+    console.log("wati evt:", JSON.stringify({ ...rest, textStart: String(text ?? "").slice(0, 25), textLen: String(text ?? "").length }).slice(0, 1500));
+  }
   if (!evt.waId) return ok("ignored");
   if (!isSentEvent(evt.eventType) && evt.eventType !== "message") console.log("wati event ignored:", evt.eventType);
   const waId = String(evt.waId);
@@ -119,7 +124,7 @@ export default async (req) => {
   };
 
   try {
-    const c = await saveContact(waId, { lastIn: Date.now(), followups: 0, name }); // a reply resets quiet follow-ups
+    const c = await saveContact(waId, { lastIn: Date.now(), followups: 0, nudges: 0, name }); // a reply resets quiet follow-ups and nudges
     pendingAsk = c.q?.stage === "asking" ? pendingQuestion(c.q) : "";
     const contact = await lookupContact(waId); // null until Planning Studio is wired
     const d = decide(text, { name: contact?.name || name, isVendor: contact?.kind === "vendor" });
