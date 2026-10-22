@@ -211,6 +211,7 @@ export default async (req) => {
       }
 
       if (c.refShared && !q.refNoted) { q = { ...q, refNoted: true, notes: [q.notes, REF_NOTE].filter(Boolean).join(" / ") }; }
+      if (c.greeted && !q.greeted) q = { ...q, greeted: true };
 
       // Answer to "Have you been in touch with us on Instagram before?"
       let dupAnswered = false;

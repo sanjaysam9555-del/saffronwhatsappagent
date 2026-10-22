@@ -443,3 +443,12 @@ test("mainRow builds a 17-column row and the sheet module has no undefined helpe
   assert.equal(r.length, 17);
   assert.deepEqual([r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[10], r[15], r[16]], ["A", "+919876543210", "Jaipur", "12 Feb 2027", "Wedding", "Planning", "Instagram", "n", "hi", "123"]);
 });
+
+test("a lead who was already greeted is not welcomed a second time", () => {
+  const q = { ...newState({}, "Instagram", "instagram"), greeted: true };
+  const r = advance(q, "I am planning a wedding", {}, "Swati", "", "", "");
+  assert.doesNotMatch(r.reply, /Hello|Thank you for reaching out/);
+  assert.match(r.reply, /quick questions/);
+  const r2 = advance(newState({}, "Instagram", "instagram"), "I am planning a wedding", {}, "Swati", "", "", "");
+  assert.match(r2.reply, /Hello Swati!/);
+});

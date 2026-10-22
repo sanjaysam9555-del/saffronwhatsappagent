@@ -105,7 +105,7 @@ export default async (req) => {
     }
     if (c.esc || c.q?.stage === "paused" || c.kind === "vendor") return ok("with team"); // after a hand-over the agent stays quiet
     if (mediaCount && !message) {
-      if (!c.q) { if (await allow(`igreply:${sid}:open`, 6 * HOUR)) await send(REF_OPEN); }
+      if (!c.q) { if (await allow(`igreply:${sid}:open`, 6 * HOUR)) { await saveIg(sid, { greeted: true }); await send(REF_OPEN); } }
       else if (["asking", "confirm", "call"].includes(c.q.stage) && (await allow(`igmediaack:${sid}`, 10 * 60_000))) {
         const again = c.q.stage === "asking" ? pendingQuestion(c.q) : "";
         await send(again ? `${REF_THANKS}\n\n${again}` : REF_THANKS);
@@ -136,6 +136,7 @@ export default async (req) => {
     // A bare "Hi": ask how we can help before the questions (could be anyone).
     if (firstTouch && GREETING.test(text)) {
       if (await allow(`igreply:${sid}:open`, 6 * HOUR)) {
+        await saveIg(sid, { greeted: true });
         await send("Hello!\n\nThank you for reaching out to Saffron Collective 🌼\n\nHow can we help you today?");
         await incr("ig_open_greetings");
       }
@@ -151,6 +152,7 @@ export default async (req) => {
     }
 
     let q = c.q || newState({}, "Instagram", "instagram");
+    if (c.greeted && !q.greeted) q = { ...q, greeted: true };
     if (c.refShared && !q.refNoted) q = { ...q, refNoted: true, notes: [q.notes, REF_NOTE].filter(Boolean).join(" / ") };
     const asking = q.stage === "new" || q.stage === "asking";
     const ph = extractPhone(text);
@@ -159,7 +161,7 @@ export default async (req) => {
     if (ph.status === "ok") extracted.number = `+${ph.number}`;
     if (ph.status === "ambiguous") extracted.numberAmbiguous = true;
     let opener = "";
-    if (firstTouch && !GREETING.test(text)) opener = (await draftOpening({ text, name, greeted: false })) || "";
+    if (firstTouch && !GREETING.test(text)) opener = (await draftOpening({ text, name, greeted: c.greeted })) || "";
     const pre = asking ? [priceQ ? priceAnswer(text) : "", guides.length ? guideText(guides) : ""].filter(Boolean).join("\n\n") : "";
     if (guides.length && ["confirm", "call"].includes(q.stage) && (await allow(`igguide:${sid}:${guides[0].url}`, 6 * HOUR))) {
       await send(guideText(guides)); await incr("guide_links_sent"); return ok(); // after the summary: just the link, state unchanged
