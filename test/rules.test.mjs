@@ -436,3 +436,10 @@ test("questions a website page answers get the page link; the AI never writes a 
   for (const g of GUIDES) assert.match(g.url, /^https:\/\/saffroncollective\.in\/[a-z0-9\/-]+$/);
   assert.match(priceAnswer("how much do you charge"), /saffroncollective\.in\/pricing/);
 });
+
+test("mainRow builds a 17-column row and the sheet module has no undefined helpers", async () => {
+  const { mainRow } = await import("../lib/sheet.mjs");
+  const r = mainRow({ name: "A", mobile: "+919876543210", location: "Jaipur", date: "12 Feb 2027", occasion: "Wedding", requirement: "Planning", source: "Instagram", notes: "n", lastMsg: "hi", mcId: "123" });
+  assert.equal(r.length, 17);
+  assert.deepEqual([r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[10], r[15], r[16]], ["A", "+919876543210", "Jaipur", "12 Feb 2027", "Wedding", "Planning", "Instagram", "n", "hi", "123"]);
+});
