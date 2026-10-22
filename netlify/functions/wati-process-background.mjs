@@ -12,6 +12,8 @@ import { lookupContact } from "../../lib/planning-studio.mjs";
 import { allow } from "../../lib/state.mjs";
 import { getContact, saveContact, AGENT_ECHO_MS } from "../../lib/contacts.mjs";
 import { newState, advance, pendingQuestion } from "../../lib/qualify.mjs";
+import { calendarEnabled, offerSlots, bookConsult } from "../../lib/calendar.mjs";
+import { startConsult, consultTurn, detailsText } from "../../lib/consult.mjs";
 import { recordMedia, isMediaOnly, REF_THANKS, REF_NOTE, REF_OPEN } from "../../lib/media.mjs";
 import { knownType } from "../../lib/known.mjs";
 import { rowFields } from "../../lib/leadfields.mjs";
@@ -48,7 +50,7 @@ async function mediaRef(waId, name, label) {
     const again = await getContact(waId);
     if (again.q || again.greeted || again.esc) return;
     if (await allow(`reply:${waId}:open`, 6 * HOUR)) { await saveContact(waId, { greeted: true }); await send(REF_OPEN); }
-  } else if (["asking", "confirm", "call"].includes(c.q.stage) && (await allow(`mediaack:${waId}`, 10 * 60_000))) {
+  } else if (["asking", "confirm", "call", "slots", "email"].includes(c.q.stage) && (await allow(`mediaack:${waId}`, 10 * 60_000))) {
     const again = c.q.stage === "asking" ? pendingQuestion(c.q) : "";
     await send(again ? `${REF_THANKS}\n\n${again}` : REF_THANKS);
   }
@@ -140,7 +142,7 @@ export default async (req) => {
     }
     if (!chat) console.warn("chat history unavailable; continuing because DRY_RUN");
 
-    const inFlow = ["asking", "confirm", "call"].includes(c.q?.stage);
+    const inFlow = ["asking", "confirm", "call", "slots", "email"].includes(c.q?.stage);
     const isVendor = c.kind === "vendor" || contact?.kind === "vendor";
     const canQualify = !c.humanSpoke && !c.esc && !isVendor && c.q?.stage !== "done";
 
@@ -235,6 +237,21 @@ export default async (req) => {
       if (guides.length && ["confirm", "call"].includes(q.stage) && (await allow(`guide:${waId}:${guides[0].url}`, 6 * HOUR))) {
         await agentSend(guideText(guides)); await incr("guide_links_sent"); return ok(); // after the summary: just the link, state unchanged
       }
+      // Booking the Founders' call: they choose a time, then give an email, then the event is created.
+      const consultDeps = { waId, offer: () => offerSlots(), book: (a) => bookConsult({ ...a, name, source: "WhatsApp", details: detailsText(a.fields) }) };
+      if (["slots", "email"].includes(q.stage) && calendarEnabled()) {
+        const cr = await consultTurn(q, text, consultDeps);
+        if (cr) {
+          if (cr.kind === "escalate") { await toHuman("lead-question"); return ok(); }
+          const nq = cr.booked ? { ...cr.q, notes: [cr.q.notes, `Call booked: ${cr.booked.label} (${cr.q.callPref === "phone" ? "phone" : "Meet"})`].filter(Boolean).join(" / ") } : cr.q;
+          await saveContact(waId, { q: nq });
+          await saveLead(waId, name, nq, { notes: nq.notes, country: country.name });
+          await agentSend(cr.reply);
+          if (cr.booked) await incr("calls_booked");
+          if (cr.escalate) await toHuman(cr.escalate, false);
+          return ok();
+        }
+      }
       let r = advance(q, dupAnswered ? "" : text, extracted, name, opener, "", pre);
       // A personal reaction only where it adds something: their location, an extra detail they added, or a vague/unsure answer.
       // Everywhere else the next question simply follows, so it never feels over-done.
@@ -245,6 +262,12 @@ export default async (req) => {
       }
 
       if (r.kind === "escalate") { await toHuman("lead-question"); return ok(); }
+      if (r.kind === "call-pref" && calendarEnabled()) { // offer real times; if that fails the team does it by hand, as before
+        try {
+          const sc = await startConsult({ ...r.q, fields: { ...r.q.fields, number: `+${waId}` } }, consultDeps);
+          if (sc) { r = sc; await incr("calls_requested"); }
+        } catch (e) { console.error("offering call times failed:", e.message); }
+      }
 
       // Same name as an Instagram lead plus the same date or city: ask the person, never assume.
       if (r.q.cand && !r.q.dupResolved) {

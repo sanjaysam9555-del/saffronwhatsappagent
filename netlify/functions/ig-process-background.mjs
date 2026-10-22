@@ -4,6 +4,8 @@ import { guidesFor, guideText } from "../../lib/guides.mjs";
 import { extractPhone } from "../../lib/phone.mjs";
 import { extractFields, draftOpening, draftAck, draftHold, classifySender } from "../../lib/claude.mjs";
 import { newState, advance, pendingQuestion } from "../../lib/qualify.mjs";
+import { calendarEnabled, offerSlots, bookConsult } from "../../lib/calendar.mjs";
+import { startConsult, consultTurn, detailsText } from "../../lib/consult.mjs";
 import { isMediaOnly, recordMedia, REF_THANKS, REF_NOTE, REF_OPEN } from "../../lib/media.mjs";
 import { sendInstagramText } from "../../lib/manychat.mjs";
 import { getIg, saveIg, queueMessage, claimQueue, resetIg } from "../../lib/igstate.mjs";
@@ -106,7 +108,7 @@ export default async (req) => {
     if (c.esc || c.q?.stage === "paused" || c.kind === "vendor") return ok("with team"); // after a hand-over the agent stays quiet
     if (mediaCount && !message) {
       if (!c.q) { if (await allow(`igreply:${sid}:open`, 6 * HOUR)) { await saveIg(sid, { greeted: true }); await send(REF_OPEN); } }
-      else if (["asking", "confirm", "call"].includes(c.q.stage) && (await allow(`igmediaack:${sid}`, 10 * 60_000))) {
+      else if (["asking", "confirm", "call", "slots", "email"].includes(c.q.stage) && (await allow(`igmediaack:${sid}`, 10 * 60_000))) {
         const again = c.q.stage === "asking" ? pendingQuestion(c.q) : "";
         await send(again ? `${REF_THANKS}\n\n${again}` : REF_THANKS);
       }
@@ -114,7 +116,7 @@ export default async (req) => {
     }
     if (mediaCount) text = message; // answer the words; the file is noted below
 
-    const inFlow = ["asking", "confirm", "call"].includes(c.q?.stage);
+    const inFlow = ["asking", "confirm", "call", "slots", "email"].includes(c.q?.stage);
     const isVendor = c.kind === "vendor";
     const canQualify = !isVendor && c.q?.stage !== "done";
     const priceQ = isPriceQuestion(text);
@@ -166,6 +168,21 @@ export default async (req) => {
     if (guides.length && ["confirm", "call"].includes(q.stage) && (await allow(`igguide:${sid}:${guides[0].url}`, 6 * HOUR))) {
       await send(guideText(guides)); await incr("guide_links_sent"); return ok(); // after the summary: just the link, state unchanged
     }
+    // Booking the Founders' call: they choose a time, then give an email, then the event is created.
+    const consultDeps = { offer: () => offerSlots(), book: (a) => bookConsult({ ...a, name: name || label, source: "Instagram", details: detailsText(a.fields) }) };
+    if (["slots", "email"].includes(q.stage) && calendarEnabled()) {
+      const cr = await consultTurn(q, text, consultDeps);
+      if (cr) {
+        if (cr.kind === "escalate") { await toHuman("lead-question"); return ok(); }
+        const nq = cr.booked ? { ...cr.q, notes: [cr.q.notes, `Call booked: ${cr.booked.label} (${cr.q.callPref === "phone" ? "phone" : "Meet"})`].filter(Boolean).join(" / ") } : cr.q;
+        await saveIg(sid, { q: nq });
+        await upsertInstagramLead(sid, name || label, nq, { notes: nq.notes, lastMsg: text.slice(0, 200), done: true });
+        await send(cr.reply);
+        if (cr.booked) await incr("calls_booked");
+        if (cr.escalate) await toHuman(cr.escalate, false);
+        return ok();
+      }
+    }
     let r = advance(q, text, extracted, name, opener, "", pre);
     const worthReacting = q.asked === "location" || r.kind === "addition" || /\b(not sure|don'?t know|maybe|undecided|tbd|haven'?t decided)\b/i.test(text);
     if (!firstTouch && !pre && worthReacting && ["ask", "summary", "addition"].includes(r.kind) && !GREETING.test(text)) {
@@ -173,6 +190,12 @@ export default async (req) => {
       if (ack) r = advance(q, text, extracted, name, opener, ack);
     }
     if (r.kind === "escalate") { await toHuman("lead-question"); return ok(); }
+    if (r.kind === "call-pref" && calendarEnabled()) { // offer real times; if that fails the team does it by hand, as before
+      try {
+        const sc = await startConsult(r.q, consultDeps);
+        if (sc) { r = sc; await incr("calls_requested"); }
+      } catch (e) { console.error("offering call times failed:", e.message); }
+    }
 
     const amount = budgetLakhs(text);
     if (amount !== null && (await allow(`igbudget:${sid}`, 24 * HOUR))) {

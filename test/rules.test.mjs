@@ -452,3 +452,139 @@ test("a lead who was already greeted is not welcomed a second time", () => {
   const r2 = advance(newState({}, "Instagram", "instagram"), "I am planning a wedding", {}, "Swati", "", "", "");
   assert.match(r2.reply, /Hello Swati!/);
 });
+
+// ---- Founders' call booking ----
+const NOW = Date.parse("2026-10-22T12:00:00Z"); // Thu 22 Oct, 5:30 pm IST
+const IST = (iso) => Date.parse(`${iso}+05:30`);
+
+test("call slots follow the schedule: hours, 4h notice, buffer, 4 a day", async () => {
+  const { freeSlots, fmtIST, pickOffers } = await import("../lib/calendar.mjs");
+  const free = freeSlots({ now: NOW });
+  assert.equal(fmtIST(free[0]), "Fri, 23 Oct, 11:30 am"); // nothing left on Thursday (4h notice, hours end 7:30 pm)
+  assert.ok(free.every((s) => { const d = new Date(s + 5.5 * 3600_000); const m = d.getUTCHours() * 60 + d.getUTCMinutes(); return m % 30 === 0 && m >= 660; }));
+  // a busy event 11:30-12:00 blocks that slot and the 30-minute buffer after it
+  const busy = [{ start: IST("2026-10-23T11:30:00"), end: IST("2026-10-23T12:00:00") }];
+  assert.equal(fmtIST(freeSlots({ now: NOW, busy })[0]), "Fri, 23 Oct, 12:30 pm");
+  // four consultations already on Friday: Friday is skipped
+  assert.equal(fmtIST(freeSlots({ now: NOW, perDay: { "2026-10-23": 4 } })[0]), "Sat, 24 Oct, 11:00 am");
+  // Sunday has an evening window
+  assert.ok(free.some((s) => fmtIST(s) === "Sun, 25 Oct, 7:30 pm"));
+  const offers = pickOffers(free);
+  assert.equal(offers.length, 3);
+  assert.equal(new Set(offers.map((s) => fmtIST(s).slice(0, 8))).size, 3); // three different days
+});
+
+test("choosing a time: number, ordinal, day or clock time; unknown times go to the team", async () => {
+  const { chooseSlot } = await import("../lib/consult.mjs");
+  const slots = [IST("2026-10-23T12:00:00"), IST("2026-10-24T16:30:00"), IST("2026-10-26T12:30:00")];
+  assert.equal(chooseSlot("2", slots), 1);
+  assert.equal(chooseSlot("option 3", slots), 2);
+  assert.equal(chooseSlot("the first one please", slots), 0);
+  assert.equal(chooseSlot("Saturday 4:30 pm", slots), 1);
+  assert.equal(chooseSlot("monday", slots), 2);
+  assert.equal(chooseSlot("12:30 pm", slots), 2);
+  assert.equal(chooseSlot("2 pm", slots), "none"); // a time we did not offer, not option 2
+  assert.equal(chooseSlot("none of these work", slots), "none");
+  assert.equal(chooseSlot("Thursday 5pm", slots), "none");
+  assert.equal(chooseSlot("hmm let me think", slots), null);
+});
+
+test("call booking chat: offer, choose, email, book, confirm", async () => {
+  const { startConsult, consultTurn } = await import("../lib/consult.mjs");
+  const slots = [IST("2026-10-23T12:00:00"), IST("2026-10-24T16:30:00"), IST("2026-10-26T12:30:00")];
+  const booked = [];
+  const deps = { offer: async () => slots, book: async (a) => { booked.push(a); return { ok: true, meetLink: "https://meet.google.com/abc", start: a.start }; } };
+  const base = { ...newState({}, "Instagram", "instagram"), stage: "done", callPref: "meet", fields: { number: "+919876543210", occasion: "Wedding" } };
+  const s = await startConsult(base, deps);
+  assert.equal(s.q.stage, "slots");
+  assert.match(s.reply, /1\. Fri, 23 Oct, 12:00 pm/);
+  assert.match(s.reply, /3\. Mon, 26 Oct, 12:30 pm/);
+  assert.doesNotMatch(s.reply, /for you/); // Indian number: no second time zone
+  const c = await consultTurn(s.q, "2", deps);
+  assert.equal(c.q.stage, "email");
+  assert.match(c.reply, /Sat, 24 Oct, 4:30 pm IST/);
+  assert.match(c.reply, /email/);
+  const e = await consultTurn(c.q, "sure, it is riya.k@example.com", deps);
+  assert.equal(e.kind, "call-booked");
+  assert.equal(booked.length, 1);
+  assert.equal(booked[0].email, "riya.k@example.com");
+  assert.equal(booked[0].start, slots[1]);
+  assert.match(e.reply, /All set!.*Sat, 24 Oct, 4:30 pm IST/s);
+  assert.match(e.reply, /riya\.k@example\.com/);
+  assert.equal(e.q.stage, "done");
+});
+
+test("call booking chat: abroad shows their time; taken slot re-offers; errors and odd replies go to the team", async () => {
+  const { startConsult, consultTurn } = await import("../lib/consult.mjs");
+  const slots = [IST("2026-10-23T12:00:00"), IST("2026-10-24T16:30:00"), IST("2026-10-26T12:30:00")];
+  const uk = { ...newState({}, "Instagram", "instagram"), stage: "done", callPref: "phone", fields: { number: "+447911123456" } };
+  const ok1 = { offer: async () => slots, book: async () => ({ ok: true, meetLink: "x", start: 0 }) };
+  const s = await startConsult(uk, ok1);
+  assert.match(s.reply, /\(Fri \d{1,2}:\d\d [ap]m for you\)/);
+  // someone took the slot meanwhile
+  const taken = { offer: async () => slots, book: async () => ({ ok: false, taken: true }) };
+  const c = await consultTurn(s.q, "1", taken);
+  const t = await consultTurn(c.q, "a@b.co", taken);
+  assert.equal(t.q.stage, "slots");
+  assert.match(t.reply, /just taken/);
+  // calendar error: hand to the team
+  const boom = { offer: async () => slots, book: async () => { throw new Error("unauthorized_client"); } };
+  const f = await consultTurn(c.q, "a@b.co", boom);
+  assert.equal(f.escalate, "call-booking-failed");
+  // no email twice
+  const n1 = await consultTurn(c.q, "hmm", ok1);
+  assert.equal(n1.kind, "email-ask");
+  assert.equal((await consultTurn(n1.q, "later", ok1)).escalate, "call-needs-invite");
+  // refuses to share an email: booked anyway, link shown in the chat
+  const r = await consultTurn(c.q, "I don't want to share my email", ok1);
+  assert.equal(r.kind, "call-booked");
+  assert.match(r.reply, /Google Meet link/);
+  // a phone-call lead with no number is asked for one
+  const noNum = { ...uk, fields: {} };
+  assert.match((await consultTurn((await startConsult(noNum, ok1)).q, "1", ok1)).reply, /number to call you on/);
+});
+
+test("a lead who wants another day is offered times from that day, not sent to the team", async () => {
+  const { consultTurn } = await import("../lib/consult.mjs");
+  const { freeSlots, pickFor, pickOffers, fmtIST, parseRequest, weekdayIn } = await import("../lib/calendar.mjs");
+  assert.equal(weekdayIn("my wedding is in May"), undefined); // "wedding" is not Wednesday
+  assert.equal(weekdayIn("how about Thursday"), 4);
+  const r = parseRequest("28th Oct at 5pm", NOW);
+  assert.equal(r.exactMs, IST("2026-10-28T17:00:00"));
+  assert.equal(parseRequest("tomorrow evening", NOW).dayMs, IST("2026-10-23T00:00:00"));
+  assert.equal(parseRequest("hmm not sure", NOW), null);
+
+  const perDay = { "2026-10-27": 4 }; // Tuesday 27 Oct is full
+  const deps = {
+    now: () => NOW,
+    offer: async (req) => (req ? pickFor(freeSlots({ now: NOW, perDay, from: req.dayMs }), req) : pickOffers(freeSlots({ now: NOW, perDay }))),
+    book: async (a) => ({ ok: true, meetLink: "https://meet.google.com/x", start: a.start }),
+  };
+  const first = [IST("2026-10-23T12:00:00"), IST("2026-10-24T16:30:00"), IST("2026-10-26T12:30:00")];
+  const q = { ...newState({}, "Instagram", "instagram"), stage: "slots", slots: first, callPref: "meet", fields: { number: "+919876543210" } };
+
+  // an exact time that is free: confirmed straight away, then the email
+  const ex = await consultTurn(q, "can we do Wednesday 6pm?", deps);
+  assert.equal(ex.q.stage, "email");
+  assert.equal(ex.q.chosen, IST("2026-10-28T18:00:00"));
+  assert.match(ex.reply, /Wed, 28 Oct, 6:00 pm IST/);
+  // a part of a day: three times that day, closest to the part of the day
+  const ev = await consultTurn(q, "Wednesday evening would be better", deps);
+  assert.equal(ev.kind, "slots-offered");
+  assert.equal(ev.q.slots.length, 3);
+  assert.ok(ev.q.slots.every((s) => fmtIST(s).startsWith("Wed, 28 Oct")));
+  // choosing one of them continues as usual
+  assert.equal((await consultTurn(ev.q, "2", deps)).q.stage, "email");
+  // a day that is full: says so and offers the next available days
+  const full = await consultTurn(q, "next Tuesday please", deps);
+  assert.match(full.reply, /fully booked on that day/);
+  assert.ok(full.q.slots.every((s) => !fmtIST(s).startsWith("Tue, 27 Oct")));
+  // nothing usable in their words: asks for a day and time
+  const ask = await consultTurn(q, "none of these work", deps);
+  assert.equal(ask.kind, "slots-ask");
+  assert.match(ask.reply, /Which day and time/);
+  // only after several rounds does a person step in
+  let cur = q;
+  for (let i = 0; i < 3; i++) cur = (await consultTurn(cur, "none of these", deps)).q;
+  assert.equal((await consultTurn(cur, "none of these", deps)).escalate, "call-time-request");
+});
