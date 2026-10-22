@@ -3,17 +3,17 @@ import { hardMoney, isPriceQuestion, priceAnswer, budgetLakhs, MIN_BUDGET_LAKHS 
 import { guidesFor, guideText } from "../../lib/guides.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
 import { findNameCandidate, classify } from "../../lib/match.mjs";
-import { countryOf } from "../../lib/phone.mjs";
+import { countryOf, extractPhone } from "../../lib/phone.mjs";
 import { sendSessionMessage, updateContactAttributes, getRecentMessages } from "../../lib/wati.mjs";
 import { readChat } from "../../lib/team.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
-import { draftReply, extractFields, draftOpening, draftAck, draftHold, classifySender } from "../../lib/claude.mjs";
+import { draftReply, extractFields, draftOpening, draftAck, draftHold, draftAfter, classifySender } from "../../lib/claude.mjs";
 import { lookupContact } from "../../lib/planning-studio.mjs";
 import { allow } from "../../lib/state.mjs";
 import { getContact, saveContact, AGENT_ECHO_MS } from "../../lib/contacts.mjs";
-import { newState, advance, pendingQuestion, serviceLine, ORDER } from "../../lib/qualify.mjs";
+import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult } from "../../lib/calendar.mjs";
-import { startConsult, consultTurn, detailsText, fastTrack, wantsCall } from "../../lib/consult.mjs";
+import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail } from "../../lib/consult.mjs";
 import { recordMedia, isMediaOnly, REF_THANKS, REF_NOTE, REF_OPEN } from "../../lib/media.mjs";
 import { knownType } from "../../lib/known.mjs";
 import { rowFields } from "../../lib/leadfields.mjs";
@@ -175,6 +175,20 @@ export default async (req) => {
         await agentSend(d.text);
         await incr("vendor_links_sent");
       }
+      return ok();
+    }
+
+    // 3b. The chat is finished (call booked, declined, ...). Whatever they send now is answered in context by Claude, like a person would.
+    if (!c.humanSpoke && !c.esc && !isVendor && c.q?.stage === "done") {
+      const ph = extractPhone(text), em = extractEmail(text);
+      const shared = { number: ph.status === "ok" ? `+${ph.number}` : "", email: em };
+      const out = await draftAfter({ text, name, context: doneContext(c.q), shared, greeted: true });
+      if (!out || out.handover !== "none") { await toHuman(out?.handover === "change" ? "call-time-request" : "lead-question"); return ok(); }
+      const nq = applyAfter(c.q, text, { ...shared, fields: out.fields });
+      await saveContact(waId, { q: nq });
+      await saveLead(waId, name, nq, { notes: nq.notes, country: countryOf(waId).name });
+      await agentSend(out.reply);
+      if (out.news) await logNeedsTeam({ waId, name, reason: "lead-added-details", lastMsg: text });
       return ok();
     }
 

@@ -2,10 +2,10 @@ import { decide, ESCALATION_ACK, CLIENT, GREETING, OPTOUT } from "../../lib/rule
 import { hardMoney, isPriceQuestion, priceAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
 import { guidesFor, guideText } from "../../lib/guides.mjs";
 import { extractPhone } from "../../lib/phone.mjs";
-import { extractFields, draftOpening, draftAck, draftHold, classifySender } from "../../lib/claude.mjs";
-import { newState, advance, pendingQuestion, serviceLine, ORDER } from "../../lib/qualify.mjs";
+import { extractFields, draftOpening, draftAck, draftHold, draftAfter, classifySender } from "../../lib/claude.mjs";
+import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult } from "../../lib/calendar.mjs";
-import { startConsult, consultTurn, detailsText, fastTrack, wantsCall } from "../../lib/consult.mjs";
+import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail } from "../../lib/consult.mjs";
 import { isMediaOnly, recordMedia, REF_THANKS, REF_NOTE, REF_OPEN } from "../../lib/media.mjs";
 import { sendInstagramText } from "../../lib/manychat.mjs";
 import { getIg, saveIg, queueMessage, claimQueue, resetIg } from "../../lib/igstate.mjs";
@@ -133,6 +133,19 @@ export default async (req) => {
       return ok();
     }
 
+    // The chat is finished (call booked, declined, ...). Whatever they send now is answered in context by Claude, like a person would.
+    if (!isVendor && c.q?.stage === "done") {
+      const ph = extractPhone(text), em = extractEmail(text);
+      const shared = { number: ph.status === "ok" ? `+${ph.number}` : "", email: em };
+      const out = await draftAfter({ text, name, context: doneContext(c.q), shared, greeted: true });
+      if (!out || out.handover !== "none") { await toHuman(out?.handover === "change" ? "call-time-request" : "lead-question"); return ok(); }
+      const nq = applyAfter(c.q, text, { ...shared, fields: out.fields });
+      await saveIg(sid, { q: nq });
+      await upsertInstagramLead(sid, name || label, nq, { notes: nq.notes, lastMsg: text.slice(0, 200) });
+      await send(out.reply);
+      if (out.news) await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "lead-added-details", lastMsg: text });
+      return ok();
+    }
     if (!canQualify && !inFlow) return ok("not a client chat");
 
     // A bare "Hi": ask how we can help before the questions (could be anyone).

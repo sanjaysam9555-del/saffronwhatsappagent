@@ -9,7 +9,7 @@ import { priceAnswer, isPriceQuestion, hardMoney, budgetLakhs } from "../lib/fac
 import { sameName, sameDate, sameCity, classify } from "../lib/match.mjs";
 import { isUrgent, describe, openCounts, HEADERS } from "../lib/needsteam.mjs";
 import { assess, missingFields, suggestNudge, igNudgeText, summaryLine, rowFields, confirmParams } from "../lib/leadfields.mjs";
-import { newState, advance, serviceLine } from "../lib/qualify.mjs";
+import { newState, advance, serviceLine, doneContext, applyAfter } from "../lib/qualify.mjs";
 import { checkReply, parseModelJson } from "../lib/claude.mjs";
 import { stage, CFG } from "../netlify/functions/lead-followup.mjs";
 import { isEligible } from "../netlify/functions/quiet-followup.mjs";
@@ -639,4 +639,39 @@ test("a first message asking to talk is offered times straight away, with no que
   // already greeted: no second welcome
   const g = await fastTrack({ ...q0, greeted: true }, { name: "A", svc: "", deps });
   assert.ok(g.reply.startsWith("Here are a few available slots."));
+});
+
+test("after the chat is finished, what they share is saved and Claude answers in context", async () => {
+  const q = { ...newState({ occasion: "Wedding" }, "Instagram", "instagram"), stage: "done", callPref: "meet",
+    callBooked: { start: 1, email: "a@b.co", label: "Mon, 26 Oct, 3:30 pm IST" }, notes: "Call booked: Mon, 26 Oct, 3:30 pm IST (Meet)" };
+  const ctx = doneContext(q);
+  assert.match(ctx, /booked for Mon, 26 Oct, 3:30 pm IST/);
+  assert.match(ctx, /Occasion: Wedding/);
+  const n = applyAfter(q, "my number is 9555879555", { number: "+919555879555" });
+  assert.equal(n.fields.number, "+919555879555");
+  const wa = applyAfter({ ...q, channel: "whatsapp", fields: { number: "+911111111111" } }, "call this number", { number: "+919555879555" });
+  assert.equal(wa.fields.number, "+911111111111"); // WhatsApp keeps the number they wrote from
+  assert.match(wa.notes, /Another number: \+919555879555/);
+  const d = applyAfter(q, "we moved it to March, Udaipur", { fields: { date: "March", location: "Udaipur" } });
+  assert.equal(d.fields.date, "March");
+  assert.match(d.notes, /Event date updated: March/);
+
+  const { draftAfter } = await import("../lib/claude.mjs");
+  const realFetch = globalThis.fetch, key = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = "test";
+  const say = (obj) => { globalThis.fetch = async () => ({ ok: true, json: async () => ({ content: [{ text: JSON.stringify(obj) }] }) }); };
+  try {
+    say({ handover: "none", reply: "Thank you for sharing your number. We have updated it in our records and will use it to reach you if needed. 🌼", fields: {}, news: false });
+    const ok = await draftAfter({ text: "9555879555", name: "S", context: ctx, shared: { number: "+919555879555" } });
+    assert.equal(ok.handover, "none"); assert.match(ok.reply, /updated it in our records/);
+    say({ handover: "none", reply: "Our fee starts at ₹3.5 lakh.", fields: {}, news: false });
+    assert.equal(await draftAfter({ text: "fees?", context: ctx }), null); // money is never written by Claude
+    say({ handover: "change", reply: "", fields: {}, news: false });
+    assert.equal((await draftAfter({ text: "can we move the call?", context: ctx })).handover, "change");
+    say({ handover: "none", reply: "Lovely, we have added this for our Founders. 🌼", fields: { date: "March", location: "Udaipur", guests: null }, news: false });
+    const up = await draftAfter({ text: "we moved it to March in Udaipur", context: ctx });
+    assert.deepEqual(up.fields, { date: "March", location: "Udaipur" }); assert.equal(up.news, true);
+    globalThis.fetch = async () => ({ ok: false });
+    assert.equal(await draftAfter({ text: "hi", context: ctx }), null); // cannot do it safely: the caller hands over
+  } finally { globalThis.fetch = realFetch; if (key === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = key; }
 });
