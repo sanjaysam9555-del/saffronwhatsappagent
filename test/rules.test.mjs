@@ -991,3 +991,39 @@ test("team alert says who, why and what they wrote, on one line each", async () 
   assert.equal(isUrgent("agent-error"), true); assert.equal(isUrgent("call-cancel-request"), true); assert.equal(isUrgent("reminder-failed"), false);
   assert.ok(describe("agent-error")[0].length > 10);
 });
+
+test("replay: every scripted chat in test/scenarios behaves as written", async () => {
+  const { readdirSync, readFileSync } = await import("node:fs");
+  const { replay, check } = await import("../lib/replay.mjs");
+  const dir = new URL("./scenarios/", import.meta.url);
+  const files = readdirSync(dir).filter((f) => f.endsWith(".json")).sort();
+  assert.ok(files.length >= 4);
+  for (const f of files) {
+    const sc = JSON.parse(readFileSync(new URL(f, dir), "utf8"));
+    const problems = check(sc, await replay(sc));
+    assert.deepEqual(problems, [], `${f}: ${problems.join("\n")}`);
+  }
+});
+
+test("weekly review: numbers, unhappy chats, and only approved suggestions are used", async () => {
+  const { sumMetrics, weeklyNumbers, weeklyParams, unhappyChats, parseStamp, weekLabel } = await import("../lib/weekly.mjs");
+  const { usableAnswers } = await import("../lib/playbook.mjs");
+  const now = Date.parse("2026-10-26T04:00:00Z");
+  const t = sumMetrics([{ new_leads: 3, calls_booked: 1, escalations: 2 }, { new_leads: 2, ig_escalations: 1, calls_booked: 1, ig_leads_completed: 2 }]);
+  const w = weeklyNumbers(t, { waiting: 2, suggested: 3 });
+  assert.deepEqual([w.leads, w.booked, w.handed, w.completed], [5, 2, 3, 2]);
+  const p = weeklyParams("19 Oct to 25 Oct", w, "https://x");
+  assert.equal(p.to_approve, "5"); assert.ok(Object.values(p).every((v) => v && !/\n/.test(v)));
+  assert.equal(weekLabel(now), "19 Oct to 25 Oct");
+  assert.ok(Math.abs(parseStamp("22 Oct, 14:03", now) - Date.parse("2026-10-22T14:03:00+05:30")) < 1000);
+  const rows = [
+    ["22 Oct, 14:03", "Instagram", "@a", "I already told you the date", "What date?"],
+    ["22 Oct, 14:05", "Instagram", "@b", "Wedding in Goa", "Thanks"],
+    ["01 Jun, 10:00", "Instagram", "@c", "I just said that", "..."],
+    ["23 Oct, 09:00", "WhatsApp", "+91", "are you a bot?", "..."],
+  ];
+  assert.deepEqual(unhappyChats(rows, now).map((u) => u.contact), ["@a", "+91"]);
+  // a suggestion is used only after the owner types Y; her own answer always wins
+  const vals = [["h"], ["t", "IG", "Do you do Goa?", "", 1, "Waiting", "Yes, we do destination weddings.", ""], ["t", "IG", "Do you do Jaipur?", "", 1, "Waiting", "Yes, Jaipur too.", "Y"], ["t", "IG", "Q3?", "Mine", 1, "Waiting", "Sugg", "Y"], ["t", "IG", "Q4?", "", 1, "Ignore", "S", "Y"]];
+  assert.deepEqual(usableAnswers(vals), [{ q: "Do you do Jaipur?", a: "Yes, Jaipur too." }, { q: "Q3?", a: "Mine" }]);
+});

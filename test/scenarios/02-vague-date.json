@@ -1,0 +1,32 @@
+{
+ "name": "a vague date is asked about once, then accepted",
+ "channel": "whatsapp",
+ "now": "2026-10-22T10:00:00+05:30",
+ "turns": [
+  {
+   "lead": "Wedding",
+   "reply": [
+    "What date"
+   ],
+   "stage": "asking"
+  },
+  {
+   "lead": "next year",
+   "reply": [
+    "approximate month"
+   ],
+   "notReply": [
+    "city or destination"
+   ]
+  },
+  {
+   "lead": "winter",
+   "reply": [
+    "city or destination"
+   ],
+   "fields": {
+    "date": "Winter"
+   }
+  }
+ ]
+}

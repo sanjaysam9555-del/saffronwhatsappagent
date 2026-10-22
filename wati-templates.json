@@ -936,5 +936,114 @@
   "TrackingUrlVersion": 1,
   "ClientName": null,
   "FromTrial": false
+ },
+ {
+  "Id": "",
+  "TenantId": "10223625",
+  "WabaContextId": null,
+  "ClareTemplateId": null,
+  "Status": {
+   "ClareTemplateId": null,
+   "WATemplateId": null,
+   "NewStatus": 0,
+   "Feedback": null,
+   "SubmittedAt": "0001-01-01T00:00:00",
+   "CurrencyMigration": false
+  },
+  "TemplateParamMapping": [
+   {
+    "Index": 1,
+    "ParamName": "week"
+   },
+   {
+    "Index": 2,
+    "ParamName": "leads"
+   },
+   {
+    "Index": 3,
+    "ParamName": "calls"
+   },
+   {
+    "Index": 4,
+    "ParamName": "handed_over"
+   },
+   {
+    "Index": 5,
+    "ParamName": "to_approve"
+   },
+   {
+    "Index": 6,
+    "ParamName": "sheet_link"
+   }
+  ],
+  "WATemplateId": "",
+  "ElementName": "weekly_review_v1",
+  "Category": "UTILITY",
+  "CorrectCategory": null,
+  "SubCategory": "STANDARD",
+  "CatalogInfo": null,
+  "Language": "en",
+  "CustomParams": [
+   {
+    "ParamName": "week",
+    "ParamValue": "19 Oct to 25 Oct"
+   },
+   {
+    "ParamName": "leads",
+    "ParamValue": "12"
+   },
+   {
+    "ParamName": "calls",
+    "ParamValue": "3"
+   },
+   {
+    "ParamName": "handed_over",
+    "ParamValue": "4"
+   },
+   {
+    "ParamName": "to_approve",
+    "ParamValue": "5"
+   },
+   {
+    "ParamName": "sheet_link",
+    "ParamValue": "https://docs.google.com/spreadsheets/d/abc"
+   }
+  ],
+  "Hsm": null,
+  "HsmOriginal": "",
+  "LocalizableParams": null,
+  "LastModified": "10-21-2026",
+  "Created": "10-21-2026",
+  "LastSynchronized": "10-21-2026",
+  "Type": 1,
+  "Header": null,
+  "Body": "Your Saffron weekly review ({{week}})\n\nNew leads: {{leads}}\nCalls booked: {{calls}}\nHanded to the team: {{handed_over}}\nAnswers waiting for you to approve: {{to_approve}}\n\nOpen the sheet: {{sheet_link}}\n\nThis takes about five minutes. 🌼",
+  "BodyOriginal": "",
+  "Footer": null,
+  "Buttons": [],
+  "CarouselCards": null,
+  "ButtonsType": 0,
+  "LastSubmitAttemptDate": null,
+  "SubmittedUserId": "",
+  "WABACheckPendingStatusTimes": 0,
+  "LastWABACheckStatusDate": null,
+  "ExpiresIn": 0,
+  "IncludeExpiryTime": false,
+  "AddSecurityRecommendation": false,
+  "IsUrlBtnClickTrackingEnabled": false,
+  "LimitedTimeOffer": null,
+  "Quality": 0,
+  "CreationMethod": 0,
+  "ShopifyTrigger": 0,
+  "IncludeCoupon": false,
+  "CouponType": 0,
+  "DiscountValue": null,
+  "CouponCode": null,
+  "EnableThirdPartyCheckout": false,
+  "AttributionDays": 2,
+  "TrackingUrlType": 0,
+  "TrackingUrlVersion": 1,
+  "ClientName": null,
+  "FromTrial": false
  }
 ]

@@ -1,0 +1,36 @@
+{
+ "name": "Hinglish lead keeps getting Hinglish questions",
+ "channel": "whatsapp",
+ "now": "2026-10-22T10:00:00+05:30",
+ "turns": [
+  {
+   "lead": "Mujhe shaadi ki planning chahiye, kya aap help kar sakte hain",
+   "reply": [
+    "Namaste",
+    "sawaal"
+   ],
+   "stage": "asking"
+  },
+  {
+   "lead": "Shaadi",
+   "reply": [
+    "Aap apna event kis date"
+   ]
+  },
+  {
+   "lead": "March 2027",
+   "reply": [
+    "kaunsa city"
+   ],
+   "fields": {
+    "date": "March 2027"
+   }
+  },
+  {
+   "lead": "Delhi",
+   "reply": [
+    "kitne guests"
+   ]
+  }
+ ]
+}

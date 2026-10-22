@@ -1,0 +1,71 @@
+{
+ "name": "one line answers several questions (Instagram, 22 Oct chat)",
+ "channel": "instagram",
+ "now": "2026-10-22T10:00:00+05:30",
+ "turns": [
+  {
+   "lead": "Hi, we want help with our wedding",
+   "reply": [
+    "mobile number"
+   ],
+   "stage": "asking"
+  },
+  {
+   "lead": "I would rather not share it",
+   "reply": [
+    "continue right here",
+    "What date"
+   ],
+   "fields": {
+    "number": "Not shared",
+    "occasion": "Wedding"
+   }
+  },
+  {
+   "lead": "Wedding in november next year",
+   "reply": [
+    "city or destination"
+   ],
+   "notReply": [
+    "What date"
+   ],
+   "fields": {
+    "occasion": "Wedding",
+    "date": "November 2027"
+   }
+  },
+  {
+   "lead": "Udaipur",
+   "reply": [
+    "guests"
+   ],
+   "fields": {
+    "location": "Udaipur"
+   }
+  },
+  {
+   "lead": "around 200",
+   "reply": [
+    "planning, decoration only, or both"
+   ],
+   "fields": {
+    "guests": "200"
+   }
+  },
+  {
+   "lead": "both",
+   "kind": "summary",
+   "reply": [
+    "Planning and Decoration",
+    "November 2027"
+   ],
+   "notReply": [
+    "Looking for: Both"
+   ],
+   "stage": "confirm",
+   "fields": {
+    "requirement": "Planning \\+ Decoration"
+   }
+  }
+ ]
+}
