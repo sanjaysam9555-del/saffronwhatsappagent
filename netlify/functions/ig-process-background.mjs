@@ -55,7 +55,9 @@ export default async (req) => {
   // "agenttest" is the keyword that routes test messages in ManyChat; it is never part of what a lead means.
   // The text normally comes in the request. If it is missing (the body may carry only the subscriber id), read it from ManyChat.
   let evtText = String(evt.text ?? "");
+  const sentLen = evtText.trim().length;
   if (!evtText.trim() && sid) evtText = await getInstagramLastText(sid);
+  console.log(`ig-in: fields=${Object.keys(evt).join(",")} textFromManyChat=${sentLen} chars, afterApiLookup=${String(evtText).trim().length} chars`); // lengths only, never the message itself
   const stripped = String(evtText).replace(/^\s*agenttest\b[\s:,.-]*/i, "").trim();
   const blankText = !String(evtText).trim(); // nothing readable arrived: a photo, or a typed message that did not come through
   const rawText = stripped || (/^\s*agenttest\b/i.test(evtText) ? "Hi" : "") || "[attachment]";
