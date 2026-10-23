@@ -13,7 +13,7 @@ import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEm
 import { isMediaOnly, recordMedia, REF_THANKS, REF_UNSURE, REF_NOTE, refOpen, greetingText } from "../../lib/media.mjs";
 import { greetName } from "../../lib/leadfields.mjs";
 import { sendInstagramText, getInstagramLastText, parseManychatEvent } from "../../lib/manychat.mjs";
-import { getIg, saveIg, queueMessage, claimQueue, resetIg } from "../../lib/igstate.mjs";
+import { getIg, saveIg, queueMessage, claimQueue, resetIg, addIgHistory, getIgHistory } from "../../lib/igstate.mjs";
 import { upsertInstagramLead } from "../../lib/sheet.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
@@ -81,12 +81,14 @@ export default async (req) => {
     if (!text) return ok("later message will answer");
   }
 
+  if (!blankText) await addIgHistory(sid, "customer", text); // the chat so far, for Claude
   const label = username ? `@${username}` : `ig:${sid}`;
   let pendingAsk = ""; // the question we were waiting for, repeated after a taught answer
   let vendorChat = false, leadQ = null; // set once the chat is loaded; used to give every real lead a row, even one who asks a question and goes quiet
   const ROW_REASONS = new Set(["lead-question", "money-or-commitment", "pricing-or-availability-question", "call-time-request"]);
   const send = async (msg) => {
     await logExchange({ channel: "Instagram", contact: label, lead: text, agent: msg });
+    await addIgHistory(sid, "us", msg);
     for (const part of chunk(msg)) { await sendInstagramText(sid, part); await sleep(400); }
     await saveIg(sid, { lastOut: Date.now() });
   };
@@ -228,7 +230,7 @@ export default async (req) => {
         await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "looks-like-vendor", lastMsg: text });
       };
       const HANDOVER_REASON = { money: "money-or-commitment", existing_client: "existing-client", complaint: "complaint", unclear: "who-is-this", other: "unclear" };
-      const act = operatorOn() ? await routeMessage({ channel: "Instagram", profileName: name || username, text, history: [], state: { greeted: c.greeted } }) : null;
+      const act = operatorOn() ? await routeMessage({ channel: "Instagram", profileName: name || username, text, history: await getIgHistory(sid, { skipNewest: text }), state: { greeted: c.greeted } }) : null;
       if (act?.kind === "vendor") { await vendorWelcomeNow(act); return ok(); }
       if (act?.kind === "reply") { await saveIg(sid, { greeted: true }); if (await allow(`igreply:${sid}:operator`, 20_000)) { await send(act.text); await incr("operator_replies"); } return ok(); }
       if (act?.kind === "handover") { await toHuman(HANDOVER_REASON[act.reason] || "unclear", true, act.hold); return ok(); }
