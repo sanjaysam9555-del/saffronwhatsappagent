@@ -112,7 +112,7 @@ test("supervisor sends a vendor link, flags unclear chats, and never answers han
   assert.equal(res.looked, 0); // someone already answered
 });
 
-test("Instagram history: reads the real chat, labels sides, drops the message being answered, never throws", async () => {
+test("Instagram history: finds the chat by username, labels sides, drops the message being answered, never throws", async () => {
   const { getInstagramHistory, withoutCurrent } = await import("../lib/igapi.mjs");
   process.env.INSTAGRAM_ACCESS_TOKEN = "t";
   const real = globalThis.fetch;
@@ -120,35 +120,31 @@ test("Instagram history: reads the real chat, labels sides, drops the message be
   globalThis.fetch = async (url) => {
     const u = String(url);
     const json = (b) => ({ ok: true, json: async () => b });
-    if (u.includes("/me/conversations")) return json({ data: [{ id: "c1" }] });
+    if (u.includes("/me/conversations")) return json({ data: [{ id: "c0", participants: { data: [{ id: "999", username: "us" }, { id: "111", username: "someone" }] } }, { id: "c1", participants: { data: [{ id: "999", username: "us" }, { id: "555", username: "Riya_Shah" }] } }] });
     if (u.includes("/c1")) return json({ messages: { data: [{ id: "m3" }, { id: "m2" }, { id: "m1" }] } });
-    const id = u.match(/\/(m\d)\?/)?.[1];
-    return json(msgs[id]);
+    return json(msgs[u.match(/\/(m\d)\?/)?.[1]]);
   };
   try {
-    const h = await getInstagramHistory("555");
+    const h = await getInstagramHistory({ username: "@riya_shah" });
     assert.deepEqual(h.map((m) => m.from), ["customer", "us", "customer"]);
     assert.equal(h[0].text, "Hi, need decor");
     assert.deepEqual(withoutCurrent(h, "Jaipur").map((m) => m.text), ["Hi, need decor", "Lovely! Which city?"]);
-    globalThis.fetch = async () => ({ ok: false, status: 400 });
-    assert.equal(await getInstagramHistory("555"), null);
+    assert.equal(await getInstagramHistory({ username: "nobody" }), null);
+    globalThis.fetch = async () => ({ ok: false, status: 400, json: async () => ({ error: { code: 100, message: "bad" } }) });
+    assert.equal(await getInstagramHistory({ username: "riya_shah" }), null);
     globalThis.fetch = async () => { throw new Error("down"); };
-    assert.equal(await getInstagramHistory("555"), null);
-    assert.equal(await getInstagramHistory(""), null);
+    assert.equal(await getInstagramHistory({ username: "riya_shah" }), null);
+    assert.equal(await getInstagramHistory({}), null);
   } finally { globalThis.fetch = real; delete process.env.INSTAGRAM_ACCESS_TOKEN; }
 });
 
-test("callTools retries once with a relaxed tool choice when Claude answers 400", async () => {
+test("callTools lets Claude choose the tool (this model rejects a forced choice)", async () => {
   const real = globalThis.fetch;
-  const seen = [];
-  globalThis.fetch = async (url, init) => {
-    const choice = JSON.parse(init.body).tool_choice.type; seen.push(choice);
-    if (choice === "any") return { ok: false, status: 400, text: async () => "bad", clone() { return this; } };
-    return { ok: true, status: 200, json: async () => ({ content: [{ type: "tool_use", name: "stay_quiet", input: { why: "x" } }] }) };
-  };
+  let seen = "";
+  globalThis.fetch = async (url, init) => { seen = JSON.parse(init.body).tool_choice.type; return { ok: true, status: 200, json: async () => ({ content: [{ type: "tool_use", name: "stay_quiet", input: { why: "x" } }] }) }; };
   try {
     const r = await op.routeMessage({ channel: "WhatsApp", text: "ok" });
     assert.equal(r.kind, "quiet");
-    assert.deepEqual(seen, ["any", "auto"]);
+    assert.equal(seen, "auto");
   } finally { globalThis.fetch = real; }
 });

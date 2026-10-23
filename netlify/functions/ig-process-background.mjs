@@ -12,7 +12,7 @@ import { recordCall, callRecord } from "../../lib/calls.mjs";
 import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail, wantsReschedule, wantsCancel, startReschedule } from "../../lib/consult.mjs";
 import { isMediaOnly, recordMedia, REF_THANKS, REF_UNSURE, REF_NOTE, refOpen, greetingText } from "../../lib/media.mjs";
 import { greetName } from "../../lib/leadfields.mjs";
-import { sendInstagramText, getInstagramLastText, getInstagramInfo, parseManychatEvent } from "../../lib/manychat.mjs";
+import { sendInstagramText, getInstagramLastText, parseManychatEvent } from "../../lib/manychat.mjs";
 import { getIg, saveIg, queueMessage, claimQueue, resetIg, addIgHistory, getIgHistory } from "../../lib/igstate.mjs";
 import { upsertInstagramLead } from "../../lib/sheet.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
@@ -234,11 +234,9 @@ export default async (req) => {
       // The real chat from Instagram when it can be read (it includes what the team typed by hand); otherwise our own rolling record.
       let history = null;
       if (operatorOn() && igApiOn()) {
-        let igId = c.igId;
-        if (!igId) { igId = (await getInstagramInfo(sid)).igId; if (igId) await saveIg(sid, { igId }); }
-        const real = igId ? await getInstagramHistory(igId) : null;
+        const real = await getInstagramHistory({ username });
         history = real && real.length ? withoutCurrent(real, text) : null;
-        console.log(`ig-history: idKnown=${Boolean(igId)} fromInstagram=${real ? real.length : "none"}`);
+        console.log(`ig-history: usernameKnown=${Boolean(username)} fromInstagram=${real ? real.length : "none"}`);
       }
       if (!history) history = await getIgHistory(sid, { skipNewest: text });
       const act = operatorOn() ? await routeMessage({ channel: "Instagram", profileName: name || username, text, history, state: { greeted: c.greeted } }) : null;
