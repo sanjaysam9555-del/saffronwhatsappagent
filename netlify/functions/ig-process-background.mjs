@@ -20,7 +20,7 @@ import { testAllows } from "../../lib/testmode.mjs";
 import { allow } from "../../lib/state.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { operatorOn, routeMessage } from "../../lib/operator.mjs";
-import { igApiOn, getInstagramHistory, withoutCurrent } from "../../lib/igapi.mjs";
+import { igApiOn, getInstagramHistory, withoutCurrent, debugInstagramApi } from "../../lib/igapi.mjs";
 
 // Answers Instagram DMs that ManyChat forwards (see ig-webhook). Same rules as WhatsApp, plus the mobile number is asked
 // first (we do not have it yet). Replies go back through ManyChat's API, inside Meta's 24h window after their message.
@@ -70,6 +70,10 @@ export default async (req) => {
     await resetIg(sid);
     await sendInstagramText(sid, "Test reset done. Send \"agenttest\" followed by your message to start again.");
     return ok("reset");
+  }
+  if (/^\s*agenttest\s+igdebug\b/i.test(evtText)) { // test helper: what does Meta's Instagram API say?
+    await sendInstagramText(sid, await debugInstagramApi(username));
+    return ok("igdebug");
   }
   if (!(await allow(`igevt:${sid}:${rawText.slice(0, 40)}`, 15_000))) return ok("duplicate"); // ManyChat can fire twice
 
