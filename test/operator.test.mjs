@@ -180,6 +180,7 @@ test("a number that arrives as an unreadable phone card is accepted and the chat
   assert.equal(q.asked, "number");
   const r = numberInChat(q, "Riya");
   assert.equal(r.q.fields.number, "Shared in this chat");
+  assert.equal(r.q.numCard, true);
   assert.match(r.reply, /noted your number/);
   assert.ok(!/mobile number/.test(r.reply)); // does not ask for it again
   assert.notEqual(r.q.asked, "number");
@@ -198,8 +199,30 @@ test("a number that arrived as a phone card is found in the real chat", async ()
   };
   try {
     assert.equal(await findNumberInChat({ username: "riya_shah" }), "+919555879555");
-    assert.equal(await findNumberInChat({ username: "nobody" }), "");
+    assert.equal(await findNumberInChat({ username: "nobody" }), null); // chat not found: unknown, not "no number"
     globalThis.fetch = async () => ({ ok: false, status: 400, json: async () => ({}) });
-    assert.equal(await findNumberInChat({ username: "riya_shah" }), "");
+    assert.equal(await findNumberInChat({ username: "riya_shah" }), null); // could not read: unknown
+    msgs.m3.message = "no number here"; // the chat is readable and holds no number
+    globalThis.fetch = async (url) => {
+      const u = String(url), json = (b) => ({ ok: true, json: async () => b });
+      if (u.includes("/me/conversations")) return json({ data: [{ id: "c1", participants: { data: [{ id: "999", username: "us" }, { id: "555", username: "riya_shah" }] } }] });
+      if (u.includes("/c1")) return json({ messages: { data: [{ id: "m3" }, { id: "m2" }, { id: "m1" }] } });
+      return json(msgs[u.match(/\/(m\d)\?/)?.[1]]);
+    };
+    assert.equal(await findNumberInChat({ username: "riya_shah" }), ""); // read, nothing found
   } finally { globalThis.fetch = real; delete process.env.INSTAGRAM_ACCESS_TOKEN; }
+});
+
+test("a number marked Pending from a card gets the one gentle ask in the summary", async () => {
+  const { newState, advance } = await import("../lib/qualify.mjs");
+  let q = newState({}, "Instagram", "instagram");
+  q = advance(q, "Hi I need decor", {}, "Riya").q;
+  q = { ...q, numCard: true, fields: { ...q.fields, number: "Pending" } };
+  let last;
+  for (const [k, v] of [["requirement", "Decor"], ["date", "March 2027"], ["venue", "Jaipur"], ["guests", "300"]]) {
+    last = advance(q, v, { [k]: v }, "Riya"); q = last.q;
+  }
+  for (let i = 0; i < 6 && last.kind !== "summary"; i++) { last = advance(q, "ok", {}, "Riya"); q = last.q; }
+  assert.equal(last.kind, "summary");
+  assert.match(last.reply, /share your mobile number here/);
 });

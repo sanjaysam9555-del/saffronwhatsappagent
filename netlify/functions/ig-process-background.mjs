@@ -140,31 +140,43 @@ export default async (req) => {
     try { await recordCall(callRecord({ id: id || `ig-${sid}-${booked.start}`, start: booked.start, label: booked.label, name, number: q.fields?.number, channel: "Instagram", pref: q.callPref, meetLink: q.callBooked?.meetLink })); } catch (e) { console.warn("keepCall:", e.message); }
   };
 
-  // The number is "Shared in this chat" when Instagram showed it as a phone card we could not read. The real chat still holds it:
-  // read it from there and put it in the lead's details. Only replaces that placeholder, never a number someone gave properly.
+  // The number is "Shared in this chat" when Instagram showed it as a phone card we could not read. The real chat still holds it: read it
+  // from there and put it in the lead's details. If the chat was read and holds no number, it was not actually shared: the number is
+  // marked "Pending", so the one gentle ask towards the end of the chat applies. If the chat could not be read, nothing is assumed.
+  // Only ever replaces that placeholder (or "Pending" from a card), never a number someone gave properly.
   const PLACEHOLDER = "Shared in this chat";
   const fillNumberFromChat = async (tries = 4, waitMs = 8000) => {
     if (!igApiOn() || !username) return false;
+    let readable = false;
     for (let i = 0; i < tries; i++) {
       if (i) await sleep(waitMs);
       const num = await findNumberInChat({ username });
-      if (!num) continue;
+      if (num === null) continue; // could not read the chat this time
+      readable = true;
+      if (!num) continue; // read, no number yet (it can take a moment to appear)
       const cur = await getIg(sid);
-      if (cur.q?.fields?.number !== PLACEHOLDER) return false;
-      const q2 = { ...cur.q, fields: { ...cur.q.fields, number: num } };
+      if (!cur.q?.numCard || ![PLACEHOLDER, "Pending"].includes(cur.q.fields?.number)) return false;
+      const q2 = { ...cur.q, numCard: false, fields: { ...cur.q.fields, number: num } };
       await saveIg(sid, { q: q2 });
       await upsertInstagramLead(sid, name || label, q2, { notes: q2.notes, lastMsg: "(number read from the Instagram chat)" });
       await incr("ig_numbers_recovered");
       console.log("ig-number: read from the Instagram chat");
       return true;
     }
-    console.log("ig-number: not found in the chat");
+    if (readable) { // the chat holds no number: it was not shared after all, so it is asked for once, towards the end
+      const cur = await getIg(sid);
+      if (cur.q?.numCard && cur.q.fields?.number === PLACEHOLDER) {
+        await saveIg(sid, { q: { ...cur.q, fields: { ...cur.q.fields, number: "Pending" } } });
+        await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "unreadable-message", lastMsg: "(a phone card was sent, but no number is in the chat: it will be asked for again towards the end)" });
+      }
+      console.log("ig-number: no number in the chat");
+    } else console.log("ig-number: chat could not be read");
     return false;
   };
 
   try {
     let c = await saveIg(sid, { lastIn: Date.now(), name: name || undefined, username: username || undefined });
-    if (c.q?.fields?.number === PLACEHOLDER && (await fillNumberFromChat(1))) c = await getIg(sid); // still unread from an earlier turn: try once more
+    if (c.q?.numCard && [PLACEHOLDER, "Pending"].includes(c.q.fields?.number) && (await fillNumberFromChat(1))) c = await getIg(sid); // still unread from an earlier turn: check the chat once more
     pendingAsk = c.q?.stage === "asking" ? pendingQuestion(c.q) : "";
     leadQ = c.q || null;
     const d = decide(text, { name });
