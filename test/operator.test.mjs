@@ -148,3 +148,27 @@ test("callTools lets Claude choose the tool (this model rejects a forced choice)
     assert.equal(seen, "auto");
   } finally { globalThis.fetch = real; }
 });
+
+test("Instagram: a message ManyChat could not read is recovered from Meta only when fresh, from the lead and the newest", async () => {
+  const { getLatestCustomerText } = await import("../lib/igapi.mjs");
+  process.env.INSTAGRAM_ACCESS_TOKEN = "t";
+  const real = globalThis.fetch;
+  const setup = (msg) => { globalThis.fetch = async (url) => {
+    const u = String(url), json = (b) => ({ ok: true, json: async () => b });
+    if (u.includes("/me/conversations")) return json({ data: [{ id: "c1", participants: { data: [{ id: "999", username: "us" }, { id: "555", username: "riya_shah" }] } }] });
+    if (u.includes("/c1")) return json({ messages: { data: [{ id: "m9" }, { id: "m8" }] } });
+    return json(msg);
+  }; };
+  const iso = (ms) => new Date(ms).toISOString().replace("Z", "+0000"); // Meta's time format
+  try {
+    setup({ id: "m9", message: "9555879555", from: { id: "555" }, created_time: iso(Date.now() - 20_000) });
+    assert.equal(await getLatestCustomerText({ username: "riya_shah" }), "9555879555");
+    setup({ id: "m9", message: "9555879555", from: { id: "555" }, created_time: iso(Date.now() - 20 * 60_000) });
+    assert.equal(await getLatestCustomerText({ username: "riya_shah" }), ""); // too old
+    setup({ id: "m9", message: "Thanks!", from: { id: "999" }, created_time: iso(Date.now() - 5_000) });
+    assert.equal(await getLatestCustomerText({ username: "riya_shah" }), ""); // our own message
+    setup({ id: "m9", from: { id: "555" }, created_time: iso(Date.now() - 5_000) });
+    assert.equal(await getLatestCustomerText({ username: "riya_shah" }), ""); // a photo: no text, never reuse an older one
+    assert.equal(await getLatestCustomerText({}), "");
+  } finally { globalThis.fetch = real; delete process.env.INSTAGRAM_ACCESS_TOKEN; }
+});

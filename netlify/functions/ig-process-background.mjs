@@ -20,7 +20,7 @@ import { testAllows } from "../../lib/testmode.mjs";
 import { allow } from "../../lib/state.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { operatorOn, routeMessage } from "../../lib/operator.mjs";
-import { igApiOn, getInstagramHistory, withoutCurrent, debugInstagramApi } from "../../lib/igapi.mjs";
+import { igApiOn, getInstagramHistory, getLatestCustomerText, withoutCurrent, debugInstagramApi } from "../../lib/igapi.mjs";
 
 // Answers Instagram DMs that ManyChat forwards (see ig-webhook). Same rules as WhatsApp, plus the mobile number is asked
 // first (we do not have it yet). Replies go back through ManyChat's API, inside Meta's 24h window after their message.
@@ -61,6 +61,10 @@ export default async (req) => {
   const sentLen = evtText.trim().length;
   // ManyChat may not have stored the message yet (a phone number can take a moment), so look a few times before giving up.
   for (let i = 0; i < 3 && !evtText.trim() && sid; i++) { if (i) await sleep(1500); evtText = await getInstagramLastText(sid); }
+  // Still nothing (Instagram shows a typed phone number as a card, and ManyChat gives no text for it): read the newest message from Instagram itself.
+  let recovered = 0;
+  if (!evtText.trim() && igApiOn() && username) { evtText = await getLatestCustomerText({ username }); recovered = evtText.trim().length; }
+  console.log(`ig-in: recoveredFromInstagram=${recovered} chars`);
   console.log(`ig-in: fields=${Object.keys(evt).join(",")} textFromManyChat=${sentLen} chars, afterApiLookup=${String(evtText).trim().length} chars`); // lengths only, never the message itself
   const stripped = String(evtText).replace(/^\s*agenttest\b[\s:,.-]*/i, "").trim();
   const blankText = !String(evtText).trim(); // nothing readable arrived: a photo, or a typed message that did not come through
