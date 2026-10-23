@@ -162,13 +162,13 @@ test("Instagram: a message ManyChat could not read is recovered from Meta only w
   const iso = (ms) => new Date(ms).toISOString().replace("Z", "+0000"); // Meta's time format
   try {
     setup({ id: "m9", message: "9555879555", from: { id: "555" }, created_time: iso(Date.now() - 20_000) });
-    assert.equal(await getLatestCustomerText({ username: "riya_shah" }), "9555879555");
+    assert.equal(await getLatestCustomerText({ username: "riya_shah", tries: 1 }), "9555879555");
     setup({ id: "m9", message: "9555879555", from: { id: "555" }, created_time: iso(Date.now() - 20 * 60_000) });
-    assert.equal(await getLatestCustomerText({ username: "riya_shah" }), ""); // too old
+    assert.equal(await getLatestCustomerText({ username: "riya_shah", tries: 1 }), ""); // too old
     setup({ id: "m9", message: "Thanks!", from: { id: "999" }, created_time: iso(Date.now() - 5_000) });
-    assert.equal(await getLatestCustomerText({ username: "riya_shah" }), ""); // our own message
+    assert.equal(await getLatestCustomerText({ username: "riya_shah", tries: 1 }), ""); // our own message
     setup({ id: "m9", from: { id: "555" }, created_time: iso(Date.now() - 5_000) });
-    assert.equal(await getLatestCustomerText({ username: "riya_shah" }), ""); // a photo: no text, never reuse an older one
+    assert.equal(await getLatestCustomerText({ username: "riya_shah", tries: 1 }), ""); // a photo: no text, never reuse an older one
     assert.equal(await getLatestCustomerText({}), "");
   } finally { globalThis.fetch = real; delete process.env.INSTAGRAM_ACCESS_TOKEN; }
 });
