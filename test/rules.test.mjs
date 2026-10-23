@@ -123,7 +123,8 @@ test("asking our fee gets the website answer, then the questions carry on; nothi
   const first = advance(newState(), "how much do you charge?", {}, "Riya", "Welcome Riya", "", priceAnswer("how much do you charge?"));
   assert.match(first.reply, /flat fee, never a percentage/);
   assert.match(first.reply, /₹3\.5 lakh/);
-  assert.match(first.reply, /quick questions/);
+  assert.doesNotMatch(first.reply, /https?:\/\//, "a first reply carries no links");
+  assert.match(first.reply, /mobile number|\?\s*$/, "and asks one question");
   assert.equal(first.kind, "ask");
   const mid = advance({ ...first.q }, "what is the price?", {}, "Riya", "", "", priceAnswer("what is the price?"));
   assert.equal(mid.kind, "ask");
@@ -448,7 +449,7 @@ test("a lead who was already greeted is not welcomed a second time", () => {
   const q = { ...newState({}, "Instagram", "instagram"), greeted: true };
   const r = advance(q, "I am planning a wedding", {}, "Swati", "", "", "");
   assert.doesNotMatch(r.reply, /Hello|Thank you for reaching out/);
-  assert.match(r.reply, /quick questions/);
+  assert.match(r.reply, /mobile number/);
   const r2 = advance(newState({}, "Instagram", "instagram"), "I am planning a wedding", {}, "Swati", "", "", "");
   assert.match(r2.reply, /Hello Swati!/);
 });
@@ -599,8 +600,8 @@ test("the opening answers what the lead asked for, and the number ask explains w
   const r = advance(q, "Hi can you help with decor for my wedding?", {}, "Sanjay Jain");
   assert.equal(r.kind, "ask");
   assert.equal(r.reply,
-    "Hello Sanjay!\n\nThank you for reaching out to Saffron Collective 🌼\n\nWe would love to help you with the decor.\n\nTo help our planner prepare, I have a few quick questions.\n\n" +
-    "May I have your mobile number? Please include the country code if it is outside India.\n\nThis is required so that we can quickly confirm a few details for sharing the quote/design.");
+    "Hello Sanjay!\n\nThank you for reaching out to Saffron Collective 🌼\n\nWe would love to help you with the decor.\n\n" +
+    "May I have your mobile number, so we can confirm a few details for the quote/design? Please include the country code if it is outside India.");
 });
 
 test("serviceLine reads decor, planning, both, or nothing", () => {
@@ -1066,4 +1067,23 @@ test("full contact data with a line break in last_input_text is still read", asy
   assert.equal(e.text, "Maybe\nJaipur");
   assert.equal(e.name, "Swati Sharma");
   assert.equal(e.ig_username, "swati");
+});
+
+test("a title in the profile name is skipped when greeting", async () => {
+  const { greetName } = await import("../lib/leadfields.mjs");
+  assert.equal(greetName("Dr. Shivani Bhardwaj"), "Shivani");
+  assert.equal(greetName("Dr Rahul"), "Rahul");
+  assert.equal(greetName("Mrs. Anita Rao"), "Anita");
+  assert.equal(greetName("Dr."), "");
+});
+
+test("a first message asking about decor price gets a short reply: one answer, one question, no links", () => {
+  const msg = "Hi, I'd like to enquire about your charges for engagement décor at a property. Could you please share your pricing details?";
+  const r = advance(newState({}, "Instagram", "instagram"), msg, {}, "Dr. Shivani Bhardwaj", "", "", priceAnswer(msg) + "\n\n" + guideText(guidesFor(msg)));
+  assert.ok(r.reply.startsWith("Hello Shivani!"));
+  assert.doesNotMatch(r.reply, /https?:\/\//);
+  assert.doesNotMatch(r.reply, /few quick questions|This is required/);
+  assert.match(r.reply, /Founders will walk you through it on a quick call/);
+  assert.match(r.reply, /mobile number/);
+  assert.ok(r.reply.length < 460, `reply is ${r.reply.length} characters`);
 });
