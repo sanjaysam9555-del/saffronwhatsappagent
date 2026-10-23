@@ -6,7 +6,7 @@ import { sendTemplateMessage } from "../../lib/wati.mjs";
 import { callBookedParams } from "../../lib/leadfields.mjs";
 import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playbook.mjs";
 import { extractFields, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail } from "../../lib/claude.mjs";
-import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter } from "../../lib/qualify.mjs";
+import { newState, advance, numberInChat, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult, moveConsult } from "../../lib/calendar.mjs";
 import { recordCall, callRecord } from "../../lib/calls.mjs";
 import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail, wantsReschedule, wantsCancel, startReschedule } from "../../lib/consult.mjs";
@@ -169,6 +169,16 @@ export default async (req) => {
       }
     }
     if (c.esc || c.q?.stage === "paused" || c.kind === "vendor") return ok("with team"); // after a hand-over the agent stays quiet
+    if (mediaCount && !message && blankText && c.q?.stage === "asking" && c.q.asked === "number" && !c.q.fields?.number) {
+      // They were asked for their number and Instagram sent it as a phone card with no readable text: do not ask again, carry on.
+      const r = numberInChat(c.q, who);
+      await saveIg(sid, { q: r.q });
+      await upsertInstagramLead(sid, name || label, r.q, { notes: r.q.notes, lastMsg: "(number sent as an Instagram phone card)" });
+      await send(r.reply);
+      await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "unreadable-message", lastMsg: "(probably their number, sent as a phone card: please read it in the Instagram chat)" });
+      await incr("ig_number_cards");
+      return ok("number card");
+    }
     if (mediaCount && !message) {
       if (!c.q) { if (await allow(`igreply:${sid}:open`, 6 * HOUR)) { await saveIg(sid, { greeted: true }); await send(refOpen(who)); } }
       else if (["asking", "confirm", "call", "slots", "email"].includes(c.q.stage) && (await allow(`igmediaack:${sid}`, blankText ? 90_000 : 10 * 60_000))) {
