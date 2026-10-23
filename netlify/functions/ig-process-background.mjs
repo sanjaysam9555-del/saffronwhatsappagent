@@ -20,7 +20,7 @@ import { testAllows } from "../../lib/testmode.mjs";
 import { allow } from "../../lib/state.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { operatorOn, routeMessage } from "../../lib/operator.mjs";
-import { igApiOn, getInstagramHistory, getLatestCustomerText, withoutCurrent, debugInstagramApi } from "../../lib/igapi.mjs";
+import { igApiOn, getInstagramHistory, getLatestCustomerText, findNumberInChat, withoutCurrent, debugInstagramApi } from "../../lib/igapi.mjs";
 
 // Answers Instagram DMs that ManyChat forwards (see ig-webhook). Same rules as WhatsApp, plus the mobile number is asked
 // first (we do not have it yet). Replies go back through ManyChat's API, inside Meta's 24h window after their message.
@@ -140,8 +140,31 @@ export default async (req) => {
     try { await recordCall(callRecord({ id: id || `ig-${sid}-${booked.start}`, start: booked.start, label: booked.label, name, number: q.fields?.number, channel: "Instagram", pref: q.callPref, meetLink: q.callBooked?.meetLink })); } catch (e) { console.warn("keepCall:", e.message); }
   };
 
+  // The number is "Shared in this chat" when Instagram showed it as a phone card we could not read. The real chat still holds it:
+  // read it from there and put it in the lead's details. Only replaces that placeholder, never a number someone gave properly.
+  const PLACEHOLDER = "Shared in this chat";
+  const fillNumberFromChat = async (tries = 4, waitMs = 8000) => {
+    if (!igApiOn() || !username) return false;
+    for (let i = 0; i < tries; i++) {
+      if (i) await sleep(waitMs);
+      const num = await findNumberInChat({ username });
+      if (!num) continue;
+      const cur = await getIg(sid);
+      if (cur.q?.fields?.number !== PLACEHOLDER) return false;
+      const q2 = { ...cur.q, fields: { ...cur.q.fields, number: num } };
+      await saveIg(sid, { q: q2 });
+      await upsertInstagramLead(sid, name || label, q2, { notes: q2.notes, lastMsg: "(number read from the Instagram chat)" });
+      await incr("ig_numbers_recovered");
+      console.log("ig-number: read from the Instagram chat");
+      return true;
+    }
+    console.log("ig-number: not found in the chat");
+    return false;
+  };
+
   try {
     let c = await saveIg(sid, { lastIn: Date.now(), name: name || undefined, username: username || undefined });
+    if (c.q?.fields?.number === PLACEHOLDER && (await fillNumberFromChat(1))) c = await getIg(sid); // still unread from an earlier turn: try once more
     pendingAsk = c.q?.stage === "asking" ? pendingQuestion(c.q) : "";
     leadQ = c.q || null;
     const d = decide(text, { name });
@@ -177,6 +200,7 @@ export default async (req) => {
       await send(r.reply);
       await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "unreadable-message", lastMsg: "(probably their number, sent as a phone card: please read it in the Instagram chat)" });
       await incr("ig_number_cards");
+      await fillNumberFromChat(); // the lead is already answered; now read the real number from the Instagram chat and fill it in
       return ok("number card");
     }
     if (mediaCount && !message) {

@@ -184,3 +184,22 @@ test("a number that arrives as an unreadable phone card is accepted and the chat
   assert.ok(!/mobile number/.test(r.reply)); // does not ask for it again
   assert.notEqual(r.q.asked, "number");
 });
+
+test("a number that arrived as a phone card is found in the real chat", async () => {
+  const { findNumberInChat } = await import("../lib/igapi.mjs");
+  process.env.INSTAGRAM_ACCESS_TOKEN = "t";
+  const real = globalThis.fetch;
+  const msgs = { m3: { id: "m3", message: "9555879555", from: { id: "555" } }, m2: { id: "m2", message: "May I have your mobile number?", from: { id: "999" } }, m1: { id: "m1", message: "Hi, need decor", from: { id: "555" } } };
+  globalThis.fetch = async (url) => {
+    const u = String(url), json = (b) => ({ ok: true, json: async () => b });
+    if (u.includes("/me/conversations")) return json({ data: [{ id: "c1", participants: { data: [{ id: "999", username: "us" }, { id: "555", username: "riya_shah" }] } }] });
+    if (u.includes("/c1")) return json({ messages: { data: [{ id: "m3" }, { id: "m2" }, { id: "m1" }] } });
+    return json(msgs[u.match(/\/(m\d)\?/)?.[1]]);
+  };
+  try {
+    assert.equal(await findNumberInChat({ username: "riya_shah" }), "+919555879555");
+    assert.equal(await findNumberInChat({ username: "nobody" }), "");
+    globalThis.fetch = async () => ({ ok: false, status: 400, json: async () => ({}) });
+    assert.equal(await findNumberInChat({ username: "riya_shah" }), "");
+  } finally { globalThis.fetch = real; delete process.env.INSTAGRAM_ACCESS_TOKEN; }
+});
