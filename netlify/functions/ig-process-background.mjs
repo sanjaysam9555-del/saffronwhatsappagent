@@ -12,7 +12,7 @@ import { recordCall, callRecord } from "../../lib/calls.mjs";
 import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail, wantsReschedule, wantsCancel, startReschedule } from "../../lib/consult.mjs";
 import { isMediaOnly, recordMedia, REF_THANKS, REF_UNSURE, REF_NOTE, refOpen, greetingText } from "../../lib/media.mjs";
 import { greetName } from "../../lib/leadfields.mjs";
-import { sendInstagramText, getInstagramLastText, parseManychatEvent } from "../../lib/manychat.mjs";
+import { sendInstagramText, getInstagramLastText, getInstagramInfo, parseManychatEvent } from "../../lib/manychat.mjs";
 import { getIg, saveIg, queueMessage, claimQueue, resetIg, addIgHistory, getIgHistory } from "../../lib/igstate.mjs";
 import { upsertInstagramLead } from "../../lib/sheet.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
@@ -20,6 +20,7 @@ import { testAllows } from "../../lib/testmode.mjs";
 import { allow } from "../../lib/state.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { operatorOn, routeMessage } from "../../lib/operator.mjs";
+import { igApiOn, getInstagramHistory, withoutCurrent } from "../../lib/igapi.mjs";
 
 // Answers Instagram DMs that ManyChat forwards (see ig-webhook). Same rules as WhatsApp, plus the mobile number is asked
 // first (we do not have it yet). Replies go back through ManyChat's API, inside Meta's 24h window after their message.
@@ -230,7 +231,17 @@ export default async (req) => {
         await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "looks-like-vendor", lastMsg: text });
       };
       const HANDOVER_REASON = { money: "money-or-commitment", existing_client: "existing-client", complaint: "complaint", unclear: "who-is-this", other: "unclear" };
-      const act = operatorOn() ? await routeMessage({ channel: "Instagram", profileName: name || username, text, history: await getIgHistory(sid, { skipNewest: text }), state: { greeted: c.greeted } }) : null;
+      // The real chat from Instagram when it can be read (it includes what the team typed by hand); otherwise our own rolling record.
+      let history = null;
+      if (operatorOn() && igApiOn()) {
+        let igId = c.igId;
+        if (!igId) { igId = (await getInstagramInfo(sid)).igId; if (igId) await saveIg(sid, { igId }); }
+        const real = igId ? await getInstagramHistory(igId) : null;
+        history = real && real.length ? withoutCurrent(real, text) : null;
+        console.log(`ig-history: idKnown=${Boolean(igId)} fromInstagram=${real ? real.length : "none"}`);
+      }
+      if (!history) history = await getIgHistory(sid, { skipNewest: text });
+      const act = operatorOn() ? await routeMessage({ channel: "Instagram", profileName: name || username, text, history, state: { greeted: c.greeted } }) : null;
       if (act?.kind === "vendor") { await vendorWelcomeNow(act); return ok(); }
       if (act?.kind === "reply") { await saveIg(sid, { greeted: true }); if (await allow(`igreply:${sid}:operator`, 20_000)) { await send(act.text); await incr("operator_replies"); } return ok(); }
       if (act?.kind === "handover") { await toHuman(HANDOVER_REASON[act.reason] || "unclear", true, act.hold); return ok(); }

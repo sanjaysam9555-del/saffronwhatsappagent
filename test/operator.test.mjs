@@ -111,3 +111,29 @@ test("supervisor sends a vendor link, flags unclear chats, and never answers han
   res = await superviseOnce(d);
   assert.equal(res.looked, 0); // someone already answered
 });
+
+test("Instagram history: reads the real chat, labels sides, drops the message being answered, never throws", async () => {
+  const { getInstagramHistory, withoutCurrent } = await import("../lib/igapi.mjs");
+  process.env.INSTAGRAM_ACCESS_TOKEN = "t";
+  const real = globalThis.fetch;
+  const msgs = { m3: { id: "m3", message: "Jaipur", from: { id: "555" } }, m2: { id: "m2", message: "Lovely! Which city?", from: { id: "999" } }, m1: { id: "m1", message: "Hi, need decor", from: { id: "555" } } };
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    const json = (b) => ({ ok: true, json: async () => b });
+    if (u.includes("/me/conversations")) return json({ data: [{ id: "c1" }] });
+    if (u.includes("/c1")) return json({ messages: { data: [{ id: "m3" }, { id: "m2" }, { id: "m1" }] } });
+    const id = u.match(/\/(m\d)\?/)?.[1];
+    return json(msgs[id]);
+  };
+  try {
+    const h = await getInstagramHistory("555");
+    assert.deepEqual(h.map((m) => m.from), ["customer", "us", "customer"]);
+    assert.equal(h[0].text, "Hi, need decor");
+    assert.deepEqual(withoutCurrent(h, "Jaipur").map((m) => m.text), ["Hi, need decor", "Lovely! Which city?"]);
+    globalThis.fetch = async () => ({ ok: false, status: 400 });
+    assert.equal(await getInstagramHistory("555"), null);
+    globalThis.fetch = async () => { throw new Error("down"); };
+    assert.equal(await getInstagramHistory("555"), null);
+    assert.equal(await getInstagramHistory(""), null);
+  } finally { globalThis.fetch = real; delete process.env.INSTAGRAM_ACCESS_TOKEN; }
+});
