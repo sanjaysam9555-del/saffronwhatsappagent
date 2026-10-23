@@ -137,3 +137,18 @@ test("Instagram history: reads the real chat, labels sides, drops the message be
     assert.equal(await getInstagramHistory(""), null);
   } finally { globalThis.fetch = real; delete process.env.INSTAGRAM_ACCESS_TOKEN; }
 });
+
+test("callTools retries once with a relaxed tool choice when Claude answers 400", async () => {
+  const real = globalThis.fetch;
+  const seen = [];
+  globalThis.fetch = async (url, init) => {
+    const choice = JSON.parse(init.body).tool_choice.type; seen.push(choice);
+    if (choice === "any") return { ok: false, status: 400, text: async () => "bad", clone() { return this; } };
+    return { ok: true, status: 200, json: async () => ({ content: [{ type: "tool_use", name: "stay_quiet", input: { why: "x" } }] }) };
+  };
+  try {
+    const r = await op.routeMessage({ channel: "WhatsApp", text: "ok" });
+    assert.equal(r.kind, "quiet");
+    assert.deepEqual(seen, ["any", "auto"]);
+  } finally { globalThis.fetch = real; }
+});
