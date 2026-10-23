@@ -19,6 +19,7 @@ import { logNeedsTeam } from "../../lib/needsteam.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
 import { allow } from "../../lib/state.mjs";
 import { incr } from "../../lib/metrics.mjs";
+import { operatorOn, routeMessage } from "../../lib/operator.mjs";
 
 // Answers Instagram DMs that ManyChat forwards (see ig-webhook). Same rules as WhatsApp, plus the mobile number is asked
 // first (we do not have it yet). Replies go back through ManyChat's API, inside Meta's 24h window after their message.
@@ -89,14 +90,14 @@ export default async (req) => {
     for (const part of chunk(msg)) { await sendInstagramText(sid, part); await sleep(400); }
     await saveIg(sid, { lastOut: Date.now() });
   };
-  const toHuman = async (reason, ack = true) => {
+  const toHuman = async (reason, ack = true, hold = "") => {
     if (reason === "lead-question") { // an answer you have already taught the agent is used before anyone is bothered
       const taught = await answerFromPlaybook(text);
       if (taught) { await send(pendingAsk ? `${taught}\n\n${pendingAsk}` : taught); await incr("playbook_answers"); return; }
       await recordQuestion({ channel: "Instagram", text });
     }
     await saveIg(sid, { esc: true, escAt: Date.now() });
-    if (ack && (await allow(`igack:${sid}`, 6 * HOUR))) await send((await draftHold({ text, name: who })) || ESCALATION_ACK);
+    if (ack && (await allow(`igack:${sid}`, 6 * HOUR))) await send(hold || (await draftHold({ text, name: who })) || ESCALATION_ACK);
     await incr("ig_escalations");
     console.log(`ESCALATE ig ${sid} (${reason}): ${text.slice(0, 120)}`);
     await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason, lastMsg: text, reply: ack ? "(holding reply sent)" : "" });
@@ -220,21 +221,24 @@ export default async (req) => {
       return ok();
     }
     if (firstTouch) {
-      const found = await classifySenderDetail({ text, name });
-      const sender = found.who;
-      if (sender === "vendor") { // a vendor introducing themselves gets a greeting and the sign-up link, like any other vendor
+      // The operator (Claude) reads the message and decides; if it cannot, the older sorter decides.
+      const vendorWelcomeNow = async (v) => {
         await saveIg(sid, { kind: "vendor" });
-        if (await allow(`igreply:${sid}:vendor_signup`, 6 * HOUR)) {
-          await send(vendorWelcome({ name: found.name || who, business: found.business }));
-          await incr("vendor_links_sent");
-        }
+        if (await allow(`igreply:${sid}:vendor_signup`, 6 * HOUR)) { await send(vendorWelcome({ name: v.name || who, business: v.business })); await incr("vendor_links_sent"); }
         await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "looks-like-vendor", lastMsg: text });
-        return ok();
+      };
+      const HANDOVER_REASON = { money: "money-or-commitment", existing_client: "existing-client", complaint: "complaint", unclear: "who-is-this", other: "unclear" };
+      const act = operatorOn() ? await routeMessage({ channel: "Instagram", profileName: name || username, text, history: [], state: { greeted: c.greeted } }) : null;
+      if (act?.kind === "vendor") { await vendorWelcomeNow(act); return ok(); }
+      if (act?.kind === "reply") { await saveIg(sid, { greeted: true }); if (await allow(`igreply:${sid}:operator`, 20_000)) { await send(act.text); await incr("operator_replies"); } return ok(); }
+      if (act?.kind === "handover") { await toHuman(HANDOVER_REASON[act.reason] || "unclear", true, act.hold); return ok(); }
+      if (act?.kind === "quiet") { console.log(`operator stayed quiet for ig ${sid}: ${act.why}`); return ok(); }
+      if (!act) {
+        const found = await classifySenderDetail({ text, name });
+        if (found.who === "vendor") { await vendorWelcomeNow(found); return ok(); }
+        if (found.who !== "client") { await toHuman("who-is-this"); return ok(); }
       }
-      if (sender !== "client") {
-        await toHuman("who-is-this");
-        return ok();
-      }
+      // act.kind "client" or "price" falls through to the question flow, which answers prices itself
     }
 
     let q = c.q || newState({}, "Instagram", "instagram");

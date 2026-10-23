@@ -1,4 +1,6 @@
 import { decide, ESCALATION_ACK, CLIENT, vendorWelcome } from "../../lib/rules.mjs";
+import { operatorOn, routeMessage, ownerCommand, isOwner, COMMAND_PREFIX } from "../../lib/operator.mjs";
+import { ownerDeps } from "../../lib/operatordeps.mjs";
 import { hardMoney, isPriceQuestion, priceAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
 import { guidesFor, guideText } from "../../lib/guides.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
@@ -76,6 +78,14 @@ export default async (req) => {
   if (!evt.waId) return ok("ignored");
   if (!isSentEvent(evt.eventType) && evt.eventType !== "message") console.log("wati event ignored:", evt.eventType);
   const waId = String(evt.waId);
+  // An order from you or your team ("agent, resend the vendor link to Tanmay"): carried out, and the answer comes back to you.
+  if (operatorOn() && evt.eventType === "message" && evt.owner === false && evt.type === "text" && isOwner(waId) && COMMAND_PREFIX.test(String(evt.text || ""))) {
+    try {
+      const answer = await ownerCommand({ text: String(evt.text), deps: ownerDeps });
+      await sendSessionMessage(waId, answer);
+    } catch (e) { console.error("owner command failed:", e.message); }
+    return ok("owner command");
+  }
   if (!testAllows({ waId })) return ok("test mode: ignored");
 
   // ---- Outbound (our team, the Business App, or the agent) ----
@@ -117,7 +127,7 @@ export default async (req) => {
   };
   let vendorChat = false, leadQ = null; // set once the chat is loaded; used to give every real lead a row, even one who asks a question and goes quiet
   const ROW_REASONS = new Set(["lead-question", "money-or-commitment", "pricing-or-availability-question", "call-time-request"]);
-  const toHuman = async (reason, ack = true) => {
+  const toHuman = async (reason, ack = true, hold = "") => {
     if (reason === "lead-question") { // an answer you have already taught the agent is used before anyone is bothered
       const taught = await answerFromPlaybook(text);
       if (taught) {
@@ -127,11 +137,30 @@ export default async (req) => {
     }
     await saveContact(waId, { esc: true, escText: text.slice(0, 160), escAt: Date.now() });
     await updateContactAttributes(waId, { needs_human: "true", needs_human_reason: reason });
-    if (ack && (await allow(`ack:${waId}`, 6 * HOUR))) await agentSend((await draftHold({ text, name: who })) || ESCALATION_ACK);
+    if (ack && (await allow(`ack:${waId}`, 6 * HOUR))) await agentSend(hold || (await draftHold({ text, name: who })) || ESCALATION_ACK);
     await incr("escalations");
     console.log(`ESCALATE ${waId} (${reason}): ${text.slice(0, 120)}`);
     await logNeedsTeam({ waId, name, reason, lastMsg: text, reply: ack ? "(holding reply sent)" : "" });
     if (ROW_REASONS.has(reason) && !vendorChat) await saveLead(waId, name, leadQ || { fields: {}, stage: "new" }, { notes: `Asked: ${text.slice(0, 120)}`, country: countryOf(waId).name });
+  };
+
+  // What the operator (Claude) decided for a message outside the question flow. Returns true when it has been dealt with.
+  const HANDOVER_REASON = { money: "money-or-commitment", existing_client: "existing-client", complaint: "complaint", unclear: "who-is-this", other: "unclear" };
+  const applyRoute = async (act) => {
+    if (act.kind === "vendor") { // a vendor gets a greeting and the sign-up link, like any other vendor
+      await saveContact(waId, { kind: "vendor" });
+      if (await allow(`reply:${waId}:vendor_signup`, 6 * HOUR)) { await agentSend(vendorWelcome({ name: act.name || who, business: act.business })); await incr("vendor_links_sent"); }
+      await logNeedsTeam({ waId, name, reason: "looks-like-vendor", lastMsg: text, reply: "(vendor sign-up link sent)" });
+      return true;
+    }
+    if (act.kind === "reply") {
+      await saveContact(waId, { greeted: true });
+      if (await allow(`reply:${waId}:operator`, 20_000)) { await agentSend(act.text); await incr("operator_replies"); }
+      return true;
+    }
+    if (act.kind === "handover") { await toHuman(HANDOVER_REASON[act.reason] || "unclear", true, act.hold); return true; }
+    if (act.kind === "quiet") { console.log(`operator stayed quiet for ${waId}: ${act.why}`); return true; }
+    return false;
   };
 
   try {
@@ -241,20 +270,15 @@ export default async (req) => {
       }
       // First real message: work out who is writing. Only a likely new client gets the questions; vendors and unclear go to a person.
       if (firstTouch) {
-        const found = await classifySenderDetail({ text, name });
-        const sender = found.who;
-        if (sender === "vendor") { // a vendor introducing themselves gets a greeting and the sign-up link, like any other vendor
-          await saveContact(waId, { kind: "vendor" });
-          if (await allow(`reply:${waId}:vendor_signup`, 6 * HOUR)) {
-            await agentSend(vendorWelcome({ name: found.name || who, business: found.business }));
-            await incr("vendor_links_sent");
-          }
-          await logNeedsTeam({ waId, name, reason: "looks-like-vendor", lastMsg: text, reply: "(vendor sign-up link sent)" });
-          return ok();
-        }
-        if (sender !== "client") {
-          await toHuman("who-is-this");
-          return ok();
+        // The operator (Claude) reads the message with the chat history and decides. If it cannot, the older sorter below decides.
+        const act = operatorOn() ? await routeMessage({ channel: "WhatsApp", profileName: name, text, history: (await getRecentMessages(waId, 12)) || [], state: { greeted: c.greeted } }) : null;
+        if (act) {
+          if (await applyRoute(act)) return ok();
+        } else {
+          const found = await classifySenderDetail({ text, name });
+          const sender = found.who;
+          if (sender === "vendor") { await applyRoute({ kind: "vendor", name: found.name, business: found.business }); return ok(); }
+          if (sender !== "client") { await toHuman("who-is-this"); return ok(); }
         }
       }
       const country = countryOf(waId);
@@ -375,7 +399,14 @@ export default async (req) => {
       return ok();
     }
 
-    // 5. Everyone else: simple rules, then Claude for light replies, otherwise a human.
+    // 5. Everyone else (vendors writing again, and other messages outside the question flow): the operator reads it in context and
+    // decides. Chats already handed to the team are left alone unless it is a vendor. If it cannot decide, the older rules below do.
+    if (operatorOn() && (isVendor || (!c.esc && !c.humanSpoke))) {
+      const act = await routeMessage({ channel: "WhatsApp", profileName: name, text, history: (await getRecentMessages(waId, 12)) || [], state: { kind: isVendor ? "vendor" : c.kind, stage: c.q?.stage, greeted: c.greeted, fields: c.q?.fields } });
+      if (act?.kind === "price") { if (await allow(`reply:${waId}:price`, 6 * HOUR)) await agentSend(priceAnswer(text)); return ok(); }
+      if (act && act.kind !== "client" && (await applyRoute(act))) return ok();
+    }
+    // Older rules: simple rules, then Claude for light replies, otherwise a human.
     let out = d;
     if (d.action === "escalate" && d.reason === "unclear" && process.env.ANTHROPIC_API_KEY) {
       const history = (await getRecentMessages(waId)) || [];
