@@ -1,4 +1,4 @@
-import { decide, ESCALATION_ACK, CLIENT } from "../../lib/rules.mjs";
+import { decide, ESCALATION_ACK, CLIENT, vendorWelcome } from "../../lib/rules.mjs";
 import { hardMoney, isPriceQuestion, priceAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
 import { guidesFor, guideText } from "../../lib/guides.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
@@ -8,7 +8,7 @@ import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playb
 import { sendSessionMessage, updateContactAttributes, getRecentMessages } from "../../lib/wati.mjs";
 import { readChat } from "../../lib/team.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
-import { draftReply, extractFields, draftOpening, draftAck, draftHold, draftAfter, classifySender } from "../../lib/claude.mjs";
+import { draftReply, extractFields, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail } from "../../lib/claude.mjs";
 import { lookupContact } from "../../lib/planning-studio.mjs";
 import { allow } from "../../lib/state.mjs";
 import { getContact, saveContact, AGENT_ECHO_MS } from "../../lib/contacts.mjs";
@@ -241,10 +241,19 @@ export default async (req) => {
       }
       // First real message: work out who is writing. Only a likely new client gets the questions; vendors and unclear go to a person.
       if (firstTouch) {
-        const sender = await classifySender({ text, name });
+        const found = await classifySenderDetail({ text, name });
+        const sender = found.who;
+        if (sender === "vendor") { // a vendor introducing themselves gets a greeting and the sign-up link, like any other vendor
+          await saveContact(waId, { kind: "vendor" });
+          if (await allow(`reply:${waId}:vendor_signup`, 6 * HOUR)) {
+            await agentSend(vendorWelcome({ name: found.name || who, business: found.business }));
+            await incr("vendor_links_sent");
+          }
+          await logNeedsTeam({ waId, name, reason: "looks-like-vendor", lastMsg: text, reply: "(vendor sign-up link sent)" });
+          return ok();
+        }
         if (sender !== "client") {
-          if (sender === "vendor") await saveContact(waId, { kind: "vendor" });
-          await toHuman(sender === "vendor" ? "looks-like-vendor" : "who-is-this");
+          await toHuman("who-is-this");
           return ok();
         }
       }

@@ -1087,3 +1087,25 @@ test("a first message asking about decor price gets a short reply: one answer, o
   assert.match(r.reply, /mobile number/);
   assert.ok(r.reply.length < 460, `reply is ${r.reply.length} characters`);
 });
+
+test("a vendor who introduces themselves gets a greeting and the sign-up link, using the name and business they gave", async () => {
+  process.env.VENDOR_SIGNUP_URL = "https://example.test/vendor-signup";
+  process.env.ANTHROPIC_API_KEY = "test";
+  const { vendorWelcome } = await import("../lib/rules.mjs");
+  const { classifySenderDetail } = await import("../lib/claude.mjs");
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ content: [{ text: '{"who":"vendor","name":"Tanmay","business":"Q Luxury Rentals (QLR)"}' }] }) });
+  try {
+    const found = await classifySenderDetail({ text: "I'm Tanmay from Q Luxury Rentals (QLR). We specialise in premium furniture rentals. Sharing our catalogue.", name: "" });
+    assert.equal(found.who, "vendor");
+    assert.equal(found.name, "Tanmay");
+    const msg = vendorWelcome(found);
+    assert.match(msg, /^Hello Tanmay!/);
+    assert.match(msg, /Thank you for introducing Q Luxury Rentals QLR to us/);
+    assert.match(msg, /https:\/\/example\.test\/vendor-signup/);
+    assert.ok(!/team will get back to you/.test(msg));
+    assert.match(vendorWelcome({}), /^Hello! Thank you for reaching out/);
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ content: [{ text: '{"who":"client","name":"Asha","business":"X"}' }] }) });
+    assert.deepEqual(await classifySenderDetail({ text: "need decor", name: "" }), { who: "client", name: "", business: "" });
+  } finally { globalThis.fetch = realFetch; delete process.env.ANTHROPIC_API_KEY; }
+});

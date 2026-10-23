@@ -1,11 +1,11 @@
-import { decide, ESCALATION_ACK, CLIENT, GREETING, OPTOUT } from "../../lib/rules.mjs";
+import { decide, ESCALATION_ACK, CLIENT, GREETING, OPTOUT, vendorWelcome } from "../../lib/rules.mjs";
 import { hardMoney, isPriceQuestion, priceAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
 import { guidesFor, guideText, readingFor } from "../../lib/guides.mjs";
 import { extractPhone } from "../../lib/phone.mjs";
 import { sendTemplateMessage } from "../../lib/wati.mjs";
 import { callBookedParams } from "../../lib/leadfields.mjs";
 import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playbook.mjs";
-import { extractFields, draftOpening, draftAck, draftHold, draftAfter, classifySender } from "../../lib/claude.mjs";
+import { extractFields, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail } from "../../lib/claude.mjs";
 import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult, moveConsult } from "../../lib/calendar.mjs";
 import { recordCall, callRecord } from "../../lib/calls.mjs";
@@ -220,10 +220,19 @@ export default async (req) => {
       return ok();
     }
     if (firstTouch) {
-      const sender = await classifySender({ text, name });
+      const found = await classifySenderDetail({ text, name });
+      const sender = found.who;
+      if (sender === "vendor") { // a vendor introducing themselves gets a greeting and the sign-up link, like any other vendor
+        await saveIg(sid, { kind: "vendor" });
+        if (await allow(`igreply:${sid}:vendor_signup`, 6 * HOUR)) {
+          await send(vendorWelcome({ name: found.name || who, business: found.business }));
+          await incr("vendor_links_sent");
+        }
+        await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "looks-like-vendor", lastMsg: text });
+        return ok();
+      }
       if (sender !== "client") {
-        if (sender === "vendor") await saveIg(sid, { kind: "vendor" });
-        await toHuman(sender === "vendor" ? "looks-like-vendor" : "who-is-this");
+        await toHuman("who-is-this");
         return ok();
       }
     }
