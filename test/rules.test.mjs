@@ -1104,8 +1104,20 @@ test("a vendor who introduces themselves gets a greeting and the sign-up link, u
     assert.match(msg, /Thank you for introducing Q Luxury Rentals QLR to us/);
     assert.match(msg, /https:\/\/example\.test\/vendor-signup/);
     assert.ok(!/team will get back to you/.test(msg));
-    assert.match(vendorWelcome({}), /^Hello! Thank you for reaching out/);
+    assert.match(vendorWelcome({}), /^Thank you for your interest in working with Saffron Collective!/);
     globalThis.fetch = async () => ({ ok: true, json: async () => ({ content: [{ text: '{"who":"client","name":"Asha","business":"X"}' }] }) });
     assert.deepEqual(await classifySenderDetail({ text: "need decor", name: "" }), { who: "client", name: "", business: "" });
   } finally { globalThis.fetch = realFetch; delete process.env.ANTHROPIC_API_KEY; }
+});
+
+test("the vendor message has the exact line breaks: link on its own line, closing sentences on separate lines", async () => {
+  process.env.VENDOR_SIGNUP_URL = "https://saffron.planningstudio.in/vendor-onboarding";
+  const { decide, vendorWelcome, vendorReminder } = await import("../lib/rules.mjs");
+  const want = "Thank you for your interest in working with Saffron Collective! 🌼\n\nPlease create your vendor profile here:\nhttps://saffron.planningstudio.in/vendor-onboarding\n\nIt takes a few minutes.\nOnce you are registered, our team will review your profile and be in touch.";
+  assert.equal(decide("I'm a photographer and videographer. Would love to work with you.").text, want);
+  assert.equal(vendorWelcome({}), want);
+  assert.ok(vendorWelcome({ name: "Pulkit" }).startsWith("Hello Pulkit!\n\n" + want));
+  const r = vendorReminder();
+  assert.match(r, /complete your onboarding using the vendor profile link shared above/);
+  assert.ok(!/https?:\/\//.test(r)); // the reminder points up the chat, it does not paste the link again
 });

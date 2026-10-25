@@ -1,4 +1,4 @@
-import { decide, ESCALATION_ACK, CLIENT, GREETING, OPTOUT, vendorWelcome } from "../../lib/rules.mjs";
+import { decide, ESCALATION_ACK, CLIENT, GREETING, OPTOUT, vendorWelcome, vendorReminder } from "../../lib/rules.mjs";
 import { hardMoney, isPriceQuestion, priceAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
 import { guidesFor, guideText, readingFor } from "../../lib/guides.mjs";
 import { extractPhone } from "../../lib/phone.mjs";
@@ -95,6 +95,7 @@ export default async (req) => {
   let pendingAsk = ""; // the question we were waiting for, repeated after a taught answer
   let vendorChat = false, leadQ = null; // set once the chat is loaded; used to give every real lead a row, even one who asks a question and goes quiet
   const ROW_REASONS = new Set(["lead-question", "money-or-commitment", "pricing-or-availability-question", "call-time-request"]);
+  const HANDOVER_REASON_IG = { money: "money-or-commitment", existing_client: "existing-client", complaint: "complaint", unclear: "who-is-this", other: "unclear" };
   const send = async (msg) => {
     await logExchange({ channel: "Instagram", contact: label, lead: text, agent: msg });
     await addIgHistory(sid, "us", msg);
@@ -203,7 +204,7 @@ export default async (req) => {
         return ok("media burst");
       }
     }
-    if (c.esc || c.q?.stage === "paused" || c.kind === "vendor") return ok("with team"); // after a hand-over the agent stays quiet
+    if (c.esc || c.q?.stage === "paused" || (c.kind === "vendor" && mediaCount && !message)) return ok("with team"); // after a hand-over the agent stays quiet (and a vendor's portfolio files need no reply)
     if (mediaCount && !message && blankText && c.q?.stage === "asking" && c.q.asked === "number" && !c.q.fields?.number) {
       // They were asked for their number and Instagram sent it as a phone card with no readable text: do not ask again, carry on.
       const r = numberInChat(c.q, who);
@@ -236,12 +237,28 @@ export default async (req) => {
     const moneyish = (hardMoney(text) && !guides.length) || (!inFlow && /\b(available|availability|book|booking)\b/i.test(text));
     const firstTouch = canQualify && !inFlow && !c.q && !CLIENT.test(text) && d.intent !== "vendor_signup";
 
+    // A vendor who already has the link writes again: read it in context and answer. Never ignore them.
+    if (isVendor) {
+      const remind = async () => { if (await allow(`igreply:${sid}:vendor_reminder`, 3 * HOUR)) { await send(vendorReminder()); await incr("ig_vendor_reminders"); } };
+      if (d.intent === "vendor_signup") { await remind(); return ok(); } // the same pitch again: point them to the link above
+      let vh = null;
+      if (operatorOn() && igApiOn()) { const real = await getInstagramHistory({ username }); vh = real && real.length ? withoutCurrent(real, text) : null; }
+      if (!vh) vh = await getIgHistory(sid, { skipNewest: text });
+      const act = operatorOn() ? await routeMessage({ channel: "Instagram", profileName: name || username, text, history: vh, state: { kind: "vendor", greeted: true } }) : null;
+      if (act?.kind === "reply") { if (await allow(`igreply:${sid}:operator`, 20_000)) { await send(act.text); await incr("operator_replies"); } }
+      else if (act?.kind === "handover") await toHuman(HANDOVER_REASON_IG[act.reason] || "unclear", true, act.hold);
+      else if (act?.kind === "quiet") console.log(`operator stayed quiet for ig vendor ${sid}: ${act.why}`);
+      else await remind();
+      return ok();
+    }
+
     if (moneyish && !firstTouch) { await toHuman("money-or-commitment"); return ok(); }
     if (CLIENT.test(text)) { await toHuman("existing-client"); return ok(); }
 
     if (d.intent === "vendor_signup" && (!inFlow || d.strong)) {
       await saveIg(sid, { kind: "vendor", ...(c.q ? { q: { ...c.q, stage: "done" } } : {}) });
       if (await allow(`igreply:${sid}:vendor`, 6 * HOUR)) { await send(d.text); await incr("ig_vendor_links_sent"); }
+      else if (await allow(`igreply:${sid}:vendor_reminder`, 3 * HOUR)) { await send(vendorReminder()); await incr("ig_vendor_reminders"); } // sent twice in a row: answer, do not ignore
       return ok();
     }
 
@@ -284,7 +301,7 @@ export default async (req) => {
         if (await allow(`igreply:${sid}:vendor_signup`, 6 * HOUR)) { await send(vendorWelcome({ name: v.name || who, business: v.business })); await incr("vendor_links_sent"); }
         await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "looks-like-vendor", lastMsg: text });
       };
-      const HANDOVER_REASON = { money: "money-or-commitment", existing_client: "existing-client", complaint: "complaint", unclear: "who-is-this", other: "unclear" };
+      const HANDOVER_REASON = HANDOVER_REASON_IG;
       // The real chat from Instagram when it can be read (it includes what the team typed by hand); otherwise our own rolling record.
       let history = null;
       if (operatorOn() && igApiOn()) {

@@ -1,4 +1,4 @@
-import { decide, ESCALATION_ACK, CLIENT, vendorWelcome } from "../../lib/rules.mjs";
+import { decide, ESCALATION_ACK, CLIENT, vendorWelcome, vendorReminder } from "../../lib/rules.mjs";
 import { operatorOn, routeMessage, ownerCommand, isOwner, COMMAND_PREFIX } from "../../lib/operator.mjs";
 import { ownerDeps } from "../../lib/operatordeps.mjs";
 import { hardMoney, isPriceQuestion, priceAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
@@ -232,6 +232,9 @@ export default async (req) => {
       if (await allow(`reply:${waId}:vendor_signup`, 6 * HOUR)) {
         await agentSend(d.text);
         await incr("vendor_links_sent");
+      } else if (await allow(`reply:${waId}:vendor_reminder`, 3 * HOUR)) {
+        await agentSend(vendorReminder()); // they wrote the same thing again: answer them, pointing to the link already sent
+        await incr("vendor_reminders");
       }
       return ok();
     }
