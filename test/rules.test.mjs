@@ -340,7 +340,7 @@ import { advance as adv2, newState as ns2 } from "../lib/qualify.mjs";
   const r = adv2(ns2(), "Hi! I'm getting married next year, can we discuss pricing?", {}, "Manya Bhutani", "Congratulations Manya, welcome to Saffron Collective 🌼 Our planner will walk you through everything.");
   if (!r.reply.startsWith("Congratulations Manya") || !/wedding, a reception/i.test(r.reply) || r.kind !== "ask") { console.error("FAIL opener", r.reply); process.exitCode = 1; }
   const r2 = adv2(ns2(), "hello", {}, "Manya");
-  if (!/Thank you for reaching out to Saffron Collective/.test(r2.reply)) { console.error("FAIL default opener"); process.exitCode = 1; }
+  if (!/Welcome to Saffron Collective/.test(r2.reply)) { console.error("FAIL default opener"); process.exitCode = 1; }
 }
 
 // ---- tailored reactions during the questions
@@ -448,10 +448,10 @@ test("mainRow builds an 18-column row and the sheet module has no undefined help
 test("a lead who was already greeted is not welcomed a second time", () => {
   const q = { ...newState({}, "Instagram", "instagram"), greeted: true };
   const r = advance(q, "I am planning a wedding", {}, "Swati", "", "", "");
-  assert.doesNotMatch(r.reply, /Hello|Thank you for reaching out/);
+  assert.doesNotMatch(r.reply, /Hello|Welcome to Saffron/);
   assert.match(r.reply, /mobile number/);
   const r2 = advance(newState({}, "Instagram", "instagram"), "I am planning a wedding", {}, "Swati", "", "", "");
-  assert.match(r2.reply, /Hello Swati!/);
+  assert.match(r2.reply, /Hello Swati,/);
 });
 
 // ---- Founders' call booking ----
@@ -600,8 +600,8 @@ test("the opening answers what the lead asked for, and the number ask explains w
   const r = advance(q, "Hi can you help with decor for my wedding?", {}, "Sanjay Jain");
   assert.equal(r.kind, "ask");
   assert.equal(r.reply,
-    "Hello Sanjay!\n\nThank you for reaching out to Saffron Collective 🌼\n\nWe would love to help you with the decor.\n\n" +
-    "May I have your mobile number, so we can confirm a few details for the quote/design? Please include the country code if it is outside India.");
+    "Hello Sanjay,\n\nWelcome to Saffron Collective! 🌼\n\nWe would love to help you with the decor.\n\n" +
+    "May I have your mobile number, so we can confirm a few details for the quote/design?\n\nNote: Please include the country code if it is outside India.");
 });
 
 test("serviceLine reads decor, planning, both, or nothing", () => {
@@ -616,7 +616,7 @@ test("a greeted lead who also says what they want gets the line without a second
   const q = { ...newState({}, "Instagram", "instagram"), greeted: true };
   const r = advance(q, "can you help with decor?", {}, "S Jay");
   assert.ok(r.reply.startsWith("We would love to help you with the decor."));
-  assert.ok(!/Thank you for reaching out/.test(r.reply));
+  assert.ok(!/Welcome to Saffron/.test(r.reply));
 });
 
 test("a first message asking to talk is offered times straight away, with no questions and no price list", async () => {
@@ -631,7 +631,7 @@ test("a first message asking to talk is offered times straight away, with no que
   const q0 = newState({}, "Instagram", "instagram");
   const ft = await fastTrack(q0, { name: "Manya Bhutani", svc: serviceLine("wedding planning services"), deps });
   assert.equal(ft.q.stage, "slots");
-  assert.ok(ft.reply.startsWith("Hello Manya!\n\nThank you for reaching out to Saffron Collective 🌼\n\nWe would love to help you with the planning.\n\nHere are a few available slots."));
+  assert.ok(ft.reply.startsWith("Hello Manya,\n\nWelcome to Saffron Collective! 🌼\n\nWe would love to help you with the planning.\n\nHere are a few available slots."));
   assert.match(ft.reply, /1\. Fri, 23 Oct, 12:00 pm/);
   assert.doesNotMatch(ft.reply, /₹|flat fee|quick questions|mobile number/);
   // they pick a time; we ask for the email AND the mobile number we never asked for
@@ -900,7 +900,7 @@ test("Hindi / Hinglish leads get the fixed questions in their language, and it s
   assert.match(c.reply, /Aapko chahiye: Planning aur Decoration/);
   // English leads are untouched
   const e = advance(newState({}, "WhatsApp", "whatsapp"), "Hello, planning a wedding", {}, "Riya");
-  assert.equal(e.q.lang, "en"); assert.match(e.reply, /Thank you for reaching out/);
+  assert.equal(e.q.lang, "en"); assert.match(e.reply, /Welcome to Saffron Collective/);
 });
 
 test("Hindi call times and booking confirmation", async () => {
@@ -1041,7 +1041,7 @@ test("greetName uses a first name only when the profile name looks like a person
 test("the opening says plain Hello when the profile name is a business", () => {
   const q = newState({}, "Instagram", "instagram");
   const r = advance(q, "Hi can you help with decor for my wedding?", {}, "Royal Decor Studio");
-  assert.ok(r.reply.startsWith("Hello!\n\nThank you for reaching out"));
+  assert.ok(r.reply.startsWith("Hello,\n\nWelcome to Saffron Collective!"));
 });
 
 test("ManyChat requests with line breaks or quotes in the message are still read", async () => {
@@ -1080,7 +1080,7 @@ test("a title in the profile name is skipped when greeting", async () => {
 test("a first message asking about decor price gets a short reply: one answer, one question, no links", () => {
   const msg = "Hi, I'd like to enquire about your charges for engagement décor at a property. Could you please share your pricing details?";
   const r = advance(newState({}, "Instagram", "instagram"), msg, {}, "Dr. Shivani Bhardwaj", "", "", priceAnswer(msg) + "\n\n" + guideText(guidesFor(msg)));
-  assert.ok(r.reply.startsWith("Hello Shivani!"));
+  assert.ok(r.reply.startsWith("Hello Shivani,"));
   assert.doesNotMatch(r.reply, /https?:\/\//);
   assert.doesNotMatch(r.reply, /few quick questions|This is required/);
   assert.match(r.reply, /Founders will walk you through it on a quick call/);
@@ -1120,4 +1120,25 @@ test("the vendor message has the exact line breaks: link on its own line, closin
   const r = vendorReminder();
   assert.match(r, /complete your onboarding using the vendor profile link shared above/);
   assert.ok(!/https?:\/\//.test(r)); // the reminder points up the chat, it does not paste the link again
+});
+
+test("the first reply from Claude is short: greeting, welcome plus one line, one more line, then the number question with its Note", async () => {
+  process.env.ANTHROPIC_API_KEY = "test";
+  const { draftOpening } = await import("../lib/claude.mjs");
+  const { advance, newState } = await import("../lib/qualify.mjs");
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ content: [{ text: "Congratulations on the upcoming wedding in your family, what wonderful news.\n\nWe'd be delighted to help bring the celebrations to life." }] }) });
+  try {
+    const opener = await draftOpening({ text: "Someone in my family is getting married", name: "Puja Jais", greeted: false });
+    assert.equal(opener, "Hello Puja,\n\nWelcome to Saffron Collective! 🌼\nCongratulations on the upcoming wedding in your family, what wonderful news.\n\nWe'd be delighted to help bring the celebrations to life.");
+    const r = advance(newState({}, "Instagram", "instagram"), "Someone in my family is getting married", {}, "Puja Jais", opener);
+    assert.equal(r.reply, opener + "\n\nMay I have your mobile number, so we can confirm a few details for the quote/design?\n\nNote: Please include the country code if it is outside India.");
+    assert.ok(r.reply.length < 340, `first reply is ${r.reply.length} characters`);
+    // a long or malformed draft is thrown away and the plain short welcome is used instead
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ content: [{ text: "x ".repeat(100) }] }) });
+    assert.equal(await draftOpening({ text: "hi there", name: "Puja", greeted: false }), null);
+    // already welcomed: just the two lines
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ content: [{ text: "How lovely.\n\nWe'd be delighted to help." }] }) });
+    assert.equal(await draftOpening({ text: "wedding", name: "Puja", greeted: true }), "How lovely.\n\nWe'd be delighted to help.");
+  } finally { globalThis.fetch = realFetch; delete process.env.ANTHROPIC_API_KEY; }
 });
