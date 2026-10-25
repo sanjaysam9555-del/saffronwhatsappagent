@@ -1,102 +1,110 @@
 {
-  "name": "call times: IST question, a named day, then booking straight away because their number is known",
-  "channel": "instagram",
-  "now": "2026-10-22T10:00:00+05:30",
-  "turns": [
-    {
-      "lead": "Hi, can we connect on a call to discuss our wedding",
-      "reply": [
-        "mobile number"
-      ]
-    },
-    {
-      "lead": "+91 98765 43210",
-      "reply": [
-        "What date"
-      ],
-      "fields": {
-        "number": "\\+919876543210"
-      }
-    },
-    {
-      "lead": "12 Feb 2027",
-      "reply": [
-        "city"
-      ]
-    },
-    {
-      "lead": "Jaipur",
-      "reply": [
-        "guests"
-      ]
-    },
-    {
-      "lead": "150",
-      "reply": [
-        "planning"
-      ]
-    },
-    {
-      "lead": "planning",
-      "kind": "summary",
-      "stage": "confirm"
-    },
-    {
-      "lead": "yes",
-      "reply": [
-        "Google Meet video call or a phone call"
-      ]
-    },
-    {
-      "lead": "google meet please",
-      "kind": "slots-offered",
-      "reply": [
-        "Indian time"
-      ],
-      "stage": "slots"
-    },
-    {
-      "lead": "Is it IST?",
-      "kind": "slots-info",
-      "reply": [
-        "Indian Standard Time"
-      ],
-      "stage": "slots"
-    },
-    {
-      "lead": "anything on Wednesday?",
-      "kind": "slots-offered",
-      "notReply": [
-        "fully booked"
-      ],
-      "reply": [
-        "Wed, 28 Oct"
-      ]
-    },
-    {
-      "lead": "1",
-      "kind": "call-booked",
-      "reply": [
-        "All set",
-        "Google Meet link"
-      ],
-      "stage": "done"
-    },
-    {
-      "lead": "sorry can we reschedule the call?",
-      "kind": "reschedule-offered",
-      "reply": [
-        "other times for your call"
-      ],
-      "stage": "slots"
-    },
-    {
-      "lead": "2",
-      "kind": "call-moved",
-      "reply": [
-        "moved to"
-      ],
-      "stage": "done"
-    }
-  ]
+ "name": "call times: IST question, a named day, then booking with an email",
+ "channel": "instagram",
+ "now": "2026-10-22T10:00:00+05:30",
+ "turns": [
+  {
+   "lead": "Hi, can we connect on a call to discuss our wedding",
+   "reply": [
+    "mobile number"
+   ]
+  },
+  {
+   "lead": "+91 98765 43210",
+   "reply": [
+    "What date"
+   ],
+   "fields": {
+    "number": "\\+919876543210"
+   }
+  },
+  {
+   "lead": "12 Feb 2027",
+   "reply": [
+    "city"
+   ]
+  },
+  {
+   "lead": "Jaipur",
+   "reply": [
+    "guests"
+   ]
+  },
+  {
+   "lead": "150",
+   "reply": [
+    "planning"
+   ]
+  },
+  {
+   "lead": "planning",
+   "kind": "summary",
+   "stage": "confirm"
+  },
+  {
+   "lead": "yes",
+   "reply": [
+    "Google Meet video call or a phone call"
+   ]
+  },
+  {
+   "lead": "google meet please",
+   "kind": "slots-offered",
+   "reply": [
+    "Indian time"
+   ],
+   "stage": "slots"
+  },
+  {
+   "lead": "Is it IST?",
+   "kind": "slots-info",
+   "reply": [
+    "Indian Standard Time"
+   ],
+   "stage": "slots"
+  },
+  {
+   "lead": "anything on Wednesday?",
+   "kind": "slots-offered",
+   "notReply": [
+    "fully booked"
+   ],
+   "reply": [
+    "Wed, 28 Oct"
+   ]
+  },
+  {
+   "lead": "1",
+   "kind": "email-ask",
+   "reply": [
+    "email address"
+   ],
+   "stage": "email"
+  },
+  {
+   "lead": "riya@example.com",
+   "kind": "call-booked",
+   "reply": [
+    "All set",
+    "riya@example.com"
+   ],
+   "stage": "done"
+  },
+  {
+   "lead": "sorry can we reschedule the call?",
+   "kind": "reschedule-offered",
+   "reply": [
+    "other times for your call"
+   ],
+   "stage": "slots"
+  },
+  {
+   "lead": "2",
+   "kind": "call-moved",
+   "reply": [
+    "moved to"
+   ],
+   "stage": "done"
+  }
+ ]
 }
