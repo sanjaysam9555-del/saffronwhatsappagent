@@ -6,7 +6,7 @@ import { sendTemplateMessage } from "../../lib/wati.mjs";
 import { callBookedParams } from "../../lib/leadfields.mjs";
 import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playbook.mjs";
 import { extractFields, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail } from "../../lib/claude.mjs";
-import { newState, advance, numberInChat, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter } from "../../lib/qualify.mjs";
+import { newState, advance, numberInChat, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest } from "../../lib/calendar.mjs";
 import { recordCall, callRecord } from "../../lib/calls.mjs";
 import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail, wantsReschedule, wantsCancel, startReschedule, addLateContact } from "../../lib/consult.mjs";
@@ -21,7 +21,7 @@ import { allow } from "../../lib/state.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { acquireLock } from "../../lib/lock.mjs";
 import { operatorOn, routeMessage } from "../../lib/operator.mjs";
-import { igApiOn, getInstagramHistory, getLatestCustomerText, findNumberInChat, withoutCurrent, debugInstagramApi } from "../../lib/igapi.mjs";
+import { igApiOn, getInstagramHistory, getLatestCustomerText, recoverLatest, findNumberInChat, withoutCurrent, debugInstagramApi } from "../../lib/igapi.mjs";
 
 // Answers Instagram DMs that ManyChat forwards (see ig-webhook). Same rules as WhatsApp, plus the mobile number is asked
 // first (we do not have it yet). Replies go back through ManyChat's API, inside Meta's 24h window after their message.
@@ -64,7 +64,9 @@ export default async (req) => {
   for (let i = 0; i < 3 && !evtText.trim() && sid; i++) { if (i) await sleep(1500); evtText = await getInstagramLastText(sid); }
   // Still nothing (Instagram shows a typed phone number as a card, and ManyChat gives no text for it): read the newest message from Instagram itself.
   let recovered = 0;
-  if (!evtText.trim() && igApiOn() && username) { evtText = await getLatestCustomerText({ username }); recovered = evtText.trim().length; }
+  // A typed message with a number in it is followed at once by a text-less "Phone number" card, so what they wrote is read from just before the card.
+  let alreadyAnswered = false, recoveredId = "";
+  if (!evtText.trim() && igApiOn() && username) { const r = await recoverLatest({ username }); evtText = r.text; recovered = evtText.trim().length; alreadyAnswered = !r.text && r.answered; recoveredId = r.ids?.[0] || ""; }
   console.log(`ig-in: recoveredFromInstagram=${recovered} chars`);
   console.log(`ig-in: fields=${Object.keys(evt).join(",")} textFromManyChat=${sentLen} chars, afterApiLookup=${String(evtText).trim().length} chars`); // lengths only, never the message itself
   const stripped = String(evtText).replace(/^\s*agenttest\b[\s:,.-]*/i, "").trim();
@@ -80,7 +82,9 @@ export default async (req) => {
     await sendInstagramText(sid, await debugInstagramApi(username));
     return ok("igdebug");
   }
-  if (!(await allow(`igevt:${sid}:${rawText.slice(0, 40)}`, 15_000))) return ok("duplicate"); // ManyChat can fire twice
+  if (blankText && alreadyAnswered) return ok("nothing new from them: our message is the newest"); // e.g. the phone card that came with a message we already answered
+  if (recoveredId && !(await allow(`igmid:${sid}:${recoveredId}`, 24 * HOUR))) return ok("that message was already answered"); // the message and its card each start a run
+  if (!(await allow(`igevt:${sid}:${rawText.slice(0, 40)}`, recoveredId ? 60_000 : 15_000))) return ok("duplicate"); // ManyChat can fire twice
 
   // Burst handling: only the last message of a burst answers, to all of them.
   const msgId = await queueMessage(sid, rawText);
@@ -338,7 +342,7 @@ export default async (req) => {
     if (c.refShared && !q.refNoted) q = { ...q, refNoted: true, notes: [q.notes, REF_NOTE].filter(Boolean).join(" / ") };
     const asking = q.stage === "new" || q.stage === "asking";
     const ph = extractPhone(text);
-    const extracted = asking && !GREETING.test(text) ? await extractFields(text, q.asked === "number" ? null : q.asked) : {};
+    const extracted = (asking || (q.stage === "confirm" && CORRECTION.test(text))) && !GREETING.test(text) ? await extractFields(text, q.asked === "number" ? null : q.asked) : {};
     delete extracted.number;
     if (ph.status === "ok") extracted.number = `+${ph.number}`;
     if (ph.status === "ambiguous") extracted.numberAmbiguous = true;

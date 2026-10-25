@@ -1290,3 +1290,84 @@ test("an incomplete or late number is handled wherever the chat is (Meghna: numb
   assert.doesNotMatch(d.reply, /looks incomplete/);
   assert.equal(d.q.fields.occasion, undefined);
 });
+
+test("a typed message followed by its phone card is read from before the card, once (Meghna's repeated 'please type it again')", async () => {
+  process.env.INSTAGRAM_ACCESS_TOKEN = "test-token";
+  const { recoverLatest } = await import("../lib/igapi.mjs");
+  const now = Date.now();
+  const iso = (agoS) => new Date(now - agoS * 1000).toISOString().replace("Z", "+0000");
+  const THEM = "111", US = "222";
+  const make = (chat) => async (url) => {
+    const u = new URL(String(url));
+    const path = u.pathname.replace(/^\/v24\.0\//, "");
+    const ok = (j) => ({ ok: true, json: async () => j });
+    if (path === "me/conversations") return ok({ data: [{ id: "conv1", participants: { data: [{ id: THEM, username: "meghnaasethi" }, { id: US, username: "saffron" }] } }] });
+    if (path === "conv1") return ok({ messages: { data: chat.map((m) => ({ id: m.id })) } });
+    const m = chat.find((x) => x.id === path);
+    return ok(m ? { id: m.id, created_time: iso(m.ago), from: { id: m.from }, message: m.text } : {});
+  };
+  const real = globalThis.fetch;
+  try {
+    // newest first: the card (no text), then the typed message, then our last question
+    globalThis.fetch = make([
+      { id: "m3", from: THEM, ago: 10, text: "" },
+      { id: "m2", from: THEM, ago: 11, text: "Please rectify the occasion as wedding and we are looking for planning decor and execution. My number is 9868251968." },
+      { id: "m1", from: US, ago: 60, text: "Is this for a wedding, a reception, or another occasion?" },
+    ]);
+    const a = await recoverLatest({ username: "@meghnaasethi", tries: 1 });
+    assert.match(a.text, /^Please rectify the occasion as wedding/);
+    assert.equal(a.answered, false);
+    assert.equal(a.ids[0], "m3");
+    // after we have answered, the card on its own is "nothing new": no "could not read it" message
+    globalThis.fetch = make([
+      { id: "m4", from: US, ago: 3, text: "Thank you, I have noted your number." },
+      { id: "m3", from: THEM, ago: 10, text: "" },
+      { id: "m2", from: THEM, ago: 11, text: "Please rectify the occasion as wedding" },
+    ]);
+    const b = await recoverLatest({ username: "meghnaasethi", tries: 1 });
+    assert.equal(b.text, "");
+    assert.equal(b.answered, true);
+    // a lone photo or card with nothing typed before it is still unread (the old behaviour)
+    globalThis.fetch = make([
+      { id: "m3", from: THEM, ago: 10, text: "" },
+      { id: "m1", from: US, ago: 60, text: "Hello" },
+    ]);
+    const c = await recoverLatest({ username: "meghnaasethi", tries: 1 });
+    assert.equal(c.text, "");
+    assert.equal(c.answered, false);
+    // older words (before our last message) are never reused
+    globalThis.fetch = make([
+      { id: "m3", from: THEM, ago: 10, text: "" },
+      { id: "m1", from: US, ago: 30, text: "Which city?" },
+      { id: "m0", from: THEM, ago: 40, text: "Jaipur" },
+    ]);
+    assert.equal((await recoverLatest({ username: "meghnaasethi", tries: 1 })).text, "");
+  } finally { globalThis.fetch = real; delete process.env.INSTAGRAM_ACCESS_TOKEN; }
+});
+
+test("a correction replaces what we hold, in the questions and in the summary (Meghna: 'please rectify the occasion as wedding')", async () => {
+  const { CORRECTION } = await import("../lib/qualify.mjs");
+  assert.ok(CORRECTION.test("Please rectify the occasion as wedding"));
+  assert.ok(CORRECTION.test("actually it is Jaipur, not Udaipur"));
+  assert.ok(!CORRECTION.test("we want a wedding in Jaipur"));
+  const held = { ...newState({}, "Instagram", "instagram"), stage: "asking", asked: "date", greeted: true, channel: "instagram", fields: { number: "Pending", occasion: "reception", requirement: "decoration" } };
+  const a = advance(held, "Please rectify the occasion as wedding and we are looking for planning decor and execution. My number is 9868251968.", { occasion: "wedding", requirement: "planning and decoration", number: "+919868251968" }, "Meghna");
+  assert.equal(a.q.fields.occasion, "wedding");
+  assert.match(a.q.fields.requirement, /planning/i);
+  assert.equal(a.q.fields.number, "+919868251968");
+  assert.match(a.q.notes, /Corrected by lead: occasion/);
+  // without correction words an existing answer is not overwritten by a stray extraction
+  const b = advance(held, "we love red and gold", { occasion: "wedding" }, "Meghna");
+  assert.equal(b.q.fields.occasion, "reception");
+  // in the summary: the detail is replaced and the summary shown again, not just noted
+  const full = { ...held, stage: "confirm", asked: null, fields: { number: "+919868251968", occasion: "reception", date: "March", location: "Jaipur", guests: "150", requirement: "decoration" } };
+  const c = advance(full, "Please rectify the occasion as wedding", { occasion: "wedding" }, "Meghna");
+  assert.equal(c.kind, "corrected");
+  assert.equal(c.q.stage, "confirm");
+  assert.equal(c.q.fields.occasion, "wedding");
+  assert.match(c.reply, /^Thank you, we have updated it\./);
+  assert.match(c.reply, /wedding/i);
+  // a plain addition in the summary still just goes to the notes
+  const d = advance(full, "also we want a live band", {}, "Meghna");
+  assert.equal(d.kind, "addition");
+});

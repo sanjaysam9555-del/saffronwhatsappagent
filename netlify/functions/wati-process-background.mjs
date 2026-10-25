@@ -14,7 +14,7 @@ import { draftReply, extractFields, draftOpening, draftAck, draftHold, draftAfte
 import { lookupContact } from "../../lib/planning-studio.mjs";
 import { allow } from "../../lib/state.mjs";
 import { getContact, saveContact, AGENT_ECHO_MS } from "../../lib/contacts.mjs";
-import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter } from "../../lib/qualify.mjs";
+import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest } from "../../lib/calendar.mjs";
 import { recordCall, callRecord } from "../../lib/calls.mjs";
 import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail, wantsReschedule, wantsCancel, startReschedule, addLateContact } from "../../lib/consult.mjs";
@@ -326,7 +326,7 @@ export default async (req) => {
       }
 
       const asking = q.stage === "new" || q.stage === "asking";
-      const extracted = q.stage === "asking" || q.stage === "new" ? (!GREETING.test(text) && !dupAnswered ? await extractFields(text, q.asked) : {}) : {};
+      const extracted = q.stage === "asking" || q.stage === "new" || (q.stage === "confirm" && CORRECTION.test(text)) ? (!GREETING.test(text) && !dupAnswered ? await extractFields(text, q.asked) : {}) : {};
       let opener = "";
       if (firstTouch && !GREETING.test(text)) opener = (await draftOpening({ text, name: who, greeted: c.greeted })) || "";
       const pre = asking && !dupAnswered ? [priceQ ? priceAnswer(text) : "", guides.length ? guideText(guides) : ""].filter(Boolean).join("\n\n") : "";

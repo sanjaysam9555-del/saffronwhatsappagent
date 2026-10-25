@@ -157,7 +157,8 @@ test("Instagram: a message ManyChat could not read is recovered from Meta only w
     const u = String(url), json = (b) => ({ ok: true, json: async () => b });
     if (u.includes("/me/conversations")) return json({ data: [{ id: "c1", participants: { data: [{ id: "999", username: "us" }, { id: "555", username: "riya_shah" }] } }] });
     if (u.includes("/c1")) return json({ messages: { data: [{ id: "m9" }, { id: "m8" }] } });
-    return json(msg);
+    if (u.includes("/m9")) return json(msg);
+    return json({ id: "m8", message: "Hello", from: { id: "999" }, created_time: iso(Date.now() - 120_000) }); // our earlier message
   }; };
   const iso = (ms) => new Date(ms).toISOString().replace("Z", "+0000"); // Meta's time format
   try {
