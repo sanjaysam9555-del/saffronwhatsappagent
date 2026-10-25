@@ -1266,3 +1266,27 @@ test("a number with a digit missing is asked for again, not treated as not share
   const r2 = advance(r.q, "9862519681", { number: "+919862519681" }, "Meghna");   // the full number is taken
   assert.equal(r2.q.fields.number, "+919862519681");
 });
+
+test("an incomplete or late number is handled wherever the chat is (Meghna: number given short, then the chat moved on)", async () => {
+  const mid = { ...newState({}, "Instagram", "instagram"), stage: "asking", asked: "occasion", greeted: true, channel: "instagram", fields: { number: "Pending" } };
+  // she sends the short number while we are asking something else: the full number is asked for, once
+  const a = advance(mid, "986251968", { numberAmbiguous: true }, "Meghna");
+  assert.match(a.reply, /^That number looks incomplete\. Could you share the full mobile number\?/);
+  assert.equal(a.q.asked, "number");
+  assert.equal(a.q.fields.number, undefined);
+  assert.equal(a.q.fields.occasion, undefined);                                    // the digits were not taken as the occasion
+  // the full number arrives: saved, thanked, and the question we were on is asked again
+  const b = advance(a.q, "9862519681", { number: "+919862519681" }, "Meghna");
+  assert.equal(b.q.fields.number, "+919862519681");
+  assert.match(b.reply, /^Thank you, I have noted your number\./);
+  assert.match(b.reply, /wedding/i);
+  // a full number sent late, with no incomplete one before it, is also saved and thanked, never stored as the answer
+  const c = advance(mid, "9862519681", { number: "+919862519681" }, "Meghna");
+  assert.equal(c.q.fields.number, "+919862519681");
+  assert.equal(c.q.fields.occasion, undefined);
+  assert.match(c.reply, /noted your number/);
+  // only asked once: a second short number does not start a loop
+  const d = advance({ ...a.q, asked: "occasion", fields: { number: "Pending" } }, "98625196", { numberAmbiguous: true }, "Meghna");
+  assert.doesNotMatch(d.reply, /looks incomplete/);
+  assert.equal(d.q.fields.occasion, undefined);
+});
