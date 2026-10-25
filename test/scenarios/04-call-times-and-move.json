@@ -75,18 +75,10 @@
   },
   {
    "lead": "1",
-   "kind": "email-ask",
-   "reply": [
-    "email address"
-   ],
-   "stage": "email"
-  },
-  {
-   "lead": "riya@example.com",
    "kind": "call-booked",
    "reply": [
     "All set",
-    "riya@example.com"
+    "calendar invite as well"
    ],
    "stage": "done"
   },

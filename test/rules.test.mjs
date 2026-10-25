@@ -501,21 +501,26 @@ test("call booking chat: offer, choose, email, book, confirm", async () => {
   assert.match(s.reply, /1\. Fri, 23 Oct, 12:00 pm/);
   assert.match(s.reply, /3\. Mon, 26 Oct, 12:30 pm/);
   assert.doesNotMatch(s.reply, /for you/); // Indian number: no second time zone
-  const c = await consultTurn(s.q, "2", deps); // their number is known: only the email is asked, once
-  assert.equal(c.q.stage, "email");
-  assert.match(c.reply, /Sat, 24 Oct, 4:30 pm IST/);
-  assert.match(c.reply, /Could you share your email address\?/);
-  assert.doesNotMatch(c.reply, /mobile number/);
-  const none = await consultTurn({ ...s.q, fields: { occasion: "Wedding" } }, "2", deps); // nothing to reach them on: email or number
+  const c = await consultTurn(s.q, "2", deps); // their number is known: booked at once, the email is asked for once afterwards
+  assert.equal(c.kind, "call-booked");
+  assert.equal(c.q.stage, "done");
+  assert.equal(booked.length, 1);
+  assert.equal(booked[0].email, "");
+  assert.equal(booked[0].start, slots[1]);
+  assert.match(c.reply, /All set!.*Sat, 24 Oct, 4:30 pm IST/s);
+  assert.match(c.reply, /If you would like a calendar invite as well, please share your email address here\./);
+  const none = await consultTurn({ ...s.q, fields: { occasion: "Wedding" } }, "2", deps); // nothing to reach them on: email or number first
+  assert.equal(none.q.stage, "email");
+  assert.match(none.reply, /Sat, 24 Oct, 4:30 pm IST/);
   assert.match(none.reply, /email address or mobile number/);
   assert.match(none.reply, /\n\nNote: Please include the country code if it is outside India\.$/);
-  const e = await consultTurn(c.q, "sure, it is riya.k@example.com", deps);
+  const e = await consultTurn(none.q, "sure, it is riya.k@example.com", deps);
   assert.equal(e.kind, "call-booked");
-  assert.equal(booked.length, 1);
-  assert.equal(booked[0].email, "riya.k@example.com");
-  assert.equal(booked[0].start, slots[1]);
+  assert.equal(booked.length, 2);
+  assert.equal(booked[1].email, "riya.k@example.com");
   assert.match(e.reply, /All set!.*Sat, 24 Oct, 4:30 pm IST/s);
   assert.match(e.reply, /riya\.k@example\.com/);
+  assert.doesNotMatch(e.reply, /would like a calendar invite/); // the email is not asked for when it was just given
   assert.equal(e.q.stage, "done");
 });
 
@@ -526,19 +531,19 @@ test("call booking chat: abroad shows their time; taken slot re-offers; errors a
   const ok1 = { offer: async () => slots, book: async () => ({ ok: true, meetLink: "x", start: 0 }) };
   const s = await startConsult(uk, ok1);
   assert.match(s.reply, /\(Fri \d{1,2}:\d\d [ap]m for you\)/);
-  // someone took the slot meanwhile
+  // someone took the slot meanwhile: told at once, and other times are offered
   const taken = { offer: async () => slots, book: async () => ({ ok: false, taken: true }) };
-  const c = await consultTurn(s.q, "1", taken);
-  const t = await consultTurn(c.q, "a@b.co", taken);
+  const t = await consultTurn(s.q, "1", taken);
   assert.equal(t.q.stage, "slots");
   assert.match(t.reply, /just taken/);
   // calendar error: hand to the team
   const boom = { offer: async () => slots, book: async () => { throw new Error("unauthorized_client"); } };
-  const f = await consultTurn(c.q, "a@b.co", boom);
+  const f = await consultTurn(s.q, "1", boom);
   assert.equal(f.escalate, "call-booking-failed");
-  // they hold a number but do not share an email: asked once, then booked anyway (never insisted on)
-  const n1 = await consultTurn(c.q, "hmm", ok1);
+  // they hold a number but no email: booked at once, the email asked for once afterwards (never insisted on)
+  const n1 = await consultTurn(s.q, "1", ok1);
   assert.equal(n1.kind, "call-booked");
+  assert.match(n1.reply, /would like a calendar invite/);
   // a video call with nothing to reach them on: asked, asked again once, then a person sends the invite
   const meet = { ...uk, callPref: "meet", fields: {} };
   const m1 = await consultTurn((await startConsult(meet, ok1)).q, "1", ok1);
@@ -585,7 +590,7 @@ test("a lead who wants another day is offered times from that day, not sent to t
   assert.equal(ev.q.slots.length, 3);
   assert.ok(ev.q.slots.every((s) => fmtIST(s).startsWith("Wed, 28 Oct")));
   // choosing one of them continues as usual
-  assert.equal((await consultTurn(ev.q, "2", deps)).q.stage, "email");
+  assert.equal((await consultTurn(ev.q, "2", deps)).q.stage, "done"); // their number is known: booked at once
   // a day that is full: says so and offers the next available days
   const full = await consultTurn(q, "next Tuesday please", deps);
   assert.match(full.reply, /do not have an opening on that day/);
@@ -922,10 +927,12 @@ test("Hindi call times and booking confirmation", async () => {
   assert.match(s.reply, /Bahut badhiya/); assert.match(s.reply, /Jo time suit kare/);
   const tz = await consultTurn(s.q, "kya ye IST hai?", deps);
   assert.equal(tz.kind, "slots-info"); assert.match(tz.reply, /Indian Standard Time/);
-  const c = await consultTurn(s.q, "2", deps);
+  const c = await consultTurn({ ...s.q, fields: {} }, "2", deps); // nothing to reach them on yet: the email is asked first
   assert.match(c.reply, /email address/); assert.match(c.reply, /Bahut badhiya/);
   const b = await consultTurn(c.q, "riya@example.com", deps);
   assert.equal(b.kind, "call-booked"); assert.match(b.reply, /Sab set hai/); assert.match(b.reply, /calendar invite/);
+  const n = await consultTurn(s.q, "2", deps); // their number is known: booked at once, the email asked for afterwards
+  assert.equal(n.kind, "call-booked"); assert.match(n.reply, /Sab set hai/); assert.match(n.reply, /calendar invite chahte hain/);
 });
 
 test("hot-lead flag", async () => {
@@ -1153,34 +1160,30 @@ test("the first reply from Claude is short: greeting, welcome plus one line, one
   } finally { globalThis.fetch = realFetch; delete process.env.ANTHROPIC_API_KEY; }
 });
 
-test("the email is asked once; if they do not share it the call is booked anyway from their number, never insisted on", async () => {
+test("a number is enough to book at once; the email is asked for once afterwards, never insisted on", async () => {
   const { consultTurn } = await import("../lib/consult.mjs");
   const slots = [IST("2026-10-23T12:00:00"), IST("2026-10-24T16:30:00"), IST("2026-10-26T12:30:00")];
   const booked = [];
   const deps = { offer: async () => slots, book: async (a) => { booked.push(a); return { ok: true, meetLink: "https://meet.google.com/abc", eventId: "ev1", start: a.start }; } };
   const st = (callPref, fields) => ({ ...newState({}, "Instagram", "instagram"), stage: "slots", slots, callPref, fields });
-  // 1. Darshika: phone call, number known. The email is asked once...
-  const ask = await consultTurn(st("phone", { number: "+919876543210" }), "1", deps);
-  assert.equal(ask.kind, "email-ask");
-  assert.match(ask.reply, /Could you share your email address\? It is only to send you the calendar invite\./);
-  // ...she says "Sorry": booked anyway, with no attendee, and told they will be called
-  const phone = await consultTurn(ask.q, "Sorry", deps);
+  // 1. Phone call, number known: booked at once with no attendee, told they will be called, and the email asked for once
+  const phone = await consultTurn(st("phone", { number: "+919876543210" }), "1", deps);
   assert.equal(phone.kind, "call-booked");
   assert.equal(booked.at(-1).email, "");
   assert.equal(phone.escalate, undefined);
   assert.match(phone.reply, /They will call you on \+919876543210/);
-  assert.doesNotMatch(phone.reply, /Meet link|calendar invite/i);
-  // 2. Video call, number known, no email: the Meet link is shared in the chat, and WhatsApp when the confirmation is set up
-  const ask2 = await consultTurn(st("meet", { number: "+919876543210" }), "2", deps);
-  assert.equal(ask2.kind, "email-ask");
+  assert.match(phone.reply, /If you would like a calendar invite as well, please share your email address here\./);
+  assert.doesNotMatch(phone.reply, /Meet link/);
+  assert.equal(phone.q.callBooked.eventId, "ev1");
+  // 2. Video call, number known, no email: booked at once; the Meet link is shared in the chat, and WhatsApp when the confirmation is set up
   process.env.CALL_TEMPLATE_NAME = "call_booked";
   try {
-    const meet = await consultTurn(ask2.q, "no thanks", deps);
+    const meet = await consultTurn(st("meet", { number: "+919876543210" }), "2", deps);
     assert.equal(meet.kind, "call-booked");
     assert.match(meet.reply, /Google Meet link:\nhttps:\/\/meet\.google\.com\/abc/);
     assert.match(meet.reply, /share the call details with you on WhatsApp \(\+919876543210\)/);
   } finally { delete process.env.CALL_TEMPLATE_NAME; }
-  // 3. An email given straight away books a video call with the invite; no number is pushed
+  // 3. Nothing to reach them on: asked once for an email or number, then an email books a video call with the invite
   const pick = await consultTurn(st("meet", { number: "Pending" }), "3", deps);
   assert.equal(pick.kind, "email-ask");
   assert.match(pick.reply, /email address or mobile number/);
@@ -1199,6 +1202,29 @@ test("the email is asked once; if they do not share it the call is booked anyway
   const emailOnly = await consultTurn(need.q, "a.b@example.com", deps);
   assert.equal(emailOnly.kind, "call-booked");
   assert.equal(emailOnly.escalate, "call-needs-number");
+});
+
+test("a time taken while they were choosing is caught before 'Lovely, that time' (Hritika: 3:30 pm already held by another lead)", async () => {
+  const { consultTurn } = await import("../lib/consult.mjs");
+  const slots = [IST("2026-10-26T15:30:00"), IST("2026-10-27T15:30:00"), IST("2026-10-28T12:00:00")];
+  const later = [IST("2026-10-27T15:30:00"), IST("2026-10-28T12:00:00"), IST("2026-10-29T12:00:00")];
+  const asked = [];
+  const deps = {
+    offer: async () => later,
+    stillFree: async (a) => { asked.push(a.start); return a.start !== slots[0]; },
+    book: async () => ({ ok: true, meetLink: "x", eventId: "e", start: 0 }),
+  };
+  const none = { ...newState({}, "Instagram", "instagram"), stage: "slots", slots, callPref: "phone", fields: {} }; // no number or email yet: the check runs before asking
+  const r = await consultTurn(none, "1", deps);
+  assert.equal(r.kind, "slots-offered");
+  assert.match(r.reply, /just taken/);
+  assert.equal(r.q.stage, "slots");
+  assert.deepEqual(asked, [slots[0]]);
+  const ok = await consultTurn(none, "2", deps);              // a time that is still free carries on as usual
+  assert.equal(ok.q.stage, "email");
+  assert.match(ok.reply, /Lovely, Tue, 27 Oct, 3:30 pm IST/);
+  const err = await consultTurn(none, "2", { ...deps, stillFree: async () => { throw new Error("calendar down"); } }); // a failed check never blocks the chat
+  assert.equal(err.q.stage, "email");
 });
 
 test("one event per person: an existing event is recognised, and an email or number is added to it", async () => {

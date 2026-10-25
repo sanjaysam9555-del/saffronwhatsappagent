@@ -15,7 +15,7 @@ import { lookupContact } from "../../lib/planning-studio.mjs";
 import { allow } from "../../lib/state.mjs";
 import { getContact, saveContact, AGENT_ECHO_MS } from "../../lib/contacts.mjs";
 import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
-import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest } from "../../lib/calendar.mjs";
+import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest, slotStillFree } from "../../lib/calendar.mjs";
 import { recordCall, callRecord } from "../../lib/calls.mjs";
 import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail, wantsReschedule, wantsCancel, startReschedule, addLateContact } from "../../lib/consult.mjs";
 import { recordMedia, isMediaOnly, REF_THANKS, REF_NOTE, refOpen, greetingText } from "../../lib/media.mjs";
@@ -121,7 +121,7 @@ export default async (req) => {
     await saveContact(waId, { agentSent: Date.now(), lastOut: Date.now() });
     return sendSessionMessage(waId, msg);
   };
-  const consultDeps = { waId, offer: (req) => offerSlots(req), move: (a) => moveConsult(a), addGuest: (a) => addGuest({ ...a, name }), book: (a) => bookConsult({ ...a, name, source: "WhatsApp", details: detailsText(a.fields) }) };
+  const consultDeps = { waId, offer: (req) => offerSlots(req), move: (a) => moveConsult(a), addGuest: (a) => addGuest({ ...a, name }), stillFree: (a) => slotStillFree({ ...a, name }), book: (a) => bookConsult({ ...a, name, source: "WhatsApp", details: detailsText(a.fields) }) };
   // Remember a booked (or moved) call so the lead is reminded. On WhatsApp their number is the chat itself.
   const keepCall = async (q, booked, id) => {
     try { await recordCall(callRecord({ id: id || `wa-${waId}-${booked.start}`, start: booked.start, label: booked.label, name, number: waId, channel: "WhatsApp", pref: q.callPref, meetLink: q.callBooked?.meetLink })); } catch (e) { console.warn("keepCall:", e.message); }
