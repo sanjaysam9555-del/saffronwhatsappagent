@@ -25,6 +25,7 @@ import { rowFields } from "../../lib/leadfields.mjs";
 import { findLead, saveLead, live } from "../../lib/sheet.mjs";
 import { GREETING } from "../../lib/rules.mjs";
 import { incr } from "../../lib/metrics.mjs";
+import { acquireLock } from "../../lib/lock.mjs";
 
 const HOUR = 3600_000;
 // Wati names these inconsistently (sessionMessageSent, templateMessageSent_v2, ...). Delivery/read/replied status
@@ -169,6 +170,7 @@ export default async (req) => {
     return false;
   };
 
+  const lock = await acquireLock(`wa:${waId}`); // one message at a time per chat; a quick follow-up waits for the one before it
   try {
     const c = await saveContact(waId, { lastIn: Date.now(), followups: 0, nudges: 0, name }); // a reply resets quiet follow-ups and nudges
     pendingAsk = c.q?.stage === "asking" ? pendingQuestion(c.q) : "";
@@ -398,7 +400,10 @@ export default async (req) => {
 
       await saveContact(waId, { q: r.q });
       await saveLead(waId, name, r.q, { confirmed: r.kind === "confirmed", notes: r.kind === "addition" || r.q.notes ? r.q.notes : undefined, country: country.name });
-      await agentSend(r.reply);
+      // A quick follow-up that left the same question outstanding (two messages in a row): it is already asked, do not ask twice.
+      const alreadyAsked = lock.waited && r.kind === "ask" && q.stage === "asking" && q.asked && r.q.asked === q.asked && Date.now() - (c.lastOut || 0) < 120_000;
+      if (alreadyAsked) console.log(`skipped repeating "${q.asked}" question after a quick follow-up`);
+      else await agentSend(r.reply);
       if (pre) await incr("price_answers");
       if (r.kind === "summary") await incr("wa_leads_completed");
       if (r.kind === "confirmed") await incr("wa_leads_confirmed");
@@ -431,6 +436,6 @@ export default async (req) => {
   } catch (e) {
     console.error("webhook error", e);
     await logNeedsTeam({ waId, name, reason: "agent-error", lastMsg: text }).catch(() => {}); // the lead may be waiting: tell the team
-  }
+  } finally { await lock.release(); }
   return ok();
 };

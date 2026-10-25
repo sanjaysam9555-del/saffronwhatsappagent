@@ -235,3 +235,34 @@ test("when we cannot tell what they want, the fixed welcome asks how we can help
   assert.equal(greetingText(""), "Hi!\n\nWelcome to Saffron Collective. 🌼\n\nHow can we help you?");
   assert.match(refOpen("Kritika"), /^Hi Kritika!\n\nWelcome to Saffron Collective\. 🌼\n\n/);
 });
+
+test("two quick messages from one chat are handled one at a time, and the second knows it had to wait", async () => {
+  const { acquireLock } = await import("../lib/lock.mjs");
+  const mem = new Map();
+  const store = { get: async (k) => mem.get(k), setJSON: async (k, v) => { mem.set(k, v); }, delete: async (k) => { mem.delete(k); } };
+  const fast = { store, settleMs: 5, pollMs: 10, waitMs: 2000 };
+  const order = [];
+  const run = async (name, ms) => {
+    const l = await acquireLock("ig:1", fast);
+    order.push(`${name}:start:${l.waited ? "waited" : "first"}`);
+    await new Promise((r) => setTimeout(r, ms));
+    order.push(`${name}:end`);
+    await l.release();
+  };
+  const a = run("A", 120);
+  await new Promise((r) => setTimeout(r, 30));
+  const b = run("B", 10);
+  await Promise.all([a, b]);
+  assert.deepEqual(order, ["A:start:first", "A:end", "B:start:waited", "B:end"]); // B never starts while A is working
+  assert.equal(mem.size, 0); // the lock is released
+  // a different chat is never held up
+  const l1 = await acquireLock("ig:1", fast); const l2 = await acquireLock("ig:2", fast);
+  assert.equal(l1.waited, false); assert.equal(l2.waited, false);
+  await l1.release(); await l2.release();
+  // a lock left behind by a crashed run expires
+  mem.set("lock:ig:3", { token: "old", t: Date.now() - 200_000 });
+  assert.equal((await acquireLock("ig:3", fast)).waited, false);
+  // if the store is broken the message is still handled
+  const broken = { get: async () => { throw new Error("down"); } };
+  assert.equal((await acquireLock("ig:4", { store: broken })).waited, false);
+});

@@ -19,13 +19,14 @@ import { logNeedsTeam } from "../../lib/needsteam.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
 import { allow } from "../../lib/state.mjs";
 import { incr } from "../../lib/metrics.mjs";
+import { acquireLock } from "../../lib/lock.mjs";
 import { operatorOn, routeMessage } from "../../lib/operator.mjs";
 import { igApiOn, getInstagramHistory, getLatestCustomerText, findNumberInChat, withoutCurrent, debugInstagramApi } from "../../lib/igapi.mjs";
 
 // Answers Instagram DMs that ManyChat forwards (see ig-webhook). Same rules as WhatsApp, plus the mobile number is asked
 // first (we do not have it yet). Replies go back through ManyChat's API, inside Meta's 24h window after their message.
 const HOUR = 3600_000;
-const DEBOUNCE_MS = 3500;
+const DEBOUNCE_MS = 5000; // messages typed this close together are answered as one
 const ok = (b = "ok") => new Response(b, { status: 200 });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -175,6 +176,7 @@ export default async (req) => {
     return false;
   };
 
+  const lock = await acquireLock(`ig:${sid}`); // one message at a time per chat; a quick follow-up waits for the one before it
   try {
     let c = await saveIg(sid, { lastIn: Date.now(), name: name || undefined, username: username || undefined });
     if (c.q?.numCard && [PLACEHOLDER, "Pending"].includes(c.q.fields?.number) && (await fillNumberFromChat(1))) c = await getIg(sid); // still unread from an earlier turn: check the chat once more
@@ -407,7 +409,10 @@ export default async (req) => {
         done: ["confirmed", "call-pref", "call-declined"].includes(r.kind), // stops the 5-minute follow-up job from also messaging them
       });
     }
-    await send(r.reply);
+    // A quick follow-up that left the same question outstanding (the lead sent two messages in a row): it is already asked, do not ask twice.
+    const alreadyAsked = lock.waited && r.kind === "ask" && q.stage === "asking" && q.asked && r.q.asked === q.asked && Date.now() - (c.lastOut || 0) < 120_000;
+    if (alreadyAsked) console.log(`ig: skipped repeating "${q.asked}" question after a quick follow-up`);
+    else await send(r.reply);
     if (pre) await incr("price_answers");
     if (r.kind === "summary") await incr("ig_leads_completed");
     if (r.kind === "confirmed") await incr("ig_leads_confirmed");
@@ -417,6 +422,6 @@ export default async (req) => {
   } catch (e) {
     console.error("ig webhook error", e);
     await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "send-failed", lastMsg: text }).catch(() => {});
-  }
+  } finally { await lock.release(); }
   return ok();
 };
