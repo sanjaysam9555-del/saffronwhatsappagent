@@ -316,6 +316,9 @@ test("ownerCommand: re-offer times to an Instagram lead whose chosen time is gon
   assert.match(t, /1\. .*\n2\. .*\n3\. /);
   assert.doesNotMatch(reofferText(slots, "919800000000", false), /just taken/);
   assert.match(reofferText(slots, "919800000000", false), /^Thank you for sharing your details!/);
+  const sorry = reofferText(slots, "919800000000", false, true);
+  assert.match(sorry, /^Sorry for the confusion in our last message.*Here are a few times for a call/);
+  assert.match(sorry, /1\. .*\n2\. .*\n3\. /);
 
   const sent = [];
   const contacts = [
@@ -332,8 +335,8 @@ test("ownerCommand: re-offer times to an Instagram lead whose chosen time is gon
   // a lead still mid-questions whose details the owner can see in the chat: times go out, with the number the owner gives
   const given = [];
   const d2 = deps({ findCalls: find, reofferTimes: async (m, x) => { given.push(x); return { note: "Done." }; } });
-  assert.match(await withTool("reoffer_call_times", { to: "Chatting", number: "9868251968", occasion: "Wedding" }, () => op.ownerCommand({ text: "agent x", deps: d2 })), /^Done/);
-  assert.deepEqual(given[0], { number: "9868251968", occasion: "Wedding", requirement: undefined });
+  assert.match(await withTool("reoffer_call_times", { to: "Chatting", number: "9868251968", occasion: "Wedding", apologise: true }, () => op.ownerCommand({ text: "agent x", deps: d2 })), /^Done/);
+  assert.deepEqual(given[0], { number: "9868251968", occasion: "Wedding", requirement: undefined, apologise: true });
   assert.match(await withTool("reoffer_call_times", { to: "Zed" }, () => op.ownerCommand({ text: "agent x", deps: d })), /could not find/);
   assert.deepEqual(sent, ["1"]);
   const bad = deps({ findCalls: find, reofferTimes: async () => { throw new Error("outside the 24 hour window"); } });
