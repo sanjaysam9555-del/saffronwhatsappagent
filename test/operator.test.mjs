@@ -266,3 +266,43 @@ test("two quick messages from one chat are handled one at a time, and the second
   const broken = { get: async () => { throw new Error("down"); } };
   assert.equal((await acquireLock("ig:4", { store: broken })).waited, false);
 });
+
+test("ownerCommand: send the call confirmation to an Instagram lead, once, to the right number", async () => {
+  const { matchCalls, waNumber } = await import("../lib/callconfirm.mjs");
+  const start = Date.UTC(2026, 9, 26, 7, 30); // Mon 26 Oct 13:00 IST
+  const now = Date.UTC(2026, 9, 25, 13, 0);
+  const contacts = [
+    { sid: "1", name: "Darshika", username: "darshika.2514", q: { chosen: start, callPref: "phone", fields: { number: "+919569963560" } } },
+    { sid: "2", name: "Riya", q: { callBooked: { start, label: "Mon, 26 Oct, 1:00 pm IST" }, waConfirmSent: true, fields: { number: "Shared in this chat" } } },
+    { sid: "3", name: "Nobody", q: null },
+  ];
+  assert.equal(waNumber("9569963560"), "919569963560");
+  assert.equal(waNumber("Pending"), "");
+  const m = matchCalls(contacts, "darshika", now);
+  assert.equal(m.length, 1);
+  assert.equal(m[0].number, "919569963560");
+  assert.match(m[0].label, /Mon, 26 Oct, 1:00 pm IST/);
+  assert.equal(matchCalls(contacts, "@darshika.2514", now).length, 1);
+  assert.equal(matchCalls(contacts, "+91 95699 63560", now).length, 1);
+
+  const sentTo = [];
+  const d = deps({ findCalls: async (q) => matchCalls(contacts, q, now), sendCallConfirmation: async (x) => { sentTo.push(x); } });
+  const ok = await withTool("send_call_confirmation", { to: "Darshika" }, () => op.ownerCommand({ text: "agent, send the call confirmation to Darshika", deps: d }));
+  assert.match(ok, /^Done\..*Mon, 26 Oct, 1:00 pm IST.*\+919569963560/);
+  assert.equal(sentTo.length, 1);
+  // already sent: not repeated unless asked; no number on record: asks; number given in the order is used
+  assert.match(await withTool("send_call_confirmation", { to: "Riya", number: "9811111111" }, () => op.ownerCommand({ text: "agent x", deps: d })), /already sent/);
+  assert.equal(sentTo.length, 1);
+  assert.match(await withTool("send_call_confirmation", { to: "Riya" }, () => op.ownerCommand({ text: "agent x", deps: d })), /already sent/);
+  const again = await withTool("send_call_confirmation", { to: "Riya", number: "9811111111", again: true }, () => op.ownerCommand({ text: "agent x", deps: d }));
+  assert.match(again, /\+919811111111/);
+  assert.equal(sentTo.at(-1).number, "919811111111");
+  const noNum = deps({ findCalls: async () => [{ name: "Riya", label: "Mon", number: "", sent: false }], sendCallConfirmation: async () => { throw new Error("must not send"); } });
+  assert.match(await withTool("send_call_confirmation", { to: "Riya" }, () => op.ownerCommand({ text: "agent x", deps: noNum })), /do not have a WhatsApp number/);
+  // not found, past call, failure
+  assert.match(await withTool("send_call_confirmation", { to: "Zed" }, () => op.ownerCommand({ text: "agent x", deps: d })), /could not find a call/);
+  const past = deps({ findCalls: async () => [{ name: "Old", label: "x", number: "919800000000", past: true }], sendCallConfirmation: async () => { throw new Error("must not send"); } });
+  assert.match(await withTool("send_call_confirmation", { to: "Old" }, () => op.ownerCommand({ text: "agent x", deps: past })), /already passed/);
+  const bad = deps({ findCalls: async () => [{ name: "Fail", label: "x", number: "919800000000" }], sendCallConfirmation: async () => { throw new Error("template not approved"); } });
+  assert.match(await withTool("send_call_confirmation", { to: "Fail" }, () => op.ownerCommand({ text: "agent x", deps: bad })), /did not go through: template not approved/);
+});
