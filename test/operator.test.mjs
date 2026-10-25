@@ -307,3 +307,30 @@ test("ownerCommand: send the call confirmation to an Instagram lead, once, to th
   const bad = deps({ findCalls: async () => [{ name: "Fail", label: "x", number: "919800000000" }], sendCallConfirmation: async () => { throw new Error("template not approved"); } });
   assert.match(await withTool("send_call_confirmation", { to: "Fail" }, () => op.ownerCommand({ text: "agent x", deps: bad })), /did not go through: template not approved/);
 });
+
+test("ownerCommand: re-offer times to an Instagram lead whose chosen time is gone", async () => {
+  const { reofferText } = await import("../lib/callconfirm.mjs");
+  const slots = [Date.UTC(2026, 9, 26, 5, 30), Date.UTC(2026, 9, 26, 6, 30), Date.UTC(2026, 9, 27, 5, 30)];
+  const t = reofferText(slots, "919800000000", true);
+  assert.match(t, /^Sorry, that time was just taken\. Here are a few other times \(Indian time\):/);
+  assert.match(t, /1\. .*\n2\. .*\n3\. /);
+  assert.doesNotMatch(reofferText(slots, "919800000000", false), /just taken/);
+
+  const sent = [];
+  const contacts = [
+    { sid: "1", name: "Hritika Singh", username: "singhhritika_247", number: "919800000000", q: { stage: "email", chosen: slots[0] } },
+    { sid: "2", name: "Booked", q: { stage: "done", callBooked: { eventId: "e1", label: "Mon" } } },
+    { sid: "3", name: "Chatting", q: { stage: "asking" } },
+  ];
+  const find = async (q) => contacts.filter((c) => c.name.toLowerCase().includes(String(q).toLowerCase()) || c.username === String(q).replace(/^@/, ""));
+  const d = deps({ findCalls: find, reofferTimes: async (m) => { sent.push(m.sid); return { note: "Done. Hritika Singh was told that time is taken and received 3 new times on Instagram." }; } });
+  const ok = await withTool("reoffer_call_times", { to: "Hritika" }, () => op.ownerCommand({ text: "agent, tell Hritika that time is taken", deps: d }));
+  assert.match(ok, /^Done\..*taken/);
+  assert.deepEqual(sent, ["1"]);
+  assert.match(await withTool("reoffer_call_times", { to: "Booked" }, () => op.ownerCommand({ text: "agent x", deps: d })), /already has a booked call/);
+  assert.match(await withTool("reoffer_call_times", { to: "Chatting" }, () => op.ownerCommand({ text: "agent x", deps: d })), /not waiting to choose a time/);
+  assert.match(await withTool("reoffer_call_times", { to: "Zed" }, () => op.ownerCommand({ text: "agent x", deps: d })), /could not find/);
+  assert.deepEqual(sent, ["1"]);
+  const bad = deps({ findCalls: find, reofferTimes: async () => { throw new Error("outside the 24 hour window"); } });
+  assert.match(await withTool("reoffer_call_times", { to: "Hritika" }, () => op.ownerCommand({ text: "agent x", deps: bad })), /did not go through: outside the 24 hour window/);
+});
