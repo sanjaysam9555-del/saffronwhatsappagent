@@ -1249,3 +1249,20 @@ test("one event per person: an existing event is recognised, and an email or num
   assert.equal(seen[0].email, "darshika@example.com");
   assert.equal(b.booked.eventId, "evt1");
 });
+
+test("a number with a digit missing is asked for again, not treated as not shared", async () => {
+  const { extractPhone } = await import("../lib/phone.mjs");
+  assert.equal(extractPhone("986251968").status, "ambiguous");        // 9 digits: one short of an Indian mobile
+  assert.equal(extractPhone("98625 1968").status, "ambiguous");
+  assert.equal(extractPhone("9862519681").status, "ok");
+  assert.equal(extractPhone("250").status, "none");                    // a guest count is not a number
+  assert.equal(extractPhone("wedding in 2027").status, "none");
+  assert.equal(extractPhone("15022027 is the date").status, "none");   // digits inside a sentence are left alone
+  const s0 = { ...newState({}, "Instagram", "instagram"), stage: "asking", asked: "number", greeted: true, channel: "instagram" };
+  const r = advance(s0, "986251968", { numberAmbiguous: true }, "Meghna");
+  assert.equal(r.kind, "ask");
+  assert.match(r.reply, /^That number looks incomplete\. Could you share the full mobile number\?\n\nNote: Please include the country code if it is outside India\.$/);
+  assert.equal(r.q.fields.number || "", "");
+  const r2 = advance(r.q, "9862519681", { number: "+919862519681" }, "Meghna");   // the full number is taken
+  assert.equal(r2.q.fields.number, "+919862519681");
+});
