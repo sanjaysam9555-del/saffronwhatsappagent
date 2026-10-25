@@ -153,6 +153,12 @@ export default async (req) => {
       await logNeedsTeam({ waId, name, reason: "looks-like-vendor", lastMsg: text, reply: "(vendor sign-up link sent)" });
       return true;
     }
+    if (act.kind === "open") { // we cannot tell what they want yet: the fixed welcome asks how we can help
+      await saveContact(waId, { greeted: true });
+      if (await allow(`reply:${waId}:open`, 6 * HOUR)) { await agentSend(greetingText(who)); await incr("open_greetings"); }
+      else await toHuman("who-is-this", false); // still unclear after we asked: a person should look
+      return true;
+    }
     if (act.kind === "reply") {
       await saveContact(waId, { greeted: true });
       if (await allow(`reply:${waId}:operator`, 20_000)) { await agentSend(act.text); await incr("operator_replies"); }

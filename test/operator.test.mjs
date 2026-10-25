@@ -226,3 +226,12 @@ test("a number marked Pending from a card gets the one gentle ask in the summary
   assert.equal(last.kind, "summary");
   assert.match(last.reply, /share your mobile number here/);
 });
+
+test("when we cannot tell what they want, the fixed welcome asks how we can help", async () => {
+  const { greetingText, refOpen } = await import("../lib/media.mjs");
+  const act = await withTool("ask_how_to_help", {}, () => op.routeMessage({ channel: "Instagram", profileName: "Kritika Suri", text: "Hey how can I connect", history: [], state: {} }));
+  assert.deepEqual(act, { kind: "open" });
+  assert.equal(greetingText("Kritika"), "Hi Kritika!\n\nWelcome to Saffron Collective. 🌼\n\nHow can we help you?");
+  assert.equal(greetingText(""), "Hi!\n\nWelcome to Saffron Collective. 🌼\n\nHow can we help you?");
+  assert.match(refOpen("Kritika"), /^Hi Kritika!\n\nWelcome to Saffron Collective\. 🌼\n\n/);
+});

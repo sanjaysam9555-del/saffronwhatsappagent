@@ -312,6 +312,12 @@ export default async (req) => {
       if (!history) history = await getIgHistory(sid, { skipNewest: text });
       const act = operatorOn() ? await routeMessage({ channel: "Instagram", profileName: name || username, text, history, state: { greeted: c.greeted } }) : null;
       if (act?.kind === "vendor") { await vendorWelcomeNow(act); return ok(); }
+      if (act?.kind === "open") { // we cannot tell what they want yet: the fixed welcome asks, and their answer decides what happens next
+        await saveIg(sid, { greeted: true });
+        if (await allow(`igreply:${sid}:open`, 6 * HOUR)) { await send(greetingText(who)); await incr("ig_open_greetings"); }
+        else await toHuman("who-is-this", false); // still unclear after we asked: a person should look
+        return ok();
+      }
       if (act?.kind === "reply") { await saveIg(sid, { greeted: true }); if (await allow(`igreply:${sid}:operator`, 20_000)) { await send(act.text); await incr("operator_replies"); } return ok(); }
       if (act?.kind === "handover") { await toHuman(HANDOVER_REASON[act.reason] || "unclear", true, act.hold); return ok(); }
       if (act?.kind === "quiet") { console.log(`operator stayed quiet for ig ${sid}: ${act.why}`); return ok(); }
