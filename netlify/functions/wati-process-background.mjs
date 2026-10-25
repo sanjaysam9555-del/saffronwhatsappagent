@@ -10,10 +10,12 @@ import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playb
 import { sendSessionMessage, updateContactAttributes, getRecentMessages } from "../../lib/wati.mjs";
 import { readChat } from "../../lib/team.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
-import { draftReply, extractFields, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail } from "../../lib/claude.mjs";
+import { draftReply, extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail } from "../../lib/claude.mjs";
 import { lookupContact } from "../../lib/planning-studio.mjs";
 import { allow } from "../../lib/state.mjs";
 import { getContact, saveContact, AGENT_ECHO_MS } from "../../lib/contacts.mjs";
+import { isRepeatOut } from "../../lib/understand.mjs";
+import { withoutCurrent } from "../../lib/igapi.mjs";
 import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest, slotStillFree } from "../../lib/calendar.mjs";
 import { recordCall, callRecord } from "../../lib/calls.mjs";
@@ -116,9 +118,21 @@ export default async (req) => {
   if (isMediaOnly(text)) { await mediaRef(waId, name, "link"); return ok("link reference"); } // a pasted reel or Pinterest link
 
   let pendingAsk = ""; // the question we were waiting for, repeated after a taught answer
-  const agentSend = async (msg) => {
+  // Never say the same thing twice in a row: a repeated message means the agent has not understood, so a person takes over instead.
+  let stopping = false;
+  const agentSend = async (msg, { repeatOk = false } = {}) => {
+    if (!repeatOk && !stopping) {
+      const prev = await getContact(waId);
+      if (isRepeatOut(prev.lastOutText, prev.lastOut, msg)) {
+        stopping = true;
+        await incr("repeats_stopped");
+        console.log(`${waId}: would repeat our last message; handing over instead`);
+        await toHuman("repeating-itself", true);
+        return;
+      }
+    }
     await logExchange({ channel: "WhatsApp", contact: `+${waId}`, lead: text, agent: msg });
-    await saveContact(waId, { agentSent: Date.now(), lastOut: Date.now() });
+    await saveContact(waId, { agentSent: Date.now(), lastOut: Date.now(), lastOutText: String(msg).slice(0, 600) });
     return sendSessionMessage(waId, msg);
   };
   const consultDeps = { waId, offer: (req) => offerSlots(req), move: (a) => moveConsult(a), addGuest: (a) => addGuest({ ...a, name }), stillFree: (a) => slotStillFree({ ...a, name }), book: (a) => bookConsult({ ...a, name, source: "WhatsApp", details: detailsText(a.fields) }) };
@@ -326,7 +340,16 @@ export default async (req) => {
       }
 
       const asking = q.stage === "new" || q.stage === "asking";
-      const extracted = q.stage === "asking" || q.stage === "new" || (q.stage === "confirm" && CORRECTION.test(text)) ? (!GREETING.test(text) && !dupAnswered ? await extractFields(text, q.asked) : {}) : {};
+      // Read first: Claude reads the recent chat, what we hold and the newest message before any rule answers.
+      // Short replies in the booking steps ("2", "ok") need no reading.
+      let read = null;
+      const readable = ["new", "asking", "confirm", "call"].includes(q.stage) || (["slots", "email"].includes(q.stage) && text.trim().split(/\s+/).length > 3);
+      if (readable && !GREETING.test(text) && !dupAnswered) {
+        const recent = withoutCurrent((await getRecentMessages(waId, 12)) || [], text);
+        read = await understandChat({ text, name: who, history: recent, q, asked: q.asked });
+      }
+      if (read?.complaint && q.stage !== "new") { await toHuman("complaint"); return ok(); }
+      const extracted = q.stage === "asking" || q.stage === "new" || (q.stage === "confirm" && (CORRECTION.test(text) || read?.intent === "correcting")) ? (!GREETING.test(text) && !dupAnswered ? await extractFields(text, q.asked, read) : {}) : {};
       let opener = "";
       if (firstTouch && !GREETING.test(text)) opener = (await draftOpening({ text, name: who, greeted: c.greeted })) || "";
       const pre = asking && !dupAnswered ? [priceQ ? priceAnswer(text) : "", guides.length ? guideText(guides) : ""].filter(Boolean).join("\n\n") : "";

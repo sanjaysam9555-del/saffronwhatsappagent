@@ -5,7 +5,7 @@ import { extractPhone } from "../../lib/phone.mjs";
 import { sendTemplateMessage } from "../../lib/wati.mjs";
 import { callBookedParams } from "../../lib/leadfields.mjs";
 import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playbook.mjs";
-import { extractFields, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail } from "../../lib/claude.mjs";
+import { extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail } from "../../lib/claude.mjs";
 import { newState, advance, numberInChat, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest, slotStillFree } from "../../lib/calendar.mjs";
 import { recordCall, callRecord } from "../../lib/calls.mjs";
@@ -21,6 +21,7 @@ import { allow } from "../../lib/state.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { acquireLock } from "../../lib/lock.mjs";
 import { operatorOn, routeMessage } from "../../lib/operator.mjs";
+import { isRepeatOut } from "../../lib/understand.mjs";
 import { igApiOn, getInstagramHistory, getLatestCustomerText, recoverLatest, findNumberInChat, withoutCurrent, debugInstagramApi } from "../../lib/igapi.mjs";
 
 // Answers Instagram DMs that ManyChat forwards (see ig-webhook). Same rules as WhatsApp, plus the mobile number is asked
@@ -101,11 +102,29 @@ export default async (req) => {
   let vendorChat = false, leadQ = null; // set once the chat is loaded; used to give every real lead a row, even one who asks a question and goes quiet
   const ROW_REASONS = new Set(["lead-question", "money-or-commitment", "pricing-or-availability-question", "call-time-request"]);
   const HANDOVER_REASON_IG = { money: "money-or-commitment", existing_client: "existing-client", complaint: "complaint", unclear: "who-is-this", other: "unclear" };
-  const send = async (msg) => {
+  // Never say the same thing twice in a row: a repeated message means the agent has not understood, so a person takes over instead.
+  let stopping = false;
+  const send = async (msg, { repeatOk = false } = {}) => {
+    if (!repeatOk && !stopping) {
+      const prev = await getIg(sid);
+      if (isRepeatOut(prev.lastOutText, prev.lastOut, msg)) {
+        stopping = true;
+        await incr("repeats_stopped");
+        console.log(`ig ${sid}: would repeat our last message; handing over instead`);
+        await toHuman("repeating-itself", true);
+        return;
+      }
+    }
     await logExchange({ channel: "Instagram", contact: label, lead: text, agent: msg });
     await addIgHistory(sid, "us", msg);
     for (const part of chunk(msg)) { await sendInstagramText(sid, part); await sleep(400); }
-    await saveIg(sid, { lastOut: Date.now() });
+    await saveIg(sid, { lastOut: Date.now(), lastOutText: String(msg).slice(0, 600) });
+  };
+  // The recent chat, as Instagram holds it (it includes what the team typed by hand); our own record when Instagram cannot be read.
+  const chatHistory = async (current) => {
+    let h = null;
+    if (igApiOn() && username) { const real = await getInstagramHistory({ username }); h = real && real.length ? withoutCurrent(real, current) : null; }
+    return h || (await getIgHistory(sid, { skipNewest: current }));
   };
   const toHuman = async (reason, ack = true, hold = "") => {
     if (reason === "lead-question") { // an answer you have already taught the agent is used before anyone is bothered
@@ -342,7 +361,13 @@ export default async (req) => {
     if (c.refShared && !q.refNoted) q = { ...q, refNoted: true, notes: [q.notes, REF_NOTE].filter(Boolean).join(" / ") };
     const asking = q.stage === "new" || q.stage === "asking";
     const ph = extractPhone(text);
-    const extracted = (asking || (q.stage === "confirm" && CORRECTION.test(text))) && !GREETING.test(text) ? await extractFields(text, q.asked === "number" ? null : q.asked) : {};
+    // Read first: Claude reads the recent chat, what we hold and the newest message before any rule answers.
+    // Short replies in the booking steps ("2", "ok") need no reading.
+    let read = null;
+    const readable = ["new", "asking", "confirm", "call"].includes(q.stage) || (["slots", "email"].includes(q.stage) && text.trim().split(/\s+/).length > 3);
+    if (readable && !GREETING.test(text)) read = await understandChat({ text, name: who, history: await chatHistory(text), q, asked: q.asked });
+    if (read?.complaint && q.stage !== "new") { await toHuman("complaint"); return ok(); }
+    const extracted = (asking || (q.stage === "confirm" && (CORRECTION.test(text) || read?.intent === "correcting"))) && !GREETING.test(text) ? await extractFields(text, q.asked === "number" ? null : q.asked, read) : {};
     delete extracted.number;
     if (ph.status === "ok") extracted.number = `+${ph.number}`;
     if (ph.status === "ambiguous") extracted.numberAmbiguous = true;
@@ -360,7 +385,7 @@ export default async (req) => {
         const nq = cr.booked ? { ...cr.q, notes: [cr.q.notes, `Call booked: ${cr.booked.label} (${cr.q.callPref === "phone" ? "phone" : "Meet"})`].filter(Boolean).join(" / ") } : cr.q;
         await saveIg(sid, { q: nq });
         await upsertInstagramLead(sid, name || label, nq, { notes: nq.notes, lastMsg: text.slice(0, 200), done: true });
-        await send(cr.reply);
+        await send(cr.reply, { repeatOk: cr.kind === "slots-info" });
         if (cr.booked) {
           await incr("calls_booked");
           await keepCall(nq, cr.booked, cr.booked.eventId);

@@ -1397,3 +1397,74 @@ test("a correction replaces what we hold, in the questions and in the summary (M
   const d = advance(full, "also we want a live band", {}, "Meghna");
   assert.equal(d.kind, "addition");
 });
+
+// ---------- Read first: the whole chat is read before anything answers ----------
+test("understand: the chat is laid out clearly, and Claude's reading is checked", async () => {
+  const u = await import("../lib/understand.mjs");
+  const t = u.transcript([{ from: "us", text: "Is this for a wedding?" }, { from: "customer", text: "Yes,   a wedding" }, { from: "customer", text: "  " }]);
+  assert.equal(t, "Saffron: Is this for a wedding?\nLead: Yes, a wedding");
+  assert.equal(u.savedLines({ fields: { occasion: "Engagement", number: "Pending" } }), "occasion: Engagement");
+  assert.match(u.savedLines({ fields: {}, callBooked: { label: "Mon 3:30 pm" } }), /call booked: Mon 3:30 pm/);
+  const r = u.normalizeRead({ intent: "correcting", complaint: false, occasion: "Wedding", requirement: "planning decor and execution", date: null, guests: "x".repeat(200), location: "" });
+  assert.equal(r.intent, "correcting");
+  assert.deepEqual(r.fields, { occasion: "Wedding", requirement: "planning decor and execution" });
+  assert.equal(u.normalizeRead({ intent: "made-up" }).intent, "other");
+  assert.equal(u.normalizeRead({ intent: "complaint" }).complaint, true);
+  assert.equal(u.normalizeRead("nonsense"), null);
+});
+
+test("understand: an identical message to the one we just sent is a repeat", async () => {
+  const { isRepeatOut, sameMessage } = await import("../lib/understand.mjs");
+  const q = "Thank you! If you were typing an answer, I could not read it. Could you please type it once more? 🌼";
+  const now = Date.now();
+  assert.ok(sameMessage(q, q.replace("Thank you!", "thank you")));
+  assert.ok(isRepeatOut(q, now - 5 * M, q, now));
+  assert.ok(!isRepeatOut(q, now - 7 * H, q, now)); // long ago: not a repeat
+  assert.ok(!isRepeatOut(q, now - M, "Which city is the wedding in?", now));
+  assert.ok(!isRepeatOut("", 0, q, now)); // nothing sent yet
+});
+
+test("understandChat: Meghna's chat is read as a correction with her details (mocked Claude)", async () => {
+  const { understandChat, extractFields } = await import("../lib/claude.mjs");
+  const real = globalThis.fetch, key = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = "test";
+  let sent;
+  globalThis.fetch = async (url, init) => {
+    sent = JSON.parse(init.body);
+    return { ok: true, json: async () => ({ content: [{ text: '{"intent":"correcting","complaint":false,"date":null,"location":null,"occasion":"Wedding","requirement":"planning decor and execution","guests":null}' }] }) };
+  };
+  try {
+    const read = await understandChat({
+      text: "Please rectify the occasion as wedding and we are looking for planning decor and execution. My number is 9868251968.",
+      name: "Meghna", asked: "occasion",
+      history: [{ from: "us", text: "Is this for a wedding, a reception, or another occasion?" }, { from: "customer", text: "Engagement" }],
+      q: { fields: { occasion: "Engagement" } },
+    });
+    // Claude was shown the chat, what we hold, what we asked and the newest message
+    const shown = sent.messages[0].content;
+    assert.match(shown, /Saffron: Is this for a wedding/);
+    assert.match(shown, /Lead: Engagement/);
+    assert.match(shown, /Saved so far: occasion: Engagement/);
+    assert.match(shown, /We last asked about: occasion/);
+    assert.match(shown, /newest message:\nPlease rectify/);
+    assert.equal(read.intent, "correcting");
+    const ex = await extractFields("Please rectify the occasion as wedding", "occasion", read);
+    assert.equal(ex.occasion, "Wedding");
+    assert.equal(ex.correcting, true);
+    assert.equal(sent.messages.length, 1); // one call: the reading replaces the single-message extraction
+    // a failing Claude never breaks the chat
+    globalThis.fetch = async () => ({ ok: false, status: 500 });
+    assert.equal(await understandChat({ text: "hello there friend", name: "x", history: [], q: {} }), null);
+  } finally { globalThis.fetch = real; if (key === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = key; }
+});
+
+test("a correction Claude recognised (no 'rectify' or 'change' in the words) still replaces the saved detail", () => {
+  let q = { ...newState({ number: "+919868251968", date: "Nov 2027", location: "Jaipur", occasion: "Engagement", requirement: "Planning" }, "Instagram", "instagram"), stage: "confirm", channel: "instagram" };
+  const plain = advance(q, "It is a wedding, not an engagement", {}, "Meghna");
+  assert.notEqual(plain.kind, "corrected"); // nothing extracted, nothing changed
+  const r = advance(q, "It is a wedding", { occasion: "Wedding", correcting: true }, "Meghna");
+  assert.equal(r.kind, "corrected");
+  assert.equal(r.q.fields.occasion, "Wedding");
+  assert.match(r.reply, /updated it/);
+  assert.match(r.reply, /Wedding/);
+});
