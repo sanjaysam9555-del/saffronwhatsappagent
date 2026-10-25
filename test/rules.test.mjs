@@ -1200,3 +1200,52 @@ test("the email is asked once; if they do not share it the call is booked anyway
   assert.equal(emailOnly.kind, "call-booked");
   assert.equal(emailOnly.escalate, "call-needs-number");
 });
+
+test("one event per person: an existing event is recognised, and an email or number is added to it", async () => {
+  const { isTheirEvent, mergeDescription } = await import("../lib/calendar.mjs");
+  const { addLateContact, consultTurn } = await import("../lib/consult.mjs");
+  const ev = { id: "evt1", status: "confirmed", summary: "Consult with Saffron Events (Darshika)", description: "<b>Booked by</b>\nDarshika\nMobile / WhatsApp: +919569963560\n\nOccasion: Wedding", attendees: [] };
+  assert.equal(isTheirEvent(ev, { name: "Darshika" }), true);
+  assert.equal(isTheirEvent(ev, { name: "Darshika Sharma" }), true);          // same first name, same time slot
+  assert.equal(isTheirEvent(ev, { name: "Priya", phone: "+919569963560" }), true); // found by the number in its notes
+  assert.equal(isTheirEvent(ev, { name: "Priya", phone: "+919800000000" }), false);
+  assert.equal(isTheirEvent({ ...ev, status: "cancelled" }, { name: "Darshika" }), false);
+  assert.equal(isTheirEvent({ ...ev, summary: "Lunch (Darshika)" }, { name: "Darshika" }), false);
+  // notes: add what is missing, once, right under the name
+  const d1 = mergeDescription(ev.description, { email: "d@example.com", phone: "+919569963560" });
+  assert.match(d1, /Darshika\nd@example\.com\nMobile/);
+  assert.equal((d1.match(/9569963560/g) || []).length, 1);
+  assert.equal(mergeDescription(d1, { email: "d@example.com" }), d1);
+  assert.doesNotMatch(mergeDescription("<b>Booked by</b>\nAsha\nMobile: check the leads sheet (not yet confirmed)", { phone: "+919811111111" }), /check the leads sheet/);
+
+  // the email arrives after the call is booked: same event, guest added, no new booking
+  const calls = [];
+  const deps = { addGuest: async (a) => { calls.push(a); return { ok: true, added: Boolean(a.email) }; }, book: async () => { throw new Error("must not book again"); } };
+  const q = { stage: "done", fields: { number: "+919569963560" }, callBooked: { eventId: "evt1", start: 123, label: "Mon, 26 Oct, 1:00 pm IST", email: "" } };
+  const r = await addLateContact(q, { email: "d@example.com" }, deps);
+  assert.equal(r.added, true);
+  assert.equal(r.q.callBooked.email, "d@example.com");
+  assert.deepEqual(calls[0], { eventId: "evt1", start: 123, email: "d@example.com", phone: "+919569963560" });
+  assert.match(doneContext(r.q), /calendar invite went to d@example\.com/);
+  // the same email again, or nothing new: the calendar is not touched
+  calls.length = 0;
+  assert.equal((await addLateContact(r.q, { email: "D@example.com" }, deps)).added, false);
+  assert.equal((await addLateContact(q, {}, deps)).added, false);
+  assert.equal(calls.length, 0);
+  // no booked call, or the event is gone: nothing is created, nothing breaks
+  assert.equal((await addLateContact({ stage: "done" }, { email: "d@example.com" }, deps)).added, false);
+  assert.equal((await addLateContact(q, { email: "x@y.co" }, { addGuest: async () => ({ ok: false, missing: true }) })).added, false);
+  assert.equal((await addLateContact(q, { email: "x@y.co" }, { addGuest: async () => { throw new Error("boom"); } })).added, false);
+
+  // a chat still waiting for the email (the call was added by hand): the booking step is handed the event, so it adopts it
+  const slots = [Date.UTC(2026, 9, 26, 7, 30)];
+  const seen = [];
+  const bdeps = { offer: async () => slots, book: async (a) => { seen.push(a); return { ok: true, meetLink: "https://meet.google.com/x", start: a.start, eventId: "evt1", adopted: true }; } };
+  const pending = { stage: "email", callPref: "phone", chosen: slots[0], fields: { number: "+919569963560" }, callBooked: { eventId: "evt1" } };
+  const b = await consultTurn(pending, "darshika@example.com", bdeps);
+  assert.equal(b.kind, "call-booked");
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].eventId, "evt1");
+  assert.equal(seen[0].email, "darshika@example.com");
+  assert.equal(b.booked.eventId, "evt1");
+});

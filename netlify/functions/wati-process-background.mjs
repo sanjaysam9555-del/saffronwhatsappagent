@@ -15,9 +15,9 @@ import { lookupContact } from "../../lib/planning-studio.mjs";
 import { allow } from "../../lib/state.mjs";
 import { getContact, saveContact, AGENT_ECHO_MS } from "../../lib/contacts.mjs";
 import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter } from "../../lib/qualify.mjs";
-import { calendarEnabled, offerSlots, bookConsult, moveConsult } from "../../lib/calendar.mjs";
+import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest } from "../../lib/calendar.mjs";
 import { recordCall, callRecord } from "../../lib/calls.mjs";
-import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail, wantsReschedule, wantsCancel, startReschedule } from "../../lib/consult.mjs";
+import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail, wantsReschedule, wantsCancel, startReschedule, addLateContact } from "../../lib/consult.mjs";
 import { recordMedia, isMediaOnly, REF_THANKS, REF_NOTE, refOpen, greetingText } from "../../lib/media.mjs";
 import { greetName } from "../../lib/leadfields.mjs";
 import { knownType } from "../../lib/known.mjs";
@@ -121,7 +121,7 @@ export default async (req) => {
     await saveContact(waId, { agentSent: Date.now(), lastOut: Date.now() });
     return sendSessionMessage(waId, msg);
   };
-  const consultDeps = { waId, offer: (req) => offerSlots(req), move: (a) => moveConsult(a), book: (a) => bookConsult({ ...a, name, source: "WhatsApp", details: detailsText(a.fields) }) };
+  const consultDeps = { waId, offer: (req) => offerSlots(req), move: (a) => moveConsult(a), addGuest: (a) => addGuest({ ...a, name }), book: (a) => bookConsult({ ...a, name, source: "WhatsApp", details: detailsText(a.fields) }) };
   // Remember a booked (or moved) call so the lead is reminded. On WhatsApp their number is the chat itself.
   const keepCall = async (q, booked, id) => {
     try { await recordCall(callRecord({ id: id || `wa-${waId}-${booked.start}`, start: booked.start, label: booked.label, name, number: waId, channel: "WhatsApp", pref: q.callPref, meetLink: q.callBooked?.meetLink })); } catch (e) { console.warn("keepCall:", e.message); }
@@ -258,9 +258,11 @@ export default async (req) => {
       }
       const ph = extractPhone(text), em = extractEmail(text);
       const shared = { number: ph.status === "ok" ? `+${ph.number}` : "", email: em };
-      const out = await draftAfter({ text, name: who, context: doneContext(c.q), shared, greeted: true });
-      if (!out || out.handover !== "none") { await toHuman(out?.handover === "change" ? "call-time-request" : "lead-question"); return ok(); }
-      const nq = applyAfter(c.q, text, { ...shared, fields: out.fields });
+      // Their email or number arrives after the call was booked: it goes on the SAME calendar event (never a second one).
+      const late = calendarEnabled() ? await addLateContact(c.q, shared, consultDeps) : { q: c.q };
+      const out = await draftAfter({ text, name: who, context: doneContext(late.q), shared, greeted: true });
+      if (!out || out.handover !== "none") { if (late.q !== c.q) await saveContact(waId, { q: late.q }); await toHuman(out?.handover === "change" ? "call-time-request" : "lead-question"); return ok(); }
+      const nq = applyAfter(late.q, text, { ...shared, fields: out.fields });
       await saveContact(waId, { q: nq });
       await saveLead(waId, name, nq, { notes: nq.notes, country: countryOf(waId).name });
       await agentSend(out.reply);

@@ -7,9 +7,9 @@ import { callBookedParams } from "../../lib/leadfields.mjs";
 import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playbook.mjs";
 import { extractFields, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail } from "../../lib/claude.mjs";
 import { newState, advance, numberInChat, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter } from "../../lib/qualify.mjs";
-import { calendarEnabled, offerSlots, bookConsult, moveConsult } from "../../lib/calendar.mjs";
+import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest } from "../../lib/calendar.mjs";
 import { recordCall, callRecord } from "../../lib/calls.mjs";
-import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail, wantsReschedule, wantsCancel, startReschedule } from "../../lib/consult.mjs";
+import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail, wantsReschedule, wantsCancel, startReschedule, addLateContact } from "../../lib/consult.mjs";
 import { isMediaOnly, recordMedia, REF_THANKS, REF_UNSURE, REF_NOTE, refOpen, greetingText } from "../../lib/media.mjs";
 import { greetName } from "../../lib/leadfields.mjs";
 import { sendInstagramText, getInstagramLastText, parseManychatEvent } from "../../lib/manychat.mjs";
@@ -136,7 +136,7 @@ export default async (req) => {
     }
   };
 
-  const consultDeps = { offer: (req) => offerSlots(req), move: (a) => moveConsult(a), book: (a) => bookConsult({ ...a, name: name || label, source: "Instagram", details: detailsText(a.fields) }) };
+  const consultDeps = { offer: (req) => offerSlots(req), move: (a) => moveConsult(a), addGuest: (a) => addGuest({ ...a, name: name || label }), book: (a) => bookConsult({ ...a, name: name || label, source: "Instagram", details: detailsText(a.fields) }) };
   // Remember a booked (or moved) call so the lead is reminded on WhatsApp. Needs their number; without one there is nobody to remind.
   const keepCall = async (q, booked, id) => {
     try { await recordCall(callRecord({ id: id || `ig-${sid}-${booked.start}`, start: booked.start, label: booked.label, name, number: q.fields?.number, channel: "Instagram", pref: q.callPref, meetLink: q.callBooked?.meetLink })); } catch (e) { console.warn("keepCall:", e.message); }
@@ -275,14 +275,16 @@ export default async (req) => {
       }
       const ph = extractPhone(text), em = extractEmail(text);
       const shared = { number: ph.status === "ok" ? `+${ph.number}` : "", email: em };
-      const out = await draftAfter({ text, name: who, context: doneContext(c.q), shared, greeted: true });
-      if (!out || out.handover !== "none") { await toHuman(out?.handover === "change" ? "call-time-request" : "lead-question"); return ok(); }
-      const nq = applyAfter(c.q, text, { ...shared, fields: out.fields });
+      // Their email or number arrives after the call was booked: it goes on the SAME calendar event (never a second one).
+      const late = calendarEnabled() ? await addLateContact(c.q, shared, consultDeps) : { q: c.q };
+      const out = await draftAfter({ text, name: who, context: doneContext(late.q), shared, greeted: true });
+      if (!out || out.handover !== "none") { if (late.q !== c.q) await saveIg(sid, { q: late.q }); await toHuman(out?.handover === "change" ? "call-time-request" : "lead-question"); return ok(); }
+      const nq = applyAfter(late.q, text, { ...shared, fields: out.fields });
       await saveIg(sid, { q: nq });
       await upsertInstagramLead(sid, name || label, nq, { notes: nq.notes, lastMsg: text.slice(0, 200) });
       await send(out.reply);
       if (out.news) await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "lead-added-details", lastMsg: text });
-      if (shared.number) { const sent = await confirmOnWhatsApp(nq); if (sent.waConfirmSent) await saveIg(sid, { q: sent }); } // their number arrived after the booking
+      if (shared.number || shared.email) { const sent = await confirmOnWhatsApp(nq); if (sent.waConfirmSent) await saveIg(sid, { q: sent }); } // their number arrived after the booking
       return ok();
     }
     if (!canQualify && !inFlow) return ok("not a client chat");
