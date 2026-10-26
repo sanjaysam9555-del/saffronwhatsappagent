@@ -20,6 +20,7 @@ These come from Swati's feedback on real chats. Every one of them was a real mis
 - Details the owner states are the truth and replace saved ones. Corrections must reach the lead record, the sheet and the calendar event (correct_lead_details).
 - Several files or messages arriving together must produce ONE reply (take the chat lock, re-read, then decide). Vendors get no photo/reel welcome.
 - A vendor who already has the sign-up link and then shares details, a number, photos or reels gets NO reply (stay_quiet). At most one operator reply per vendor every 3 hours, and a reply that only rephrases our last message is skipped (nearSame).
+- Someone who says they have joined a business we already work with (a new sales contact at a venue) is not a vendor to onboard: thank-you only, no sign-up link (acknowledge_introduction, introReply), and the team is told to update the vendor record (vendor-contact-change).
 - At most one flower per message (oneEmoji).
 - Automatic messages about a call (confirmation, reminders) are spaced: a reminder never follows within hours of the booking or confirmation.
 - "What is the call for?" has a fixed answer; it never goes to a person.

@@ -22,6 +22,7 @@ import { allow } from "../../lib/state.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { acquireLock } from "../../lib/lock.mjs";
 import { operatorOn, routeMessage } from "../../lib/operator.mjs";
+import { introReply } from "../../lib/rules.mjs";
 import { isRepeatOut, isNearRepeat, oneEmoji } from "../../lib/understand.mjs";
 import { igApiOn, getInstagramHistory, getLatestCustomerText, recoverLatest, findNumberInChat, withoutCurrent, debugInstagramApi } from "../../lib/igapi.mjs";
 
@@ -349,6 +350,12 @@ export default async (req) => {
       if (!history) history = await getIgHistory(sid, { skipNewest: text });
       const act = operatorOn() ? await routeMessage({ channel: "Instagram", profileName: name || username, text, history, state: { greeted: c.greeted } }) : null;
       if (act?.kind === "vendor") { await vendorWelcomeNow(act); return ok(); }
+      if (act?.kind === "intro") { // someone new at a business we probably already work with: a thank-you, no link, and the team updates the vendor record
+        await saveIg(sid, { kind: "vendor", greeted: true });
+        if (await allow(`igreply:${sid}:intro`, 6 * HOUR)) { await send(introReply({ name: act.name || who, business: act.business })); await incr("vendor_intros"); }
+        await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "vendor-contact-change", lastMsg: text, reply: "(thank-you sent, no link)" });
+        return ok();
+      }
       if (act?.kind === "open") { // we cannot tell what they want yet: the fixed welcome asks, and their answer decides what happens next
         await saveIg(sid, { greeted: true });
         if (await allow(`igreply:${sid}:open`, 6 * HOUR)) { await send(greetingText(who)); await incr("ig_open_greetings"); }

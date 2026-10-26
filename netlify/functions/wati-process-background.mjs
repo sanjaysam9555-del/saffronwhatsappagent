@@ -15,6 +15,7 @@ import { lookupContact } from "../../lib/planning-studio.mjs";
 import { allow } from "../../lib/state.mjs";
 import { getContact, saveContact, AGENT_ECHO_MS } from "../../lib/contacts.mjs";
 import { holdContact } from "../../lib/qualify.mjs";
+import { introReply } from "../../lib/rules.mjs";
 import { isRepeatOut, isNearRepeat, oneEmoji } from "../../lib/understand.mjs";
 import { withoutCurrent } from "../../lib/igapi.mjs";
 import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
@@ -179,6 +180,12 @@ export default async (req) => {
       await saveContact(waId, { kind: "vendor" });
       if (await allow(`reply:${waId}:vendor_signup`, 6 * HOUR)) { await agentSend(vendorWelcome({ name: act.name || who, business: act.business })); await incr("vendor_links_sent"); }
       await logNeedsTeam({ waId, name, reason: "looks-like-vendor", lastMsg: text, reply: "(vendor sign-up link sent)" });
+      return true;
+    }
+    if (act.kind === "intro") { // someone new at a business we probably already work with: a thank-you, no link, and the team updates the vendor record
+      await saveContact(waId, { kind: "vendor", greeted: true });
+      if (await allow(`reply:${waId}:intro`, 6 * HOUR)) { await agentSend(introReply({ name: act.name || who, business: act.business })); await incr("vendor_intros"); }
+      await logNeedsTeam({ waId, name, reason: "vendor-contact-change", lastMsg: text, reply: "(thank-you sent, no link)" });
       return true;
     }
     if (act.kind === "open") { // we cannot tell what they want yet: the fixed welcome asks how we can help

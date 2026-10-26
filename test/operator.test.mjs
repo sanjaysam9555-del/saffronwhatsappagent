@@ -378,3 +378,17 @@ test("vendors who already have the link: the agent is told to stay quiet, and re
     assert.doesNotMatch(system, /thank them and tell them to complete their onboarding/);
   } finally { globalThis.fetch = real; if (key === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = key; }
 });
+
+test("someone who joined a business we know gets a thank-you, not the sign-up link", async () => {
+  const a = await withTool("acknowledge_introduction", { name: "Ankit D Srivastava 123", business: "Karma Lake Lands Golf Resort Gurgaon" }, () => op.routeMessage({ channel: "WhatsApp", text: "I have recently joined Karma Lake Lands Golf Resort Gurgaon, Feel free to connect with me for any requirement" }));
+  assert.equal(a.kind, "intro");
+  assert.equal(a.business, "Karma Lake Lands Golf Resort Gurgaon");
+  assert.ok(!/\d/.test(a.name));
+  const { introReply } = await import("../lib/rules.mjs");
+  const msg = introReply({ name: "Ankit", business: a.business });
+  assert.match(msg, /^Hello Ankit!/);
+  assert.match(msg, /congratulations on joining Karma Lake Lands Golf Resort Gurgaon/);
+  assert.ok(!/https?:|sign.?up|🌼/i.test(msg));
+  assert.ok(!/https?:/.test(introReply({})));
+  assert.match(introReply({}), /^Thank you for the introduction\./);
+});
