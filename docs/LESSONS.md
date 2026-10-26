@@ -183,5 +183,13 @@ Entries are in the order they were learned.
 - Test: ownerCommand: ambiguous, missing, closed window and unsafe text send nothing
 - Commit: ab6462b
 
+## L21 Do not ask what the lead has just answered
+- Date: 2026-10-27
+- Chat: Tulsi Mittal (Instagram)
+- Went wrong: she sent her number (typed, then as a phone card) and answered "Which city or destination?" within about a minute. Our reply to the number asked for the city again, and only the next reply dealt with her answer. The logs show six messages in about 60 seconds, each its own run, 7 to 15 seconds apart, while messages were only grouped when they came within 5 seconds. Each reply was written from what she had sent when its run started.
+- Rule: messages within 8 seconds are one burst. Before a reply goes out, if she has sent something newer that already answers the question we are about to ask, that question is left out and her newer message gets the next one.
+- Test: Tulsi: a question the lead has already answered
+- Commit: 4b50713
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
