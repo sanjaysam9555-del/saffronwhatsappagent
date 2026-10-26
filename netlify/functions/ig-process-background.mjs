@@ -5,6 +5,7 @@ import { extractPhone } from "../../lib/phone.mjs";
 import { sendTemplateMessage } from "../../lib/wati.mjs";
 import { callBookedParams } from "../../lib/leadfields.mjs";
 import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playbook.mjs";
+import { holdContact } from "../../lib/qualify.mjs";
 import { extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail } from "../../lib/claude.mjs";
 import { newState, advance, numberInChat, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest, slotStillFree } from "../../lib/calendar.mjs";
@@ -229,7 +230,12 @@ export default async (req) => {
         return ok("media burst");
       }
     }
-    if (c.esc || c.q?.stage === "paused" || (c.kind === "vendor" && mediaCount && !message)) return ok("with team"); // after a hand-over the agent stays quiet (and a vendor's portfolio files need no reply)
+    if (c.esc || c.q?.stage === "paused" || (c.kind === "vendor" && mediaCount && !message)) {
+      // Quiet after a hand-over, but a number or email they send is still kept for the team.
+      const p0 = extractPhone(text), e0 = extractEmail(text);
+      if (c.q && c.kind !== "vendor" && (p0.status === "ok" || e0)) await saveIg(sid, { q: holdContact(c.q, { number: p0.status === "ok" ? `+${p0.number}` : "", email: e0 }) });
+      return ok("with team");
+    } // after a hand-over the agent stays quiet (and a vendor's portfolio files need no reply)
     if (mediaCount && !message && blankText && c.q?.stage === "asking" && c.q.asked === "number" && !c.q.fields?.number) {
       // They were asked for their number and Instagram sent it as a phone card with no readable text: do not ask again, carry on.
       const r = numberInChat(c.q, who);
@@ -381,7 +387,7 @@ export default async (req) => {
     if (["slots", "email"].includes(q.stage) && calendarEnabled()) {
       const cr = await consultTurn(q, text, consultDeps);
       if (cr) {
-        if (cr.kind === "escalate") { await toHuman("lead-question"); return ok(); }
+        if (cr.kind === "escalate") { await saveIg(sid, { q: holdContact(q, { number: ph.status === "ok" ? `+${ph.number}` : "", email: extractEmail(text) }) }); await toHuman("lead-question"); return ok(); }
         const nq = cr.booked ? { ...cr.q, notes: [cr.q.notes, `Call booked: ${cr.booked.label} (${cr.q.callPref === "phone" ? "phone" : "Meet"})`].filter(Boolean).join(" / ") } : cr.q;
         await saveIg(sid, { q: nq });
         await upsertInstagramLead(sid, name || label, nq, { notes: nq.notes, lastMsg: text.slice(0, 200), done: true });
@@ -419,7 +425,7 @@ export default async (req) => {
       const ack = await draftAck({ text, name: who, kind: r.kind, asked: q.asked, fields: r.q.fields });
       if (ack) r = advance(q, text, extracted, name, opener, ack);
     }
-    if (r.kind === "escalate") { await toHuman("lead-question"); return ok(); }
+    if (r.kind === "escalate") { await saveIg(sid, { q: holdContact(q, { number: ph.status === "ok" ? `+${ph.number}` : "", email: extractEmail(text) }) }); await toHuman("lead-question"); return ok(); }
     if (r.kind === "call-pref" && calendarEnabled()) { // offer real times; if that fails the team does it by hand, as before
       try {
         const sc = await startConsult(r.q, consultDeps);

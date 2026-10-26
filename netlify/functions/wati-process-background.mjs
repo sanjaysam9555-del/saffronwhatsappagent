@@ -14,6 +14,7 @@ import { draftReply, extractFields, understandChat, draftOpening, draftAck, draf
 import { lookupContact } from "../../lib/planning-studio.mjs";
 import { allow } from "../../lib/state.mjs";
 import { getContact, saveContact, AGENT_ECHO_MS } from "../../lib/contacts.mjs";
+import { holdContact } from "../../lib/qualify.mjs";
 import { isRepeatOut } from "../../lib/understand.mjs";
 import { withoutCurrent } from "../../lib/igapi.mjs";
 import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
@@ -360,7 +361,7 @@ export default async (req) => {
       if (["slots", "email"].includes(q.stage) && calendarEnabled()) {
         const cr = await consultTurn(q, text, consultDeps);
         if (cr) {
-          if (cr.kind === "escalate") { await toHuman("lead-question"); return ok(); }
+          if (cr.kind === "escalate") { await saveContact(waId, { q: holdContact(q, { email: extractEmail(text) }) }); await toHuman("lead-question"); return ok(); }
           const nq = cr.booked ? { ...cr.q, notes: [cr.q.notes, `Call booked: ${cr.booked.label} (${cr.q.callPref === "phone" ? "phone" : "Meet"})`].filter(Boolean).join(" / ") } : cr.q;
           await saveContact(waId, { q: nq });
           await saveLead(waId, name, nq, { notes: nq.notes, country: country.name });
@@ -396,7 +397,7 @@ export default async (req) => {
         if (ack) r = advance(q, text, extracted, name, opener, ack);
       }
 
-      if (r.kind === "escalate") { await toHuman("lead-question"); return ok(); }
+      if (r.kind === "escalate") { await saveContact(waId, { q: holdContact(q, { email: extractEmail(text) }) }); await toHuman("lead-question"); return ok(); }
       if (r.kind === "call-pref" && calendarEnabled()) { // offer real times; if that fails the team does it by hand, as before
         try {
           const sc = await startConsult({ ...r.q, fields: { ...r.q.fields, number: `+${waId}` } }, consultDeps);

@@ -336,7 +336,7 @@ test("ownerCommand: re-offer times to an Instagram lead whose chosen time is gon
   const given = [];
   const d2 = deps({ findCalls: find, reofferTimes: async (m, x) => { given.push(x); return { note: "Done." }; } });
   assert.match(await withTool("reoffer_call_times", { to: "Chatting", number: "9868251968", occasion: "Wedding", apologise: true }, () => op.ownerCommand({ text: "agent x", deps: d2 })), /^Done/);
-  assert.deepEqual(given[0], { number: "9868251968", occasion: "Wedding", requirement: undefined, apologise: true });
+  assert.deepEqual(given[0], { number: "9868251968", occasion: "Wedding", requirement: undefined, apologise: true, note: "" });
   assert.match(await withTool("reoffer_call_times", { to: "Zed" }, () => op.ownerCommand({ text: "agent x", deps: d })), /could not find/);
   assert.deepEqual(sent, ["1"]);
   const bad = deps({ findCalls: find, reofferTimes: async () => { throw new Error("outside the 24 hour window"); } });

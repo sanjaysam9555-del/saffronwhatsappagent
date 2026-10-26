@@ -1468,3 +1468,32 @@ test("a correction Claude recognised (no 'rectify' or 'change' in the words) sti
   assert.match(r.reply, /updated it/);
   assert.match(r.reply, /Wedding/);
 });
+
+// ---------- Shubham: asked what the call is for, shared his number, and was sent to a person ----------
+test("call stage: 'what is the purpose of the call' is answered, the number is kept, and the call question is asked again", async () => {
+  const { CALL_PURPOSE, holdContact } = await import("../lib/qualify.mjs");
+  for (const yes of ["What's the purpose of the call?", "why a call?", "What is the call about?", "what will we discuss", "What is the reason for this call"]) assert.ok(CALL_PURPOSE.test(yes), yes);
+  for (const no of ["What time is the call?", "Can you call me at 5?", "what is your price", "why is it so expensive", "Google Meet please"]) assert.ok(!CALL_PURPOSE.test(no), no);
+  const q = { ...newState({ number: "Pending", date: "Dec 2026", location: "Lucknow", occasion: "Wedding", requirement: "Planning" }, "Instagram", "instagram"), stage: "call", channel: "instagram" };
+  const r = advance(q, "What's the purpose of the call?\n7905512772", { number: "+917905512772" }, "Shubham");
+  assert.equal(r.kind, "call-ask");
+  assert.match(r.reply, /20-minute conversation with our Founders/);
+  assert.match(r.reply, /Google Meet video call or a phone call\?$/);
+  assert.equal(r.q.stage, "call"); // still waiting for Meet or phone
+  assert.equal(r.q.fields.number, "+917905512772");
+  assert.equal(r.q.callTries || 0, 0); // asking what it is for does not use up a try
+  // an unrelated question still goes to a person, but the number is no longer lost
+  const esc = advance(q, "Do you also do destination weddings in Goa?", {}, "Shubham");
+  assert.equal(esc.kind, "escalate");
+  assert.equal(holdContact(q, { number: "+917905512772", email: "s@x.com" }).fields.number, "+917905512772");
+  assert.equal(holdContact(q, { number: "+917905512772", email: "s@x.com" }).email, "s@x.com");
+  const keep = holdContact({ ...q, fields: { ...q.fields, number: "+919811111111" } }, { number: "+917905512772" });
+  assert.equal(keep.fields.number, "+919811111111"); // a number already held is never replaced
+});
+
+test("re-offering times can answer the lead's question first", async () => {
+  const { reofferText } = await import("../lib/callconfirm.mjs");
+  const t = reofferText([Date.UTC(2026, 9, 27, 5, 30)], "917905512772", false, false, "It is a quick 20-minute chat with our Founders about your event.");
+  assert.match(t, /^It is a quick 20-minute chat with our Founders about your event\.\n\nThank you for sharing your details/);
+  assert.match(t, /1\. Tue, 27 Oct/);
+});
