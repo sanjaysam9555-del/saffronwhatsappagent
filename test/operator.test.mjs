@@ -315,9 +315,10 @@ test("ownerCommand: re-offer times to an Instagram lead whose chosen time is gon
   assert.match(t, /^Sorry, that time was just taken\. Here are a few other times \(Indian time\):/);
   assert.match(t, /1\. .*\n2\. .*\n3\. /);
   assert.doesNotMatch(reofferText(slots, "919800000000", false), /just taken/);
-  assert.match(reofferText(slots, "919800000000", false), /^Thank you for sharing your details!/);
+  assert.match(reofferText(slots, "919800000000", false), /^Thank you for sharing your details\. Here are a few times/);
   const sorry = reofferText(slots, "919800000000", false, true);
-  assert.match(sorry, /^Sorry for the confusion in our last message.*Here are a few times for a call/);
+  assert.match(sorry, /^Sorry for the confusion in our last message, and thank you for sharing your details\. Here are a few times for a call/);
+  assert.doesNotMatch(sorry.split("\n")[0], /🌼/); // no flower in the opening line
   assert.match(sorry, /1\. .*\n2\. .*\n3\. /);
 
   const sent = [];

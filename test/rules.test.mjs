@@ -1494,7 +1494,7 @@ test("call stage: 'what is the purpose of the call' is answered, the number is k
 test("re-offering times can answer the lead's question first", async () => {
   const { reofferText } = await import("../lib/callconfirm.mjs");
   const t = reofferText([Date.UTC(2026, 9, 27, 5, 30)], "917905512772", false, false, "It is a quick 20-minute chat with our Founders about your event.");
-  assert.match(t, /^It is a quick 20-minute chat with our Founders about your event\.\n\nThank you for sharing your details/);
+  assert.match(t, /^It is a quick 20-minute chat with our Founders about your event\.\n\nHere are a few times for the call \(Indian time\):/);
   assert.match(t, /1\. Tue, 27 Oct/);
 });
 
@@ -1562,4 +1562,17 @@ test("call reminders never pester: spaced from the booking or the confirmation (
   assert.deepEqual(dueReminders([early], IST("2026-10-26T10:30:00")).map((d) => d.kind), ["day"]);
   // the hour reminder does not follow a day reminder sent a couple of hours earlier either
   assert.deepEqual(dueReminders([meghna({ bookedAt: IST("2026-10-24T09:00:00"), sent: { day: IST("2026-10-27T13:00:00") } })], IST("2026-10-27T14:20:00")), []);
+});
+
+test("one flower per message, and the call-purpose answer is direct (Shubham: too many smileys, indirect answers)", async () => {
+  const { oneEmoji } = await import("../lib/understand.mjs");
+  const { CALL_PURPOSE_TEXT } = await import("../lib/qualify.mjs");
+  const { reofferText } = await import("../lib/callconfirm.mjs");
+  assert.equal(oneEmoji("Thank you! \u{1F33C} Here are some times:\n\n1. Mon\n\nReply with a number. \u{1F33C}"), "Thank you! Here are some times:\n\n1. Mon\n\nReply with a number. \u{1F33C}");
+  assert.equal(oneEmoji("Hello \u{1F33C}"), "Hello \u{1F33C}"); // one stays
+  assert.equal(oneEmoji("No emoji here."), "No emoji here.");
+  const text = reofferText([Date.UTC(2026, 9, 27, 5, 30)], "917905512772", false, false, CALL_PURPOSE_TEXT);
+  assert.equal((oneEmoji(text).match(/\u{1F33C}/gu) || []).length, 1); // the footer's flower only
+  assert.doesNotMatch(CALL_PURPOSE_TEXT, /Of course|right details/);
+  assert.match(CALL_PURPOSE_TEXT, /^The call is a 20-minute conversation with our Founders\./);
 });

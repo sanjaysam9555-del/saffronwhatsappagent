@@ -15,7 +15,7 @@ import { lookupContact } from "../../lib/planning-studio.mjs";
 import { allow } from "../../lib/state.mjs";
 import { getContact, saveContact, AGENT_ECHO_MS } from "../../lib/contacts.mjs";
 import { holdContact } from "../../lib/qualify.mjs";
-import { isRepeatOut } from "../../lib/understand.mjs";
+import { isRepeatOut, oneEmoji } from "../../lib/understand.mjs";
 import { withoutCurrent } from "../../lib/igapi.mjs";
 import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest, slotStillFree } from "../../lib/calendar.mjs";
@@ -61,6 +61,7 @@ async function mediaRef(waId, name, label) {
       return;
     }
     const send = async (msg) => {
+      msg = oneEmoji(msg);
       if (isRepeatOut(c.lastOutText, c.lastOut, msg)) { console.log(`${waId}: media reply skipped, it would repeat our last message`); return; }
       await saveContact(waId, { agentSent: Date.now(), lastOut: Date.now(), lastOutText: String(msg).slice(0, 600) });
       return sendSessionMessage(waId, msg);
@@ -130,6 +131,7 @@ export default async (req) => {
   // Never say the same thing twice in a row: a repeated message means the agent has not understood, so a person takes over instead.
   let stopping = false;
   const agentSend = async (msg, { repeatOk = false } = {}) => {
+    msg = oneEmoji(msg);
     if (!repeatOk && !stopping) {
       const prev = await getContact(waId);
       if (isRepeatOut(prev.lastOutText, prev.lastOut, msg)) {

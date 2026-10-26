@@ -22,7 +22,7 @@ import { allow } from "../../lib/state.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { acquireLock } from "../../lib/lock.mjs";
 import { operatorOn, routeMessage } from "../../lib/operator.mjs";
-import { isRepeatOut } from "../../lib/understand.mjs";
+import { isRepeatOut, oneEmoji } from "../../lib/understand.mjs";
 import { igApiOn, getInstagramHistory, getLatestCustomerText, recoverLatest, findNumberInChat, withoutCurrent, debugInstagramApi } from "../../lib/igapi.mjs";
 
 // Answers Instagram DMs that ManyChat forwards (see ig-webhook). Same rules as WhatsApp, plus the mobile number is asked
@@ -106,6 +106,7 @@ export default async (req) => {
   // Never say the same thing twice in a row: a repeated message means the agent has not understood, so a person takes over instead.
   let stopping = false;
   const send = async (msg, { repeatOk = false } = {}) => {
+    msg = oneEmoji(msg);
     if (!repeatOk && !stopping) {
       const prev = await getIg(sid);
       if (isRepeatOut(prev.lastOutText, prev.lastOut, msg)) {
