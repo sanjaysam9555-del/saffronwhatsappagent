@@ -17,6 +17,7 @@ import { getContact, saveContact, AGENT_ECHO_MS } from "../../lib/contacts.mjs";
 import { holdContact } from "../../lib/qualify.mjs";
 import { introReply } from "../../lib/rules.mjs";
 import { isRepeatOut, isNearRepeat, oneEmoji } from "../../lib/understand.mjs";
+import { checkOutgoing } from "../../lib/guard.mjs";
 import { withoutCurrent } from "../../lib/igapi.mjs";
 import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest, slotStillFree } from "../../lib/calendar.mjs";
@@ -133,6 +134,19 @@ export default async (req) => {
   let stopping = false;
   const agentSend = async (msg, { repeatOk = false, near = false } = {}) => {
     msg = oneEmoji(msg);
+    if (!stopping) { // the last check: the same types of mistake Swati has already reported (lib/guard.mjs, docs/LESSONS.md)
+      const prev0 = await getContact(waId);
+      const g = checkOutgoing({ msg, lastIn: text, prev: prev0, repeatOk });
+      if (g.action === "skip") { console.log(`${waId}: guard skipped a message (${g.code}): ${g.why}`); await incr("guard_stopped"); return; }
+      if (g.action === "handover") {
+        stopping = true;
+        await incr("guard_stopped");
+        console.log(`${waId}: guard stopped a message (${g.code}): ${g.why}; handing over instead`);
+        await toHuman("message-blocked", true);
+        return;
+      }
+      msg = g.msg;
+    }
     if (!repeatOk && !stopping) {
       const prev = await getContact(waId);
       // A vendor, or a reply that only rephrases what we just said: skip it quietly, no hand-over message on top.

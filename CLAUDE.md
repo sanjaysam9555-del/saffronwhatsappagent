@@ -2,9 +2,11 @@
 
 These come from Swati's feedback on real chats. Every one of them was a real mistake. Add a line whenever she corrects something.
 
+The full story of each mistake (the chat, what went wrong, the rule, the test, the commit) is in docs/LESSONS.md. Read it before changing anything, and add an entry there with every correction. test/lessons.test.mjs fails if an entry has no real test or commit.
+
 ## How we work together
 - Ask Swati before pushing or deploying. She replies "Push". Stop-hook notices about unpushed commits are automatic, not a request to push.
-- Every mistake she reports becomes a test (test/rules.test.mjs, test/operator.test.mjs, or a replay in test/scenarios) before it is called fixed.
+- Every mistake she reports becomes a lessons entry and a test (test/rules.test.mjs, test/operator.test.mjs, or a replay in test/scenarios) before it is called fixed.
 - When she shares a screenshot, work out from the chat what the lead actually said and what state the agent was in. Do not guess from one message.
 
 ## What the agent must do in a chat
@@ -26,6 +28,9 @@ These come from Swati's feedback on real chats. Every one of them was a real mis
 - Automatic messages about a call (confirmation, reminders) are spaced: a reminder never follows within hours of the booking or confirmation.
 - "What is the call for?" has a fixed answer; it never goes to a person.
 - Instagram can only be written to within 24 hours of the lead's last message.
+
+## Last check before sending
+lib/guard.mjs checks every outgoing message on both channels: unfilled values, the number text sent to someone who answered something else, the link or welcome twice, the same question twice. A mistake that can be spotted in the message text also gets a guard rule and a test in test/guard.test.mjs.
 
 ## Owner commands (WhatsApp, start with "agent,")
 send_vendor_link, send_message, show_chat, pause_agent, resume_agent, tell_owner, send_call_confirmation, reoffer_call_times, correct_lead_details.

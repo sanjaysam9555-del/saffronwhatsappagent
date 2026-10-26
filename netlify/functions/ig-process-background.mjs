@@ -24,6 +24,7 @@ import { acquireLock } from "../../lib/lock.mjs";
 import { operatorOn, routeMessage } from "../../lib/operator.mjs";
 import { introReply } from "../../lib/rules.mjs";
 import { isRepeatOut, isNearRepeat, oneEmoji } from "../../lib/understand.mjs";
+import { checkOutgoing } from "../../lib/guard.mjs";
 import { igApiOn, getInstagramHistory, getLatestCustomerText, recoverLatest, findNumberInChat, withoutCurrent, debugInstagramApi } from "../../lib/igapi.mjs";
 
 // Answers Instagram DMs that ManyChat forwards (see ig-webhook). Same rules as WhatsApp, plus the mobile number is asked
@@ -108,6 +109,19 @@ export default async (req) => {
   let stopping = false;
   const send = async (msg, { repeatOk = false, near = false } = {}) => {
     msg = oneEmoji(msg);
+    if (!stopping) { // the last check: the same types of mistake Swati has already reported (lib/guard.mjs, docs/LESSONS.md)
+      const prev0 = await getIg(sid);
+      const g = checkOutgoing({ msg, lastIn: text, prev: prev0, repeatOk });
+      if (g.action === "skip") { console.log(`ig ${sid}: guard skipped a message (${g.code}): ${g.why}`); await incr("guard_stopped"); return; }
+      if (g.action === "handover") {
+        stopping = true;
+        await incr("guard_stopped");
+        console.log(`ig ${sid}: guard stopped a message (${g.code}): ${g.why}; handing over instead`);
+        await toHuman("message-blocked", true);
+        return;
+      }
+      msg = g.msg;
+    }
     if (!repeatOk && !stopping) {
       const prev = await getIg(sid);
       // A vendor, or a reply that only rephrases what we just said: skip it quietly, no hand-over message on top.
