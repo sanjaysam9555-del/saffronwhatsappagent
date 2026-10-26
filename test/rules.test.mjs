@@ -1378,7 +1378,7 @@ test("a correction replaces what we hold, in the questions and in the summary (M
   assert.ok(!CORRECTION.test("we want a wedding in Jaipur"));
   const held = { ...newState({}, "Instagram", "instagram"), stage: "asking", asked: "date", greeted: true, channel: "instagram", fields: { number: "Pending", occasion: "reception", requirement: "decoration" } };
   const a = advance(held, "Please rectify the occasion as wedding and we are looking for planning decor and execution. My number is 9868251968.", { occasion: "wedding", requirement: "planning and decoration", number: "+919868251968" }, "Meghna");
-  assert.equal(a.q.fields.occasion, "wedding");
+  assert.equal(a.q.fields.occasion, "Wedding"); // tidied to the sheet's wording
   assert.match(a.q.fields.requirement, /planning/i);
   assert.equal(a.q.fields.number, "+919868251968");
   assert.match(a.q.notes, /Corrected by lead: occasion/);
@@ -1390,7 +1390,7 @@ test("a correction replaces what we hold, in the questions and in the summary (M
   const c = advance(full, "Please rectify the occasion as wedding", { occasion: "wedding" }, "Meghna");
   assert.equal(c.kind, "corrected");
   assert.equal(c.q.stage, "confirm");
-  assert.equal(c.q.fields.occasion, "wedding");
+  assert.equal(c.q.fields.occasion, "Wedding");
   assert.match(c.reply, /^Thank you, we have updated it\./);
   assert.match(c.reply, /wedding/i);
   // a plain addition in the summary still just goes to the notes
@@ -1511,4 +1511,40 @@ test("media on its own: no welcome for a vendor, someone already welcomed, or a 
   assert.equal(skipMediaWelcome({ humanSpoke: true }, now), true);
   assert.equal(skipMediaWelcome({ q: { stage: "done" } }, now), true);
   assert.equal(skipMediaWelcome({ q: { stage: "asking" }, greeted: true }, now), false); // mid-questions the "thanks, carry on" reply still applies
+});
+
+// ---------- Meghna's call: occasion saved as "Apologies Apologies", her correction never applied ----------
+test("an occasion must be an occasion: 'Apologies' is asked about again, then kept as Others", async () => {
+  const { cleanOccasion, OCCASION_HINT } = await import("../lib/qualify.mjs");
+  for (const [v, want] of [["Apologies\nApologies", ""], ["ok", ""], ["Hello", ""], ["Wedding", "Wedding"], ["my sister's wedding", "Wedding"], ["birthday party", "Birthday party"], ["Sangeet", "Sangeet"], ["roka ceremony", "Engagement"], ["Others", "Others"]]) assert.equal(cleanOccasion(v), want, v);
+  const q = { ...newState({ number: "+919868251968" }, "Instagram", "instagram"), stage: "asking", asked: "occasion", greeted: true, channel: "instagram" };
+  const a = advance(q, "Apologies\nApologies", {}, "Meghna");
+  assert.equal(a.q.fields.occasion, undefined); // nothing saved
+  assert.equal(a.reply, OCCASION_HINT); // asked again, in different words
+  const b = advance(a.q, "Apologies", {}, "Meghna");
+  assert.equal(b.q.fields.occasion, "Others"); // a second miss does not trap them
+  assert.match(b.q.notes, /Occasion unclear/);
+  const c = advance(a.q, "It is a wedding", { occasion: "wedding" }, "Meghna");
+  assert.equal(c.q.fields.occasion, "Wedding");
+  // an extraction that is not an occasion never reaches the saved details
+  const d = advance(q, "sorry about that", { occasion: "Apologies" }, "Meghna");
+  assert.equal(d.q.fields.occasion, undefined);
+});
+
+test("owner-stated details replace saved ones; the calendar event's details are rewritten in place", async () => {
+  const { applyOwnerFields } = await import("../lib/callconfirm.mjs");
+  const { replaceDetails } = await import("../lib/calendar.mjs");
+  const saved = { number: "+919868251968", occasion: "Apologies\nApologies", requirement: "Only Decoration", date: "8th to 10th March 2027", location: "Hotel Samrat and Birla Mandir Delhi" };
+  const r = applyOwnerFields(saved, { occasion: "wedding", requirement: "planning decor and execution", number: "9811111111" });
+  assert.equal(r.fields.occasion, "Wedding");
+  assert.equal(r.fields.requirement, "Planning + Decoration");
+  assert.equal(r.fields.number, "+919868251968"); // a saved number is kept unless the owner asks to replace it
+  assert.deepEqual(r.changed.sort(), ["occasion", "requirement"]);
+  assert.equal(applyOwnerFields(saved, { number: "9811111111" }, { replaceNumber: true }).fields.number, "+919811111111");
+  assert.deepEqual(applyOwnerFields(r.fields, { occasion: "Wedding" }).changed, []); // nothing to change
+  const desc = "<b>Booked by</b>\nMeghna Sethi\n\n+919868251968\n\n<b>Prefers a phone call:</b> please call on the number above.\n<b>Booked by our assistant on Instagram</b>\nOccasion: Apologies\nApologies\nEvent date: 8th to 10th March 2027\nLooking for: Only Decoration";
+  const out = replaceDetails(desc, "Occasion: Wedding\nEvent date: 8th to 10th March 2027\nLooking for: Planning + Decoration");
+  assert.match(out, /^<b>Booked by<\/b>\nMeghna Sethi\n\n\+919868251968/);
+  assert.match(out, /on Instagram<\/b>\nOccasion: Wedding\n/);
+  assert.doesNotMatch(out, /Apologies|Only Decoration/);
 });

@@ -342,3 +342,15 @@ test("ownerCommand: re-offer times to an Instagram lead whose chosen time is gon
   const bad = deps({ findCalls: find, reofferTimes: async () => { throw new Error("outside the 24 hour window"); } });
   assert.match(await withTool("reoffer_call_times", { to: "Hritika" }, () => op.ownerCommand({ text: "agent x", deps: bad })), /did not go through: outside the 24 hour window/);
 });
+
+test("ownerCommand: correct what is saved about a lead (Meghna)", async () => {
+  const seen = [];
+  const lead = { sid: "9", name: "Meghna Sethi", username: "meghnaasethi", number: "919868251968", q: { callBooked: { eventId: "e1" }, fields: { occasion: "Apologies" } } };
+  const d = deps({ findCalls: async (q) => (/meghna/i.test(q) ? [lead] : []), correctLead: async (m, g) => { seen.push(g); return { note: "Done. Changed occasion, requirement for Meghna Sethi in the lead's record, the sheet, the calendar event." }; } });
+  const ok = await withTool("correct_lead_details", { to: "Meghna", occasion: "Wedding", requirement: "Planning, decor and execution" }, () => op.ownerCommand({ text: "agent, correct Meghna's details", deps: d }));
+  assert.match(ok, /^Done\..*calendar event/);
+  assert.deepEqual(seen[0], { occasion: "Wedding", requirement: "Planning, decor and execution" });
+  assert.match(await withTool("correct_lead_details", { to: "Meghna" }, () => op.ownerCommand({ text: "agent x", deps: d })), /Tell me what to change/);
+  assert.match(await withTool("correct_lead_details", { to: "Zed", occasion: "Wedding" }, () => op.ownerCommand({ text: "agent x", deps: d })), /could not find/);
+  assert.equal(seen.length, 1);
+});

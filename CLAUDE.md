@@ -16,10 +16,14 @@ These come from Swati's feedback on real chats. Every one of them was a real mis
 - Book at once when we hold a number or an email. Ask for the email once afterwards, never as a condition.
 - One calendar event per person. A late email or number goes onto the same event.
 - Re-check that a time is still free before confirming it. If it was taken, say so and offer new times.
+- A saved detail must make sense: an occasion is an event (wedding, engagement, birthday...), never "Apologies" or "ok" (cleanOccasion). A second unclear answer is kept as "Others", not asked forever.
+- Details the owner states are the truth and replace saved ones. Corrections must reach the lead record, the sheet and the calendar event (correct_lead_details).
+- Several files or messages arriving together must produce ONE reply (take the chat lock, re-read, then decide). Vendors get no photo/reel welcome.
+- "What is the call for?" has a fixed answer; it never goes to a person.
 - Instagram can only be written to within 24 hours of the lead's last message.
 
 ## Owner commands (WhatsApp, start with "agent,")
-send_vendor_link, send_message, show_chat, pause_agent, resume_agent, tell_owner, send_call_confirmation, reoffer_call_times.
+send_vendor_link, send_message, show_chat, pause_agent, resume_agent, tell_owner, send_call_confirmation, reoffer_call_times, correct_lead_details.
 
 ## Tests
 `node --test` must pass before anything is committed.
