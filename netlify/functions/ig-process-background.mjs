@@ -9,7 +9,7 @@ import { holdContact } from "../../lib/qualify.mjs";
 import { extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail } from "../../lib/claude.mjs";
 import { newState, advance, numberInChat, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest, slotStillFree } from "../../lib/calendar.mjs";
-import { recordCall, callRecord } from "../../lib/calls.mjs";
+import { recordCall, callRecord, touchCall } from "../../lib/calls.mjs";
 import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail, wantsReschedule, wantsCancel, startReschedule, addLateContact } from "../../lib/consult.mjs";
 import { isMediaOnly, recordMedia, REF_THANKS, REF_UNSURE, REF_NOTE, refOpen, greetingText } from "../../lib/media.mjs";
 import { greetName } from "../../lib/leadfields.mjs";
@@ -151,6 +151,7 @@ export default async (req) => {
       if (!tpl || !q?.callBooked || q.waConfirmSent || waId.length < 8 || waId.length > 15) return q;
       await sendTemplateMessage(waId, tpl, callBookedParams(name, q.fields, q.callBooked.label, readingFor(q.fields)), "call-confirmation");
       await incr("call_confirmations_sent");
+      if (q.callBooked.eventId) await touchCall(q.callBooked.eventId, { confirmedAt: Date.now() });
       await logExchange({ channel: "Instagram", contact: label, lead: "(call booked)", agent: `WhatsApp confirmation sent to +${waId}` });
       return { ...q, waConfirmSent: true };
     } catch (e) {

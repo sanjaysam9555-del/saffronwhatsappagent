@@ -1548,3 +1548,18 @@ test("owner-stated details replace saved ones; the calendar event's details are 
   assert.match(out, /on Instagram<\/b>\nOccasion: Wedding\n/);
   assert.doesNotMatch(out, /Apologies|Only Decoration/);
 });
+
+test("call reminders never pester: spaced from the booking or the confirmation (Meghna: confirmed 6:42, reminded 10:00)", async () => {
+  const { dueReminders } = await import("../lib/calls.mjs");
+  const IST = (s) => Date.parse(`${s}+05:30`);
+  const meghna = (over = {}) => ({ id: "m1", waId: "919868251968", name: "Meghna", label: "Tue, 27 Oct, 3:30 pm IST", join: "x", start: IST("2026-10-27T15:30:00"), bookedAt: IST("2026-10-26T06:42:00"), sent: {}, ...over });
+  assert.deepEqual(dueReminders([meghna()], IST("2026-10-26T10:00:00")), []); // booked 3 hours ago: no "gentle reminder" for tomorrow
+  assert.deepEqual(dueReminders([meghna()], IST("2026-10-27T14:20:00")).map((d) => d.kind), ["hour"]); // the one reminder, just before the call
+  assert.deepEqual(dueReminders([meghna({ confirmedAt: IST("2026-10-27T13:00:00") })], IST("2026-10-27T14:20:00")), []); // confirmation an hour ago: wait
+  assert.deepEqual(dueReminders([meghna({ confirmedAt: IST("2026-10-26T22:00:00") })], IST("2026-10-27T14:20:00")).map((d) => d.kind), ["hour"]);
+  // booked well ahead: the day-before reminder still goes out
+  const early = meghna({ bookedAt: IST("2026-10-24T09:00:00") });
+  assert.deepEqual(dueReminders([early], IST("2026-10-26T10:30:00")).map((d) => d.kind), ["day"]);
+  // the hour reminder does not follow a day reminder sent a couple of hours earlier either
+  assert.deepEqual(dueReminders([meghna({ bookedAt: IST("2026-10-24T09:00:00"), sent: { day: IST("2026-10-27T13:00:00") } })], IST("2026-10-27T14:20:00")), []);
+});
