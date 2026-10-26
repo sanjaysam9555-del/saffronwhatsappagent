@@ -1497,3 +1497,18 @@ test("re-offering times can answer the lead's question first", async () => {
   assert.match(t, /^It is a quick 20-minute chat with our Founders about your event\.\n\nThank you for sharing your details/);
   assert.match(t, /1\. Tue, 27 Oct/);
 });
+
+// ---------- Paras and the anchor: several files and a "Hi" sent together each got their own welcome ----------
+test("media on its own: no welcome for a vendor, someone already welcomed, or a chat with a person", async () => {
+  const { skipMediaWelcome } = await import("../lib/media.mjs");
+  const now = Date.now();
+  assert.equal(skipMediaWelcome({}, now), false); // a brand-new lead who sends a photo first still gets one welcome
+  assert.equal(skipMediaWelcome({ kind: "vendor" }, now), true); // Paras, after the registration link
+  assert.equal(skipMediaWelcome({ greeted: true }, now), true); // the anchor: "Hi" was answered, the poster needs no second hello
+  assert.equal(skipMediaWelcome({ lastOut: now - 5 * M }, now), true); // we replied a moment ago
+  assert.equal(skipMediaWelcome({ lastOut: now - 3 * H }, now), false); // long ago: a fresh welcome is fine
+  assert.equal(skipMediaWelcome({ esc: true }, now), true);
+  assert.equal(skipMediaWelcome({ humanSpoke: true }, now), true);
+  assert.equal(skipMediaWelcome({ q: { stage: "done" } }, now), true);
+  assert.equal(skipMediaWelcome({ q: { stage: "asking" }, greeted: true }, now), false); // mid-questions the "thanks, carry on" reply still applies
+});

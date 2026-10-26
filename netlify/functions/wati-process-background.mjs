@@ -21,7 +21,7 @@ import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, ap
 import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest, slotStillFree } from "../../lib/calendar.mjs";
 import { recordCall, callRecord } from "../../lib/calls.mjs";
 import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail, wantsReschedule, wantsCancel, startReschedule, addLateContact } from "../../lib/consult.mjs";
-import { recordMedia, isMediaOnly, REF_THANKS, REF_NOTE, refOpen, greetingText } from "../../lib/media.mjs";
+import { recordMedia, isMediaOnly, REF_THANKS, REF_NOTE, refOpen, greetingText, skipMediaWelcome } from "../../lib/media.mjs";
 import { greetName } from "../../lib/leadfields.mjs";
 import { knownType } from "../../lib/known.mjs";
 import { rowFields } from "../../lib/leadfields.mjs";
@@ -36,34 +36,42 @@ const HOUR = 3600_000;
 const isSentEvent = (t) => /^(session|template)MessageSent(_v\d+)?$/i.test(String(t || ""));
 const ok = (b = "ok") => new Response(b, { status: 200 }); // always 200 so Wati doesn't retry-storm
 
+// A photo, reel or link on its own. Every one starts its own background run, so they all race: each one takes the chat's lock, reads the chat
+// again and only then decides. A vendor (or anyone already welcomed, handed over or answered) gets nothing from this path.
 async function mediaRef(waId, name, label) {
-  const c = await getContact(waId);
-  if (c.esc || c.humanSpoke || c.kind === "vendor" || c.dnc || c.q?.stage === "done" || c.q?.stage === "paused") return;
-  const kn = await knownType(waId);
-  if (kn) return;
-  const chat = await readChat(waId, c);
-  if (chat?.teamSpoke) return;
-  const m = recordMedia(c.mediaTimes);
-  await saveContact(waId, { mediaTimes: m.times, refShared: true });
-  if (m.burst) {
-    await saveContact(waId, { ...(c.q ? { q: { ...c.q, stage: "paused" } } : {}), esc: true, escText: `[sent ${label}]`, escAt: Date.now() });
-    await updateContactAttributes(waId, { needs_human: "true", needs_human_reason: "media-received" });
-    console.log(`ESCALATE ${waId} (media-received): ${label}`);
-    await logNeedsTeam({ waId, name: name, reason: "media-received", lastMsg: `[sent several files: ${label}]` });
-    return;
-  }
-  const send = async (msg) => { await saveContact(waId, { agentSent: Date.now(), lastOut: Date.now() }); return sendSessionMessage(waId, msg); };
-  if (!c.q) {
-    // A photo and a message often arrive together; give the text a few seconds to answer first so the lead never gets two hellos.
-    await new Promise((r) => setTimeout(r, 6000));
-    const again = await getContact(waId);
-    if (again.q || again.greeted || again.esc) return;
-    if (await allow(`reply:${waId}:open`, 6 * HOUR)) { await saveContact(waId, { greeted: true }); await send(refOpen(greetName(name))); }
-  } else if (["asking", "confirm", "call", "slots", "email"].includes(c.q.stage) && (await allow(`mediaack:${waId}`, 10 * 60_000))) {
-    const again = c.q.stage === "asking" ? pendingQuestion(c.q) : "";
-    await send(again ? `${REF_THANKS}\n\n${again}` : REF_THANKS);
-  }
-  return;
+  const first = await getContact(waId);
+  if (skipMediaWelcome(first)) return;
+  // A photo and a message often arrive together; give the text a few seconds to answer first so the lead never gets two hellos.
+  if (!first.q) await new Promise((r) => setTimeout(r, 6000));
+  const lock = await acquireLock(`wa:${waId}`);
+  try {
+    const c = await getContact(waId);
+    if (skipMediaWelcome(c)) return; // a vendor, a hand-over, or someone already welcomed or answered: a photo needs no hello
+    const kn = await knownType(waId);
+    if (kn) return;
+    const chat = await readChat(waId, c);
+    if (chat?.teamSpoke) return;
+    const m = recordMedia(c.mediaTimes);
+    await saveContact(waId, { mediaTimes: m.times, refShared: true });
+    if (m.burst) {
+      await saveContact(waId, { ...(c.q ? { q: { ...c.q, stage: "paused" } } : {}), esc: true, escText: `[sent ${label}]`, escAt: Date.now() });
+      await updateContactAttributes(waId, { needs_human: "true", needs_human_reason: "media-received" });
+      console.log(`ESCALATE ${waId} (media-received): ${label}`);
+      await logNeedsTeam({ waId, name: name, reason: "media-received", lastMsg: `[sent several files: ${label}]` });
+      return;
+    }
+    const send = async (msg) => {
+      if (isRepeatOut(c.lastOutText, c.lastOut, msg)) { console.log(`${waId}: media reply skipped, it would repeat our last message`); return; }
+      await saveContact(waId, { agentSent: Date.now(), lastOut: Date.now(), lastOutText: String(msg).slice(0, 600) });
+      return sendSessionMessage(waId, msg);
+    };
+    if (!c.q) {
+      if (await allow(`reply:${waId}:open`, 6 * HOUR)) { await saveContact(waId, { greeted: true }); await send(refOpen(greetName(name))); }
+    } else if (["asking", "confirm", "call", "slots", "email"].includes(c.q.stage) && (await allow(`mediaack:${waId}`, 10 * 60_000))) {
+      const again = c.q.stage === "asking" ? pendingQuestion(c.q) : "";
+      await send(again ? `${REF_THANKS}\n\n${again}` : REF_THANKS);
+    }
+  } finally { await lock.release(); }
 }
 
 // Wati webhook. Subscribe to: Message Received, Session Message Sent, Template Message Sent.
