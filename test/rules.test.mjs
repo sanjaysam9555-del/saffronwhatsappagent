@@ -1576,3 +1576,29 @@ test("one flower per message, and the call-purpose answer is direct (Shubham: to
   assert.doesNotMatch(CALL_PURPOSE_TEXT, /Of course|right details/);
   assert.match(CALL_PURPOSE_TEXT, /^The call is a 20-minute conversation with our Founders\./);
 });
+
+test("Aishvarya: a guest range is not a phone number, a check-in question is the one answered, and 'Number of guests' gets no number speech", async () => {
+  const { orderOf } = await import("../lib/qualify.mjs");
+  // asked how many guests; she answers "120-150": saved as guests, never "That number looks incomplete"
+  const g = { ...newState({}, "Instagram", "instagram"), stage: "asking", asked: "guests", greeted: true, channel: "instagram", fields: { number: "Pending", occasion: "Wedding", date: "March 2027", location: "Pune" } };
+  const r = advance(g, "120-150", { numberAmbiguous: true }, "Aishvarya");
+  assert.ok(!/incomplete/i.test(r.reply || ""));
+  assert.equal(r.q.fields.guests, "120-150");
+  assert.ok(!r.q.numFixAsked);
+  // a real short number while asking something else is still caught (Meghna)
+  const m = advance({ ...g, asked: "requirement", fields: { ...g.fields, guests: "120" } }, "986251968", { numberAmbiguous: true }, "Meghna");
+  assert.match(m.reply, /^That number looks incomplete/);
+  // the number question is pending but she answers the date the check-in asked: no number speech, number asked once only, date saved
+  const n = { ...newState({}, "Instagram", "instagram"), stage: "asking", asked: "number", greeted: true, channel: "instagram", fields: {} };
+  const d = advance(n, "March 2027", { date: "March 2027" }, "Aishvarya");
+  assert.ok(!/A number simply helps/i.test(d.reply || ""));
+  assert.equal(d.q.fields.date, "March 2027");
+  assert.equal(d.q.fields.number, "Pending");
+  // "Number of guests" while the number is the question: about guests, not a refusal; no speech
+  const c = advance(n, "Number of guests", {}, "Aishvarya");
+  assert.ok(!/A number simply helps/i.test(c.reply || ""));
+  // a real refusal still gets the explanation
+  const f = advance(n, "I prefer not to share my number", {}, "Aishvarya");
+  assert.ok(f.q.fields.number);
+  assert.ok(orderOf(n).includes("date"));
+});

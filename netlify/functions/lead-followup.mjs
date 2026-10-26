@@ -7,7 +7,8 @@ import { testAllows } from "../../lib/testmode.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { sheetsClient, live } from "../../lib/sheet.mjs";
 import { COL, assess, rowFields, confirmParams, summaryLine, joinList, firstName, igNudgeText, suggestNudge } from "../../lib/leadfields.mjs";
-import { newState } from "../../lib/qualify.mjs";
+import { newState, orderOf } from "../../lib/qualify.mjs";
+import { getIg, saveIg } from "../../lib/igstate.mjs";
 
 // Runs every 5 minutes over the ManyChat-filled leads sheet. The flow asks: date, location, number, occasion, requirement.
 // "Quiet time" = time since the row last changed (ManyChat fills it column by column).
@@ -112,7 +113,14 @@ export default async () => {
     } else if (action === "SEND_IG") {
       try {
         await sendInstagramText(mcId, igNudgeText(row, a));
-        if (isLive) { await setFlag(`ig-nudged:${key}`); await incr("ig_nudges_sent"); }
+        if (isLive) {
+          await setFlag(`ig-nudged:${key}`); await incr("ig_nudges_sent");
+          // The check-in asked a question: their answer must be read as the answer to it.
+          try {
+            const st = await getIg(mcId), want = a.missing[0]?.key;
+            if (st?.q && ["new", "asking"].includes(st.q.stage) && want && orderOf(st.q).includes(want)) await saveIg(mcId, { q: { ...st.q, stage: "asking", asked: want } });
+          } catch (e) { console.warn("nudge state:", e.message); }
+        }
       } catch (e) {
         console.error(`row ${sheetRow} Instagram nudge failed:`, e.message);
         if (isLive) await incr("ig_nudges_failed");
