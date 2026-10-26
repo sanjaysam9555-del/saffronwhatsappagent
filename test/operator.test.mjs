@@ -392,3 +392,25 @@ test("someone who joined a business we know gets a thank-you, not the sign-up li
   assert.ok(!/https?:/.test(introReply({})));
   assert.match(introReply({}), /^Thank you for the introduction\./);
 });
+
+test("Tulsi: when Instagram's chat lags behind, our own record fills in what it has not shown yet", async () => {
+  const { mergeHistory } = await import("../lib/igapi.mjs");
+  const real = [{ from: "customer", text: "Hi, I need decor for my wedding" }];                       // Instagram showed one message
+  const own = [
+    { from: "customer", text: "Hi, I need decor for my wedding" },
+    { from: "us", text: "We would love to help you with the decor. May I have your mobile number?" },
+    { from: "customer", text: "+971 505265567" },
+  ];
+  const h = mergeHistory(real, own);
+  assert.equal(h.length, 3);
+  assert.equal(h[0].text, real[0].text);
+  assert.equal(h[2].text, "+971 505265567");
+  assert.deepEqual(mergeHistory(null, own), own);
+  assert.deepEqual(mergeHistory(real, []), real);
+  assert.deepEqual(mergeHistory(null, null), []);
+  assert.equal(mergeHistory(own, own).length, 3); // nothing is listed twice
+  const { readFileSync } = await import("node:fs");
+  const ig = readFileSync(new URL("../netlify/functions/ig-process-background.mjs", import.meta.url), "utf8");
+  assert.match(ig, /mergeHistory\(real, own\)/);
+  assert.match(ig, /ig-read: chat given to Claude/);
+});

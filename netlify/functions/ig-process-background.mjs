@@ -25,7 +25,7 @@ import { operatorOn, routeMessage } from "../../lib/operator.mjs";
 import { introReply } from "../../lib/rules.mjs";
 import { isRepeatOut, isNearRepeat, oneEmoji, FIELD_KEYS } from "../../lib/understand.mjs";
 import { checkOutgoing, dropQuestion } from "../../lib/guard.mjs";
-import { igApiOn, getInstagramHistory, getLatestCustomerText, recoverLatest, findNumberInChat, withoutCurrent, debugInstagramApi } from "../../lib/igapi.mjs";
+import { igApiOn, getInstagramHistory, getLatestCustomerText, recoverLatest, findNumberInChat, withoutCurrent, debugInstagramApi, mergeHistory } from "../../lib/igapi.mjs";
 
 // Answers Instagram DMs that ManyChat forwards (see ig-webhook). Same rules as WhatsApp, plus the mobile number is asked
 // first (we do not have it yet). Replies go back through ManyChat's API, inside Meta's 24h window after their message.
@@ -157,9 +157,12 @@ export default async (req) => {
   };
   // The recent chat, as Instagram holds it (it includes what the team typed by hand); our own record when Instagram cannot be read.
   const chatHistory = async (current) => {
-    let h = null;
-    if (igApiOn() && username) { const real = await getInstagramHistory({ username }); h = real && real.length ? withoutCurrent(real, current) : null; }
-    return h || (await getIgHistory(sid, { skipNewest: current }));
+    let real = null;
+    if (igApiOn() && username) { const r = await getInstagramHistory({ username }); real = r && r.length ? withoutCurrent(r, current) : null; }
+    const own = await getIgHistory(sid, { skipNewest: current });
+    const h = mergeHistory(real, own);
+    console.log(`ig-read: chat given to Claude = ${h.length} messages (Instagram ${real ? real.length : 0}, our record ${own.length})`); // counts only, never the text
+    return h;
   };
   const toHuman = async (reason, ack = true, hold = "") => {
     if (reason === "lead-question") { // an answer you have already taught the agent is used before anyone is bothered
@@ -371,13 +374,13 @@ export default async (req) => {
       };
       const HANDOVER_REASON = HANDOVER_REASON_IG;
       // The real chat from Instagram when it can be read (it includes what the team typed by hand); otherwise our own rolling record.
-      let history = null;
+      let real = null;
       if (operatorOn() && igApiOn()) {
-        const real = await getInstagramHistory({ username });
-        history = real && real.length ? withoutCurrent(real, text) : null;
-        console.log(`ig-history: usernameKnown=${Boolean(username)} fromInstagram=${real ? real.length : "none"}`);
+        const r = await getInstagramHistory({ username });
+        real = r && r.length ? withoutCurrent(r, text) : null;
+        console.log(`ig-history: usernameKnown=${Boolean(username)} fromInstagram=${r ? r.length : "none"}`);
       }
-      if (!history) history = await getIgHistory(sid, { skipNewest: text });
+      const history = mergeHistory(real, await getIgHistory(sid, { skipNewest: text }));
       const act = operatorOn() ? await routeMessage({ channel: "Instagram", profileName: name || username, text, history, state: { greeted: c.greeted } }) : null;
       if (act?.kind === "vendor") { await vendorWelcomeNow(act); return ok(); }
       if (act?.kind === "intro") { // someone new at a business we probably already work with: a thank-you, no link, and the team updates the vendor record
