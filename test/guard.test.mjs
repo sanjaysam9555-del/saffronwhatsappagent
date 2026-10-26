@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 process.env.VENDOR_SIGNUP_URL = "https://example.test/vendor-signup";
-const { checkOutgoing, aboutSomethingElse, PLACEHOLDER } = await import("../lib/guard.mjs");
+const { checkOutgoing, aboutSomethingElse, PLACEHOLDER, dropQuestion } = await import("../lib/guard.mjs");
 
 const NOW = Date.parse("2026-10-26T08:00:00Z");
 const SPEECH = "Happy to continue here.\n\nA number simply helps our Founders reach you with exact details. No spam, just one call. You can share it whenever you like. 🌼";
@@ -74,4 +74,18 @@ test("guard is wired into both senders", async () => {
     assert.match(s, /checkOutgoing\(\{ msg, lastIn: text, prev: prev0, repeatOk \}\)/, f);
     assert.match(s, /toHuman\("message-blocked", true\)/, f);
   }
+});
+
+test("Tulsi: a question the lead has already answered in a newer message is left out of the reply", async () => {
+  const reply = "Thank you, I have noted your number. 🌼\n\nWhich city or destination are you considering?";
+  assert.equal(dropQuestion(reply), "Thank you, I have noted your number. 🌼");
+  assert.equal(dropQuestion("Which city or destination are you considering?"), ""); // nothing left: nothing is sent, the newer message gets the answer
+  assert.equal(dropQuestion("Lovely, that is noted."), "Lovely, that is noted.");   // no question: unchanged
+  assert.equal(dropQuestion(`Nearby Pune sounds lovely!\n\n${GUESTS} 🌼`), "Nearby Pune sounds lovely!");
+  assert.equal(checkOutgoing({ msg: dropQuestion("Which city or destination are you considering?"), lastIn: "x", prev: {}, now: NOW }).action, "skip");
+  const { readFileSync } = await import("node:fs");
+  const ig = readFileSync(new URL("../netlify/functions/ig-process-background.mjs", import.meta.url), "utf8");
+  assert.match(ig, /msg = await dropAnswered\(msg\)/);
+  assert.match(ig, /queuedTexts\(sid\)/);
+  assert.match(ig, /DEBOUNCE_MS = 8000/);
 });

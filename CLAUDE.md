@@ -14,6 +14,7 @@ The full story of each mistake (the chat, what went wrong, the rule, the test, t
 - Never send the same message twice in a row. A repeat means the agent has not understood: hand over to a person (reason "repeating-itself").
 - Ask once. If the lead does not share something, do not insist.
 - The answer belongs to the question we last asked. A check-in or follow-up records the question it asked; a count or range ("120-150") is never read as a phone number; the "a number helps our Founders" speech goes only to someone who avoided the number question, never to someone who answered something else.
+- Messages sent a few seconds apart are one burst (8 seconds). If the lead sends something that already answers the question we are about to ask, the question is left out of our reply; her newer message gets the next one (dropAnswered).
 - A correction ("please rectify...", "actually...") replaces what we saved. It is never treated as a new answer, and never answered with the same question again.
 - A number or email shared at any point is kept. Incomplete numbers ask once for the full number.
 - Book at once when we hold a number or an email. Ask for the email once afterwards, never as a condition.

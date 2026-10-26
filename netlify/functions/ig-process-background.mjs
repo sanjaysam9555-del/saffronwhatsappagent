@@ -14,7 +14,7 @@ import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEm
 import { isMediaOnly, recordMedia, REF_THANKS, REF_UNSURE, REF_NOTE, refOpen, greetingText } from "../../lib/media.mjs";
 import { greetName } from "../../lib/leadfields.mjs";
 import { sendInstagramText, getInstagramLastText, parseManychatEvent } from "../../lib/manychat.mjs";
-import { getIg, saveIg, queueMessage, claimQueue, resetIg, addIgHistory, getIgHistory } from "../../lib/igstate.mjs";
+import { getIg, saveIg, queueMessage, claimQueue, queuedTexts, resetIg, addIgHistory, getIgHistory } from "../../lib/igstate.mjs";
 import { upsertInstagramLead } from "../../lib/sheet.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
@@ -23,14 +23,14 @@ import { incr } from "../../lib/metrics.mjs";
 import { acquireLock } from "../../lib/lock.mjs";
 import { operatorOn, routeMessage } from "../../lib/operator.mjs";
 import { introReply } from "../../lib/rules.mjs";
-import { isRepeatOut, isNearRepeat, oneEmoji } from "../../lib/understand.mjs";
-import { checkOutgoing } from "../../lib/guard.mjs";
+import { isRepeatOut, isNearRepeat, oneEmoji, FIELD_KEYS } from "../../lib/understand.mjs";
+import { checkOutgoing, dropQuestion } from "../../lib/guard.mjs";
 import { igApiOn, getInstagramHistory, getLatestCustomerText, recoverLatest, findNumberInChat, withoutCurrent, debugInstagramApi } from "../../lib/igapi.mjs";
 
 // Answers Instagram DMs that ManyChat forwards (see ig-webhook). Same rules as WhatsApp, plus the mobile number is asked
 // first (we do not have it yet). Replies go back through ManyChat's API, inside Meta's 24h window after their message.
 const HOUR = 3600_000;
-const DEBOUNCE_MS = 5000; // messages typed this close together are answered as one
+const DEBOUNCE_MS = 8000; // messages typed this close together are answered as one
 const ok = (b = "ok") => new Response(b, { status: 200 });
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -107,8 +107,24 @@ export default async (req) => {
   const HANDOVER_REASON_IG = { money: "money-or-commitment", existing_client: "existing-client", complaint: "complaint", unclear: "who-is-this", other: "unclear" };
   // Never say the same thing twice in a row: a repeated message means the agent has not understood, so a person takes over instead.
   let stopping = false;
+  // Our reply is written from what the lead had sent when we started. If she has since sent something that already answers the question
+  // we are about to ask (Tulsi: her city, while we were noting her number), that question is left out and her newer message gets the next one.
+  const dropAnswered = async (msg) => {
+    try {
+      const queued = await queuedTexts(sid);
+      if (!queued.length) return msg;
+      const cur = await getIg(sid), asked = cur.q?.asked;
+      if (!asked || !FIELD_KEYS.includes(asked) || cur.q?.stage !== "asking") return msg;
+      const read = await understandChat({ text: queued.join("\n"), name: who, history: await getIgHistory(sid), q: cur.q, asked });
+      if (!read?.fields?.[asked]) return msg;
+      console.log(`ig ${sid}: a newer message already answers "${asked}"; the question is left out of this reply`);
+      await incr("answered_questions_dropped");
+      return dropQuestion(msg);
+    } catch (e) { console.warn("dropAnswered:", e.message); return msg; }
+  };
   const send = async (msg, { repeatOk = false, near = false } = {}) => {
     msg = oneEmoji(msg);
+    if (!repeatOk && !stopping) msg = await dropAnswered(msg);
     if (!stopping) { // the last check: the same types of mistake Swati has already reported (lib/guard.mjs, docs/LESSONS.md)
       const prev0 = await getIg(sid);
       const g = checkOutgoing({ msg, lastIn: text, prev: prev0, repeatOk });
