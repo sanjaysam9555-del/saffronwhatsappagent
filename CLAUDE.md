@@ -19,6 +19,9 @@ These come from Swati's feedback on real chats. Every one of them was a real mis
 - A saved detail must make sense: an occasion is an event (wedding, engagement, birthday...), never "Apologies" or "ok" (cleanOccasion). A second unclear answer is kept as "Others", not asked forever.
 - Details the owner states are the truth and replace saved ones. Corrections must reach the lead record, the sheet and the calendar event (correct_lead_details).
 - Several files or messages arriving together must produce ONE reply (take the chat lock, re-read, then decide). Vendors get no photo/reel welcome.
+- A vendor who already has the sign-up link and then shares details, a number, photos or reels gets NO reply (stay_quiet). At most one operator reply per vendor every 3 hours, and a reply that only rephrases our last message is skipped (nearSame).
+- At most one flower per message (oneEmoji).
+- Automatic messages about a call (confirmation, reminders) are spaced: a reminder never follows within hours of the booking or confirmation.
 - "What is the call for?" has a fixed answer; it never goes to a person.
 - Instagram can only be written to within 24 hours of the lead's last message.
 

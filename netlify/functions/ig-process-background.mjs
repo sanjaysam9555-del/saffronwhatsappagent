@@ -22,7 +22,7 @@ import { allow } from "../../lib/state.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { acquireLock } from "../../lib/lock.mjs";
 import { operatorOn, routeMessage } from "../../lib/operator.mjs";
-import { isRepeatOut, oneEmoji } from "../../lib/understand.mjs";
+import { isRepeatOut, isNearRepeat, oneEmoji } from "../../lib/understand.mjs";
 import { igApiOn, getInstagramHistory, getLatestCustomerText, recoverLatest, findNumberInChat, withoutCurrent, debugInstagramApi } from "../../lib/igapi.mjs";
 
 // Answers Instagram DMs that ManyChat forwards (see ig-webhook). Same rules as WhatsApp, plus the mobile number is asked
@@ -105,10 +105,12 @@ export default async (req) => {
   const HANDOVER_REASON_IG = { money: "money-or-commitment", existing_client: "existing-client", complaint: "complaint", unclear: "who-is-this", other: "unclear" };
   // Never say the same thing twice in a row: a repeated message means the agent has not understood, so a person takes over instead.
   let stopping = false;
-  const send = async (msg, { repeatOk = false } = {}) => {
+  const send = async (msg, { repeatOk = false, near = false } = {}) => {
     msg = oneEmoji(msg);
     if (!repeatOk && !stopping) {
       const prev = await getIg(sid);
+      // A vendor, or a reply that only rephrases what we just said: skip it quietly, no hand-over message on top.
+      if ((vendorChat || near) && (isRepeatOut(prev.lastOutText, prev.lastOut, msg) || isNearRepeat(prev.lastOutText, prev.lastOut, msg))) { console.log(`ig ${sid}: skipped a reply that repeats our last message`); await incr("repeats_stopped"); return; }
       if (isRepeatOut(prev.lastOutText, prev.lastOut, msg)) {
         stopping = true;
         await incr("repeats_stopped");
@@ -278,7 +280,7 @@ export default async (req) => {
       if (operatorOn() && igApiOn()) { const real = await getInstagramHistory({ username }); vh = real && real.length ? withoutCurrent(real, text) : null; }
       if (!vh) vh = await getIgHistory(sid, { skipNewest: text });
       const act = operatorOn() ? await routeMessage({ channel: "Instagram", profileName: name || username, text, history: vh, state: { kind: "vendor", greeted: true } }) : null;
-      if (act?.kind === "reply") { if (await allow(`igreply:${sid}:operator`, 20_000)) { await send(act.text); await incr("operator_replies"); } }
+      if (act?.kind === "reply") { if (await allow(`igreply:${sid}:vendor_op`, 3 * HOUR)) { await send(act.text, { near: true }); await incr("operator_replies"); } }
       else if (act?.kind === "handover") await toHuman(HANDOVER_REASON_IG[act.reason] || "unclear", true, act.hold);
       else if (act?.kind === "quiet") console.log(`operator stayed quiet for ig vendor ${sid}: ${act.why}`);
       else await remind();
@@ -353,7 +355,7 @@ export default async (req) => {
         else await toHuman("who-is-this", false); // still unclear after we asked: a person should look
         return ok();
       }
-      if (act?.kind === "reply") { await saveIg(sid, { greeted: true }); if (await allow(`igreply:${sid}:operator`, 20_000)) { await send(act.text); await incr("operator_replies"); } return ok(); }
+      if (act?.kind === "reply") { await saveIg(sid, { greeted: true }); if (await allow(`igreply:${sid}:operator`, 20_000)) { await send(act.text, { near: true }); await incr("operator_replies"); } return ok(); }
       if (act?.kind === "handover") { await toHuman(HANDOVER_REASON[act.reason] || "unclear", true, act.hold); return ok(); }
       if (act?.kind === "quiet") { console.log(`operator stayed quiet for ig ${sid}: ${act.why}`); return ok(); }
       if (!act) {

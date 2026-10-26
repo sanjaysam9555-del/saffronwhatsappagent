@@ -15,7 +15,7 @@ import { lookupContact } from "../../lib/planning-studio.mjs";
 import { allow } from "../../lib/state.mjs";
 import { getContact, saveContact, AGENT_ECHO_MS } from "../../lib/contacts.mjs";
 import { holdContact } from "../../lib/qualify.mjs";
-import { isRepeatOut, oneEmoji } from "../../lib/understand.mjs";
+import { isRepeatOut, isNearRepeat, oneEmoji } from "../../lib/understand.mjs";
 import { withoutCurrent } from "../../lib/igapi.mjs";
 import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest, slotStillFree } from "../../lib/calendar.mjs";
@@ -130,10 +130,12 @@ export default async (req) => {
   let pendingAsk = ""; // the question we were waiting for, repeated after a taught answer
   // Never say the same thing twice in a row: a repeated message means the agent has not understood, so a person takes over instead.
   let stopping = false;
-  const agentSend = async (msg, { repeatOk = false } = {}) => {
+  const agentSend = async (msg, { repeatOk = false, near = false } = {}) => {
     msg = oneEmoji(msg);
     if (!repeatOk && !stopping) {
       const prev = await getContact(waId);
+      // A vendor, or a reply that only rephrases what we just said: skip it quietly, no hand-over message on top.
+      if ((vendorChat || near) && (isRepeatOut(prev.lastOutText, prev.lastOut, msg) || isNearRepeat(prev.lastOutText, prev.lastOut, msg))) { console.log(`${waId}: skipped a reply that repeats our last message`); await incr("repeats_stopped"); return; }
       if (isRepeatOut(prev.lastOutText, prev.lastOut, msg)) {
         stopping = true;
         await incr("repeats_stopped");
@@ -187,7 +189,7 @@ export default async (req) => {
     }
     if (act.kind === "reply") {
       await saveContact(waId, { greeted: true });
-      if (await allow(`reply:${waId}:operator`, 20_000)) { await agentSend(act.text); await incr("operator_replies"); }
+      if (await allow(`reply:${waId}:operator`, vendorChat ? 3 * HOUR : 20_000)) { await agentSend(act.text, { near: true }); await incr("operator_replies"); }
       return true;
     }
     if (act.kind === "handover") { await toHuman(HANDOVER_REASON[act.reason] || "unclear", true, act.hold); return true; }

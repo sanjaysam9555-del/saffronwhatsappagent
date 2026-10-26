@@ -355,3 +355,26 @@ test("ownerCommand: correct what is saved about a lead (Meghna)", async () => {
   assert.match(await withTool("correct_lead_details", { to: "Zed", occasion: "Wedding" }, () => op.ownerCommand({ text: "agent x", deps: d })), /could not find/);
   assert.equal(seen.length, 1);
 });
+
+test("vendors who already have the link: the agent is told to stay quiet, and rephrased repeats are skipped (Sunita, the anchor)", async () => {
+  const { nearSame, isNearRepeat } = await import("../lib/understand.mjs");
+  const first = "Thank you, Sunita! Please complete your onboarding using the link shared above, and our team will review your profile once you are registered.";
+  const second = "Thank you, Sunita! Once you complete your profile through the link shared above, our team will have your details and will reach out if there is a fit for an upcoming event.";
+  assert.ok(nearSame(first, second)); // the same message in other words
+  assert.ok(!nearSame(first, "Which city is the wedding in?"));
+  assert.ok(!nearSame("Which city or destination are you considering?", "Roughly how many guests are you expecting?")); // two different questions
+  const now = Date.now();
+  assert.ok(isNearRepeat(first, now - 10 * 60_000, second, now));
+  assert.ok(!isNearRepeat(first, now - 5 * 3600_000, second, now)); // hours later is not a repeat
+  // Claude is told: a vendor who has the link and only shares details gets nothing
+  const real = globalThis.fetch, key = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = "test";
+  let system = "";
+  globalThis.fetch = async (url, init) => { system = JSON.parse(init.body).system; return { ok: true, json: async () => ({ content: [{ type: "tool_use", name: "stay_quiet", input: { why: "vendor already has the link" } }] }) }; };
+  try {
+    const act = await op.routeMessage({ channel: "Instagram", profileName: "Sunita Kashyap", text: "My number is 7982175947. Here is my portfolio.", history: [{ from: "us", text: "Please create your vendor profile here: https://saffron.planningstudio.in/vendor-onboarding" }], state: { kind: "vendor", greeted: true } });
+    assert.equal(act.kind, "quiet");
+    assert.match(system, /only shares an introduction, their name, a number, photos, reels, a portfolio or says hello or thanks: use stay_quiet/);
+    assert.doesNotMatch(system, /thank them and tell them to complete their onboarding/);
+  } finally { globalThis.fetch = real; if (key === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = key; }
+});
