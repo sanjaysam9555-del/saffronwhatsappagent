@@ -191,5 +191,13 @@ Entries are in the order they were learned.
 - Test: Tulsi: a question the lead has already answered
 - Commit: 4b50713
 
+## L22 Claude must read the whole chat, not the part Instagram has shown so far
+- Date: 2026-10-27
+- Chat: Tulsi Mittal (Instagram), found from the logs
+- Went wrong: Swati's Meta app reads each Instagram chat for the agent, and it works. But in Tulsi's burst it returned one message, twice, and that short list replaced our own record of the chat, which had more. The agent read a shortened chat. Only first-touch runs logged how much of the chat was read, so it could not be checked for later turns.
+- Rule: the chat given to Claude is Instagram's list completed with our own record (nothing twice, newest last). Every read logs how many messages it used (counts only, never the text).
+- Test: Tulsi: when Instagram's chat lags behind
+- Commit: 6c2af9c
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
