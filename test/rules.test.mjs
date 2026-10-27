@@ -1602,3 +1602,21 @@ test("Aishvarya: a guest range is not a phone number, a check-in question is the
   assert.ok(f.q.fields.number);
   assert.ok(orderOf(n).includes("date"));
 });
+
+test("Shriya: a reply written as one block of text is split into short paragraphs", async () => {
+  const { paragraphs } = await import("../lib/understand.mjs");
+  const one = "Lovely to hear from you, Shriya! We do design décor for destination events across India, and our founders confirm dates and scope on a short call. Could you tell me a little about the event, like whether it's a wedding and roughly how many guests? 🌼";
+  assert.equal(paragraphs(one), "Lovely to hear from you, Shriya!\n\nWe do design décor for destination events across India, and our founders confirm dates and scope on a short call.\n\nCould you tell me a little about the event, like whether it's a wedding and roughly how many guests? 🌼");
+  const two = "Thank you, Shriya, that's very helpful: a wedding in Rishikesh on 19th and 20th Feb with around 100-150 staying guests and 100 walk-ins. Absolutely, our founders can speak with you on a call. What time works best for you today or tomorrow? 🌼";
+  assert.equal(paragraphs(two).split("\n\n").length, 3);
+  assert.ok(paragraphs(two).endsWith("What time works best for you today or tomorrow? 🌼"));
+  // two sentences: one each. No question at the end: the opening alone, the rest together.
+  assert.equal(paragraphs("Thank you for sharing the details with us, we have noted everything. Our team will be in touch with you very soon.").split("\n\n").length, 2);
+  assert.equal(paragraphs("Wonderful, thank you for sharing all of this with us today. We have noted it. Our Founders will read it before the call.").split("\n\n").length, 2);
+  // already broken up, short, or a list of times: left exactly as it is
+  const listed = "Here are a few times (Indian time):\n\n1. Mon, 26 Oct, 3:30 pm\n2. Tue, 27 Oct, 11:00 am";
+  assert.equal(paragraphs(listed), listed);
+  assert.equal(paragraphs("Short one. Ok?"), "Short one. Ok?");
+  assert.equal(paragraphs("Hi!\n\nAlready in paragraphs. Nothing changes here at all, however long this goes on and on."), "Hi!\n\nAlready in paragraphs. Nothing changes here at all, however long this goes on and on.");
+  assert.equal(paragraphs("A single long sentence without any full stop in the middle of it that just keeps going for a good while"), "A single long sentence without any full stop in the middle of it that just keeps going for a good while");
+});

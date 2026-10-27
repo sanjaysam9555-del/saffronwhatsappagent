@@ -23,7 +23,7 @@ import { incr } from "../../lib/metrics.mjs";
 import { acquireLock } from "../../lib/lock.mjs";
 import { operatorOn, routeMessage } from "../../lib/operator.mjs";
 import { introReply } from "../../lib/rules.mjs";
-import { isRepeatOut, isNearRepeat, oneEmoji, FIELD_KEYS } from "../../lib/understand.mjs";
+import { isRepeatOut, isNearRepeat, oneEmoji, paragraphs, FIELD_KEYS } from "../../lib/understand.mjs";
 import { checkOutgoing, dropQuestion } from "../../lib/guard.mjs";
 import { igApiOn, getInstagramHistory, getLatestCustomerText, recoverLatest, findNumberInChat, withoutCurrent, debugInstagramApi, mergeHistory } from "../../lib/igapi.mjs";
 
@@ -123,7 +123,7 @@ export default async (req) => {
     } catch (e) { console.warn("dropAnswered:", e.message); return msg; }
   };
   const send = async (msg, { repeatOk = false, near = false } = {}) => {
-    msg = oneEmoji(msg);
+    msg = paragraphs(oneEmoji(msg));
     if (!repeatOk && !stopping) msg = await dropAnswered(msg);
     if (!stopping) { // the last check: the same types of mistake Swati has already reported (lib/guard.mjs, docs/LESSONS.md)
       const prev0 = await getIg(sid);
