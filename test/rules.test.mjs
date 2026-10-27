@@ -1679,3 +1679,19 @@ test("Kajal: 'what does 3 lakh include' is answered from the pricing page, not h
   const r = advance(q, "What does 3 lakh include", {}, "Kajal", "", "", inclusionsAnswer("What does 3 lakh include"));
   assert.notEqual(r.kind, "escalate");
 });
+
+test("Shruti: 'This is completely correct' confirms the summary and the call is offered", async () => {
+  const { isConfirmation, advance, newState } = await import("../lib/qualify.mjs");
+  for (const yes of ["This is completely correct", "This is completely correct.", "All the details are correct", "that's right", "Everything is correct, thank you", "Yes", "correct", "looks good", "all good", "perfect", "Haan sahi hai", "yes, that is correct"])
+    assert.equal(isConfirmation(yes), true, yes);
+  for (const no of ["This is not correct", "wrong", "Yes but the date is wrong", "everything is fine but add 200 guests", "I want good decor", "It is a wedding", "The date is actually 20 Jan", "all correct except the city", "Please rectify the occasion as wedding"])
+    assert.equal(isConfirmation(no), false, no);
+  const q = { ...newState({ number: "+16473279649", occasion: "Wedding", date: "Nov - dec 2027", location: "Patna", guests: "150", requirement: "Planning + Decoration" }, "Instagram", "instagram"), stage: "confirm" };
+  const r = advance(q, "This is completely correct.", { correcting: false }, "Shruti");
+  assert.equal(r.kind, "confirmed");
+  assert.equal(r.q.stage, "call");
+  assert.match(r.reply, /^Thank you for confirming!/);
+  assert.match(r.reply, /call/i, "the call is offered straight after the confirmation");
+  // a correction hidden inside a longer yes is still a correction
+  assert.notEqual(advance(q, "Yes but the date is wrong", { date: "Dec 2027", correcting: true }, "Shruti").kind, "confirmed");
+});
