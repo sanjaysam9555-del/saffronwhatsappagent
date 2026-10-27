@@ -426,7 +426,7 @@ export default async (req) => {
     const readable = ["new", "asking", "confirm", "call"].includes(q.stage) || (["slots", "email"].includes(q.stage) && text.trim().split(/\s+/).length > 3);
     if (readable && !GREETING.test(text)) read = await understandChat({ text, name: who, history: await chatHistory(text), q, asked: q.asked });
     if (read?.complaint && q.stage !== "new") { await toHuman("complaint"); return ok(); }
-    const extracted = (asking || (q.stage === "confirm" && (CORRECTION.test(text) || read?.intent === "correcting"))) && !GREETING.test(text) ? await extractFields(text, q.asked === "number" ? null : q.asked, read) : {};
+    const extracted = (asking || (q.stage === "confirm" && (CORRECTION.test(text) || q.fixAsked || read?.intent === "correcting"))) && !GREETING.test(text) ? await extractFields(text, q.asked === "number" ? null : q.asked, read) : {};
     delete extracted.number;
     if (ph.status === "ok") extracted.number = `+${ph.number}`;
     if (ph.status === "ambiguous") extracted.numberAmbiguous = true;

@@ -439,7 +439,7 @@ export default async (req) => {
         read = await understandChat({ text, name: who, history: recent, q, asked: q.asked });
       }
       if (read?.complaint && q.stage !== "new") { await toHuman("complaint"); return ok(); }
-      const extracted = q.stage === "asking" || q.stage === "new" || (q.stage === "confirm" && (CORRECTION.test(text) || read?.intent === "correcting")) ? (!GREETING.test(text) && !dupAnswered ? await extractFields(text, q.asked, read) : {}) : {};
+      const extracted = q.stage === "asking" || q.stage === "new" || (q.stage === "confirm" && (CORRECTION.test(text) || q.fixAsked || read?.intent === "correcting")) ? (!GREETING.test(text) && !dupAnswered ? await extractFields(text, q.asked, read) : {}) : {};
       let opener = "";
       if (firstTouch && !GREETING.test(text)) opener = (await draftOpening({ text, name: who, greeted: c.greeted })) || "";
       const pre = asking && !dupAnswered ? [priceQ ? priceAnswer(text) : "", guides.length ? guideText(guides) : ""].filter(Boolean).join("\n\n") : "";

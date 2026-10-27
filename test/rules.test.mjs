@@ -1620,3 +1620,35 @@ test("Shriya: a reply written as one block of text is split into short paragraph
   assert.equal(paragraphs("Hi!\n\nAlready in paragraphs. Nothing changes here at all, however long this goes on and on."), "Hi!\n\nAlready in paragraphs. Nothing changes here at all, however long this goes on and on.");
   assert.equal(paragraphs("A single long sentence without any full stop in the middle of it that just keeps going for a good while"), "A single long sentence without any full stop in the middle of it that just keeps going for a good while");
 });
+
+test("Ajay: 'venue, decor and events' is not saved as Only Decoration, and 'wrong' is asked about, not handed over", async () => {
+  const { normalizeRequirement, advance, newState } = await import("../lib/qualify.mjs");
+  assert.equal(normalizeRequirement("venue, decor and events"), "Planning + Decoration");
+  assert.equal(normalizeRequirement("decor and catering"), "Planning + Decoration");
+  assert.equal(normalizeRequirement("Décor & events"), "Planning + Decoration");
+  assert.equal(normalizeRequirement("decoration"), "Only Decoration");
+  assert.equal(normalizeRequirement("only decor for the sangeet"), "Only Decoration");
+  assert.equal(normalizeRequirement("venue"), "Planning");
+  assert.equal(normalizeRequirement("planning"), "Planning");
+  const q = { ...newState({ number: "+919561613569", occasion: "Wedding", date: "15 Jan 2027", location: "Jaipur", guests: "200", requirement: "Only Decoration" }, "Instagram", "instagram"), stage: "confirm" };
+  // he corrects what he is looking for: the summary now shows it, with one thank-you
+  const a = advance(q, "looking for venue, decor and events", { requirement: "venue, decor and events", correcting: true }, "Ajay");
+  assert.equal(a.kind, "corrected");
+  assert.match(a.reply, /Looking for: Planning and Decoration/);
+  assert.doesNotMatch(a.reply, /Decoration only/);
+  assert.equal((a.reply.match(/Thank you/g) || []).length, 1, "one thank-you, not two");
+  // he just says "wrong": we ask which detail, once, and his next answer is read as the correction
+  const w = advance(q, "wrong", {}, "Ajay");
+  assert.equal(w.kind, "fix-ask");
+  assert.match(w.reply, /Which detail should we correct\?/);
+  const fix = advance(w.q, "I need only planning", { requirement: "planning" }, "Ajay");
+  assert.equal(fix.kind, "corrected");
+  assert.match(fix.reply, /Looking for: Planning/);
+  assert.equal(fix.q.fixAsked, undefined);
+  // never asked twice in a row
+  const again = advance(w.q, "wrong", {}, "Ajay");
+  assert.notEqual(again.kind, "fix-ask");
+  for (const bare of ["incorrect", "Not correct", "that's wrong", "no, wrong", "galat"]) assert.equal(advance(q, bare, {}, "Ajay").kind, "fix-ask", bare);
+  // a longer message that says what is wrong is a correction, not a question back
+  assert.equal(advance(q, "wrong, the date is 20 Jan 2027", { date: "20 Jan 2027" }, "Ajay").kind, "corrected");
+});
