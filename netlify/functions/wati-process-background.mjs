@@ -21,7 +21,8 @@ import { checkOutgoing } from "../../lib/guard.mjs";
 import { withoutCurrent } from "../../lib/igapi.mjs";
 import { newState, advance, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest, slotStillFree } from "../../lib/calendar.mjs";
-import { recordCall, callRecord } from "../../lib/calls.mjs";
+import { recordCall, callRecord, getCall, touchCall } from "../../lib/calls.mjs";
+import { missedReply, closeText } from "../../lib/missed.mjs";
 import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEmail, wantsReschedule, wantsCancel, startReschedule, addLateContact } from "../../lib/consult.mjs";
 import { recordMedia, isMediaOnly, REF_THANKS, REF_NOTE, refOpen, greetingText, skipMediaWelcome } from "../../lib/media.mjs";
 import { greetName } from "../../lib/leadfields.mjs";
@@ -261,13 +262,48 @@ export default async (req) => {
     // Wati does not send Business-App messages to the webhook, so this reads the stored chat history instead.
     // If the history cannot be read, the agent fails safe and hands over to the team when live.
     const chat = await readChat(waId, c);
-    if (chat?.teamSpoke || (!chat && live())) {
+    // A lead answering our missed-call question: we wrote to them, so their answer is read here even though the team wrote in this chat earlier
+    // ("tried calling you"). Only if a person has written since our question does the person take over. (lib/missed.mjs, docs/LESSONS.md L25)
+    const mc = c.missed;
+    const missedOpen = Boolean(mc && ["asked", "offered"].includes(mc.state) && chat && !(chat.lastTeamAt > mc.askedAt));
+    if (!missedOpen && (chat?.teamSpoke || (!chat && live()))) {
       await saveContact(waId, { humanSpoke: chat?.teamSpoke ? true : c.humanSpoke, ...(chat ? { lastOut: chat.lastOutAt || c.lastOut } : {}) });
       await toHuman(chat ? "team-already-in-chat" : "history-unavailable", false);
       return ok();
     }
     if (!chat) console.warn("chat history unavailable; continuing because DRY_RUN");
     if (c.jobSeeker) return ok(); // already thanked: a person reads the rest
+    if (missedOpen && mc.state === "asked") {
+      const r = missedReply(text);
+      const call = await getCall(mc.callId);
+      const follow = (state) => call ? touchCall(call.id, { follow: { ...(call.follow || {}), state } }) : null;
+      if (r === "no") {
+        await saveContact(waId, { missed: { ...mc, state: "declined" } });
+        await follow("declined");
+        await agentSend(closeText(who));
+        await incr("missed_declined");
+        return ok();
+      }
+      const eventId = call && !/^(wa|ig)-/.test(call.id) ? call.id : "";
+      if (r === "yes" && call && eventId && calendarEnabled()) {
+        // The same calendar event is moved to the new time (no second event). A day or time they named is used.
+        const base = c.q || newState({}, "WhatsApp");
+        const q0 = { ...base, stage: "done", callPref: call.pref || base.callPref || "meet", fields: { ...(base.fields || {}), ...(base.fields?.number ? {} : { number: `+${waId}` }) }, callBooked: { eventId, start: call.start, label: call.label, meetLink: base.callBooked?.meetLink || "", email: base.callBooked?.email || "", pref: call.pref || "meet" } };
+        const rs = await startReschedule(q0, text, consultDeps);
+        if (rs) {
+          await saveContact(waId, { q: rs.q, humanSpoke: false, missed: { ...mc, state: "offered" } });
+          await follow("offered");
+          await agentSend(rs.reply);
+          await incr("missed_replied_yes");
+          return ok();
+        }
+      }
+      // A reply we cannot read as yes or no, or no way to move the call: a person answers.
+      await saveContact(waId, { missed: { ...mc, state: "handed" } });
+      await follow("handed");
+      await toHuman(r === "yes" ? "call-time-request" : "lead-question");
+      return ok();
+    }
     if (d.intent === "job_seeker") { await jobSeekerNow(); return ok(); }
 
     const inFlow = ["asking", "confirm", "call", "slots", "email"].includes(c.q?.stage);
@@ -410,6 +446,9 @@ export default async (req) => {
         const cr = await consultTurn(q, text, consultDeps);
         if (cr) {
           if (cr.kind === "escalate") { await saveContact(waId, { q: holdContact(q, { email: extractEmail(text) }) }); await toHuman("lead-question"); return ok(); }
+          if (mc?.state === "offered" && cr.q?.stage === "done") { // the new time was chosen (or they dropped it): the missed-call follow-up is finished
+            await saveContact(waId, { missed: { ...mc, state: cr.moved ? "booked" : "closed" } });
+          }
           const nq = cr.booked ? { ...cr.q, notes: [cr.q.notes, `Call booked: ${cr.booked.label} (${cr.q.callPref === "phone" ? "phone" : "Meet"})`].filter(Boolean).join(" / ") } : cr.q;
           await saveContact(waId, { q: nq });
           await saveLead(waId, name, nq, { notes: nq.notes, country: country.name });

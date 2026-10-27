@@ -467,3 +467,26 @@ test("Abdur: a resume sent as a file with a caption is read, and gets the job th
   assert.match(s, /else \{ await mediaRef\(waId, evt\.senderName/);
   assert.match(s, /wati-media: type=/);
 });
+
+test("owner order 'missed call': marks the booked call missed; nothing is sent from here", async () => {
+  const flagged = [];
+  const past = Date.now() - 5 * 3600_000;
+  const calls = [
+    { id: "e1", name: "Nikunj Shah", waId: "919800000001", start: past, label: "Mon, 26 Oct, 3:30 pm" },
+    { id: "e2", name: "Nikunj Verma", waId: "919800000002", start: past, label: "Mon, 26 Oct, 4:00 pm" },
+    { id: "e3", name: "NoNumber", waId: "", start: past, label: "Mon" },
+    { id: "e4", name: "Future", waId: "919800000004", start: Date.now() + 5 * 3600_000, label: "Tomorrow" },
+    { id: "e5", name: "Already", waId: "919800000005", start: past, label: "Mon", follow: { step: 2, at: past, state: "asked" } },
+  ];
+  const find = async (q) => calls.filter((c) => c.name.toLowerCase().includes(String(q).toLowerCase()));
+  const d = deps({ findBookedCalls: find, flagMissed: async (c) => { flagged.push(c.id); } });
+  assert.match(await withTool("missed_call", { to: "Nikunj Shah" }, () => op.ownerCommand({ text: "agent, Nikunj did not pick up", deps: d })), /^Done\..*marked missed.*different time/);
+  assert.deepEqual(flagged, ["e1"]);
+  assert.deepEqual(d.sent, [], "the owner order itself sends nothing to the lead");
+  assert.match(await withTool("missed_call", { to: "Nikunj" }, () => op.ownerCommand({ text: "agent x", deps: d })), /More than one call matches/);
+  assert.match(await withTool("missed_call", { to: "NoNumber" }, () => op.ownerCommand({ text: "agent x", deps: d })), /no WhatsApp number/);
+  assert.match(await withTool("missed_call", { to: "Future" }, () => op.ownerCommand({ text: "agent x", deps: d })), /has not happened yet/);
+  assert.match(await withTool("missed_call", { to: "Already" }, () => op.ownerCommand({ text: "agent x", deps: d })), /already following up/);
+  assert.match(await withTool("missed_call", { to: "Zed" }, () => op.ownerCommand({ text: "agent x", deps: d })), /could not find a booked call/);
+  assert.deepEqual(flagged, ["e1"], "only the one clear match was marked");
+});

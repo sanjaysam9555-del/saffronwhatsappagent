@@ -1,4 +1,5 @@
 import { listCalls, recordCall, removeCall, dueReminders, reminderParams } from "../../lib/calls.mjs";
+import { KEEP_CALL_MS } from "../../lib/missed.mjs";
 import { sendTemplateMessage } from "../../lib/wati.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
 import { incr } from "../../lib/metrics.mjs";
@@ -15,7 +16,7 @@ export default async () => {
   if (!tpl) return console.log("CALL_REMINDER_TEMPLATE not set: no call reminders.");
   const now = Date.now();
   const calls = await listCalls();
-  for (const c of calls) if (c.start && now - c.start > 36 * 3600_000) await removeCall(c.id); // tidy up old ones
+  for (const c of calls) if (c.start && now - c.start > KEEP_CALL_MS) await removeCall(c.id); // tidy up old ones (kept 8 days so a missed call can be followed up)
   let sent = 0;
   for (const { call, kind } of dueReminders(calls, now)) {
     if (!testAllows({ waId: call.waId })) continue;
