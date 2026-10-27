@@ -1652,3 +1652,30 @@ test("Ajay: 'venue, decor and events' is not saved as Only Decoration, and 'wron
   // a longer message that says what is wrong is a correction, not a question back
   assert.equal(advance(q, "wrong, the date is 20 Jan 2027", { date: "20 Jan 2027" }, "Ajay").kind, "corrected");
 });
+
+test("Kajal: 'what does 3 lakh include' is answered from the pricing page, not handed to a person", async () => {
+  const { isInclusionsQuestion, inclusionsAnswer, isPriceQuestion } = await import("../lib/facts.mjs");
+  const { advance, newState } = await import("../lib/qualify.mjs");
+  for (const q of ["What does 3 lakh include", "What's included in ₹3.5 lakh?", "what is included in the full planning", "What are the deliverables?", "inclusions?", "What do I get for this?", "What does the partial planning cover", "What does décor include?"])
+    assert.equal(isInclusionsQuestion(q), true, q);
+  for (const q of ["Are you available on 19 Feb?", "What's the price range?", "What does the venue include?", "Hello", "How many guests can you handle?"])
+    assert.equal(isInclusionsQuestion(q), false, q);
+  // the tier she asked about, or all three when no tier is named; always the published wording, never a made-up price
+  const full = inclusionsAnswer("What's included in ₹3.5 lakh?");
+  assert.match(full, /^Full Wedding Planning \(starts at ₹3\.5 lakh, flat fee\)/);
+  assert.match(full, /Budget architecture from day one/);
+  assert.match(full, /Venue sourcing, shortlisting and contract negotiation/);
+  assert.doesNotMatch(full, /Partial Planning \(starts/);
+  assert.match(full, /saffroncollective\.in\/pricing/);
+  const all = inclusionsAnswer("What does 3 lakh include");
+  assert.match(all, /Full Wedding Planning[\s\S]*Partial Planning[\s\S]*Wedding Day Coordination/);
+  assert.doesNotMatch(all, /3 lakh/, "an amount that is not a tier's start price is never repeated as something we offer");
+  assert.match(inclusionsAnswer("what does partial planning include"), /^Partial Planning \(starts at ₹2 lakh/);
+  assert.match(inclusionsAnswer("what does day of coordination cover"), /on-ground team of 4/);
+  assert.match(inclusionsAnswer("What does décor include?"), /3D venue renderings/);
+  for (const text of [full, all]) assert.doesNotMatch(text, /undefined|\{\{/);
+  // in the questions, the answer goes in front of the next question and nobody is paged
+  const q = { ...newState({}, "Instagram", "instagram"), stage: "asking", asked: "guests", fields: { occasion: "Wedding" } };
+  const r = advance(q, "What does 3 lakh include", {}, "Kajal", "", "", inclusionsAnswer("What does 3 lakh include"));
+  assert.notEqual(r.kind, "escalate");
+});

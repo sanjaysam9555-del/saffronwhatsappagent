@@ -1,7 +1,7 @@
 import { decide, ESCALATION_ACK, CLIENT, vendorWelcome, vendorReminder, jobReply, RESUME_FILE } from "../../lib/rules.mjs";
 import { operatorOn, routeMessage, ownerCommand, isOwner, COMMAND_PREFIX } from "../../lib/operator.mjs";
 import { ownerDeps } from "../../lib/operatordeps.mjs";
-import { hardMoney, isPriceQuestion, priceAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
+import { hardMoney, isPriceQuestion, priceAnswer, isInclusionsQuestion, inclusionsAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
 import { guidesFor, guideText } from "../../lib/guides.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
 import { findNameCandidate, classify } from "../../lib/match.mjs";
@@ -323,7 +323,8 @@ export default async (req) => {
     // Asking our fee is answered from the website (fixed wording); a volunteered budget is noted. Payment, discount, contract
     // and availability questions are still for a person.
     const priceQ = isPriceQuestion(text);
-    const guides = guidesFor(text); // a page on the website answers this in detail: share the link
+    const inclQ = isInclusionsQuestion(text); // "what does 3 lakh include?": the published inclusions answer (lib/facts.mjs), not a hand-over
+    const guides = guidesFor(text).filter((g) => !(inclQ && g.url.endsWith("/wedding-services"))); // a page on the website answers this in detail: share the link
     const moneyish = (hardMoney(text) && !guides.length) || (!inFlow && /\b(available|availability|book|booking)\b/i.test(text));
     const firstTouch = canQualify && !inFlow && !c.q && !CLIENT.test(text) && d.intent !== "vendor_signup";
     if (moneyish && !firstTouch) {
@@ -353,6 +354,7 @@ export default async (req) => {
 
     // 3b. The chat is finished (call booked, declined, ...). Whatever they send now is answered in context by Claude, like a person would.
     if (!c.humanSpoke && !c.esc && !isVendor && c.q?.stage === "done") {
+      if (inclQ && (await allow(`guide:${waId}:inclusions`, 6 * HOUR))) { await agentSend(inclusionsAnswer(text)); await incr("inclusions_answered"); return ok(); } // what is included: the website's own answer
       if (c.q.callBooked?.eventId && calendarEnabled()) {
         if (wantsCancel(text)) { await toHuman("call-cancel-request"); return ok(); }
         if (wantsReschedule(text)) {
@@ -442,9 +444,9 @@ export default async (req) => {
       const extracted = q.stage === "asking" || q.stage === "new" || (q.stage === "confirm" && (CORRECTION.test(text) || q.fixAsked || read?.intent === "correcting")) ? (!GREETING.test(text) && !dupAnswered ? await extractFields(text, q.asked, read) : {}) : {};
       let opener = "";
       if (firstTouch && !GREETING.test(text)) opener = (await draftOpening({ text, name: who, greeted: c.greeted })) || "";
-      const pre = asking && !dupAnswered ? [priceQ ? priceAnswer(text) : "", guides.length ? guideText(guides) : ""].filter(Boolean).join("\n\n") : "";
-      if (guides.length && ["confirm", "call"].includes(q.stage) && (await allow(`guide:${waId}:${guides[0].url}`, 6 * HOUR))) {
-        await agentSend(guideText(guides)); await incr("guide_links_sent"); return ok(); // after the summary: just the link, state unchanged
+      const pre = asking && !dupAnswered ? [inclQ ? inclusionsAnswer(text) : priceQ ? priceAnswer(text) : "", guides.length ? guideText(guides) : ""].filter(Boolean).join("\n\n") : "";
+      if ((guides.length || inclQ) && ["confirm", "call"].includes(q.stage) && (await allow(`guide:${waId}:${inclQ ? "inclusions" : guides[0].url}`, 6 * HOUR))) {
+        await agentSend(inclQ ? inclusionsAnswer(text) : guideText(guides)); await incr(inclQ ? "inclusions_answered" : "guide_links_sent"); return ok(); // after the summary: just the link, state unchanged
       }
       // Booking the Founders' call: they choose a time, then give an email, then the event is created.
       if (["slots", "email"].includes(q.stage) && calendarEnabled()) {
@@ -535,7 +537,7 @@ export default async (req) => {
     // decides. Chats already handed to the team are left alone unless it is a vendor. If it cannot decide, the older rules below do.
     if (operatorOn() && (isVendor || (!c.esc && !c.humanSpoke))) {
       const act = await routeMessage({ channel: "WhatsApp", profileName: name, text, history: (await getRecentMessages(waId, 12)) || [], state: { kind: isVendor ? "vendor" : c.kind, stage: c.q?.stage, greeted: c.greeted, fields: c.q?.fields } });
-      if (act?.kind === "price") { if (await allow(`reply:${waId}:price`, 6 * HOUR)) await agentSend(priceAnswer(text)); return ok(); }
+      if (act?.kind === "price") { if (await allow(`reply:${waId}:price`, 6 * HOUR)) await agentSend(inclQ ? inclusionsAnswer(text) : priceAnswer(text)); return ok(); }
       if (act && act.kind !== "client" && (await applyRoute(act))) return ok();
     }
     // Older rules: simple rules, then Claude for light replies, otherwise a human.

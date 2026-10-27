@@ -1,5 +1,5 @@
 import { decide, ESCALATION_ACK, CLIENT, GREETING, OPTOUT, vendorWelcome, vendorReminder, jobReply } from "../../lib/rules.mjs";
-import { hardMoney, isPriceQuestion, priceAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
+import { hardMoney, isPriceQuestion, priceAnswer, isInclusionsQuestion, inclusionsAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
 import { guidesFor, guideText, readingFor } from "../../lib/guides.mjs";
 import { extractPhone } from "../../lib/phone.mjs";
 import { sendTemplateMessage } from "../../lib/wati.mjs";
@@ -310,7 +310,8 @@ export default async (req) => {
     vendorChat = isVendor;
     const canQualify = !isVendor && c.q?.stage !== "done";
     const priceQ = isPriceQuestion(text);
-    const guides = guidesFor(text); // a page on the website answers this in detail: share the link
+    const inclQ = isInclusionsQuestion(text); // "what does 3 lakh include?": the published inclusions answer (lib/facts.mjs), not a hand-over
+    const guides = guidesFor(text).filter((g) => !(inclQ && g.url.endsWith("/wedding-services"))); // a page on the website answers this in detail: share the link
     const moneyish = (hardMoney(text) && !guides.length) || (!inFlow && /\b(available|availability|book|booking)\b/i.test(text));
     const firstTouch = canQualify && !inFlow && !c.q && !CLIENT.test(text) && d.intent !== "vendor_signup";
 
@@ -341,6 +342,7 @@ export default async (req) => {
 
     // The chat is finished (call booked, declined, ...). Whatever they send now is answered in context by Claude, like a person would.
     if (!isVendor && c.q?.stage === "done") {
+      if (inclQ && (await allow(`igguide:${sid}:inclusions`, 6 * HOUR))) { await send(inclusionsAnswer(text)); await incr("inclusions_answered"); return ok(); } // what is included: the website's own answer
       if (c.q.callBooked?.eventId && calendarEnabled()) {
         if (wantsCancel(text)) { await toHuman("call-cancel-request"); return ok(); }
         if (wantsReschedule(text)) {
@@ -432,9 +434,9 @@ export default async (req) => {
     if (ph.status === "ambiguous") extracted.numberAmbiguous = true;
     let opener = "";
     if (firstTouch && !GREETING.test(text)) opener = (await draftOpening({ text, name: who, greeted: c.greeted })) || "";
-    const pre = asking ? [priceQ ? priceAnswer(text) : "", guides.length ? guideText(guides) : ""].filter(Boolean).join("\n\n") : "";
-    if (guides.length && ["confirm", "call"].includes(q.stage) && (await allow(`igguide:${sid}:${guides[0].url}`, 6 * HOUR))) {
-      await send(guideText(guides)); await incr("guide_links_sent"); return ok(); // after the summary: just the link, state unchanged
+    const pre = asking ? [inclQ ? inclusionsAnswer(text) : priceQ ? priceAnswer(text) : "", guides.length ? guideText(guides) : ""].filter(Boolean).join("\n\n") : "";
+    if ((guides.length || inclQ) && ["confirm", "call"].includes(q.stage) && (await allow(`igguide:${sid}:${inclQ ? "inclusions" : guides[0].url}`, 6 * HOUR))) {
+      await send(inclQ ? inclusionsAnswer(text) : guideText(guides)); await incr(inclQ ? "inclusions_answered" : "guide_links_sent"); return ok(); // after the summary: just the link, state unchanged
     }
     // Booking the Founders' call: they choose a time, then give an email, then the event is created.
     if (["slots", "email"].includes(q.stage) && calendarEnabled()) {
