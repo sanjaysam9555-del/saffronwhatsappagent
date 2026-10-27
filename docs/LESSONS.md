@@ -210,5 +210,13 @@ Entries are in the order they were learned.
 - Guard: link-to-job-seeker
 - Commit: c63bcb8
 
+## L24 Words that come with a file are read
+- Date: 2026-10-27
+- Chat: +91 86881 14882, "Rehman here" (WhatsApp)
+- Went wrong: he sent a file named "Resume .pdf" with the words "Rehman here, I work as freelancer" at 11:06 PM. Every file or photo on WhatsApp went to the plain welcome path, which never looked at the words or the file name, so he got "Welcome to Saffron Collective. Thank you for sharing this. How can we help you?". The job-seeker check in L23 only reads text, so it would not have caught this either.
+- Rule: a file or photo that comes with words is read like any other message. A file named like a CV is noted as "[sent a resume]" and handled as a job enquiry. Only a file with no words and no CV name gets the plain welcome. Each media event logs its type, caption length and whether a file name arrived (lengths only).
+- Test: Abdur: a resume sent as a file with a caption is read
+- Commit: 32e4a4c
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
