@@ -1,4 +1,4 @@
-import { decide, ESCALATION_ACK, CLIENT, vendorWelcome, vendorReminder, jobReply } from "../../lib/rules.mjs";
+import { decide, ESCALATION_ACK, CLIENT, vendorWelcome, vendorReminder, jobReply, RESUME_FILE } from "../../lib/rules.mjs";
 import { operatorOn, routeMessage, ownerCommand, isOwner, COMMAND_PREFIX } from "../../lib/operator.mjs";
 import { ownerDeps } from "../../lib/operatordeps.mjs";
 import { hardMoney, isPriceQuestion, priceAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
@@ -116,9 +116,15 @@ export default async (req) => {
 
   // ---- Inbound media (photos, documents, voice notes). A reel or picture is usually a reference ("we want something like this"),
   // so the agent says thank you and carries on. Only a burst of files (a vendor sending a portfolio) pauses the chat for a person.
+  // A file or photo that comes with words (a caption) is read like any other message: the words are what the lead said (Abdur: a resume with
+  // "I work as freelancer" got the plain photo welcome). A file named like a CV is noted as "[sent a resume]". Only a file with no words goes to mediaRef.
   if (evt.eventType === "message" && evt.owner === false && evt.type && evt.type !== "text") {
-    await mediaRef(waId, evt.senderName || "", evt.type);
-    return ok("media");
+    const caption = String(evt.text || "").trim();
+    const fileHint = String(evt.fileName || evt.filename || evt.mediaFileName || evt.data || "");
+    const resume = RESUME_FILE.test(fileHint);
+    console.log(`wati-media: type=${evt.type} caption=${caption.length} chars, fileName=${fileHint ? "given" : "none"}, resume=${resume}`); // lengths only
+    if (caption || resume) evt = { ...evt, type: "text", text: [caption, resume ? "[sent a resume]" : ""].filter(Boolean).join("\n") };
+    else { await mediaRef(waId, evt.senderName || "", evt.type); return ok("media"); }
   }
 
   // ---- Inbound customer text ----

@@ -26,6 +26,7 @@ The full story of each mistake (the chat, what went wrong, the rule, the test, t
 - A vendor who already has the sign-up link and then shares details, a number, photos or reels gets NO reply (stay_quiet). At most one operator reply per vendor every 3 hours, and a reply that only rephrases our last message is skipped (nearSame).
 - Someone who says they have joined a business we already work with (a new sales contact at a venue) is not a vendor to onboard: thank-you only, no sign-up link (acknowledge_introduction, introReply), and the team is told to update the vendor record (vendor-contact-change).
 - Someone asking for a job or sharing a CV is not a vendor and not a client: a fixed thank-you (jobReply), no sign-up link, no event questions, a Needs Team line (job-enquiry), and the chat is left alone afterwards (jobSeeker flag). The guard also blocks the vendor link to a CV message.
+- A file or photo with words (a caption) is read like any message; the words are what the lead said. A file named like a CV is noted as "[sent a resume]" and treated as a job enquiry. Only a file with no words gets the plain welcome.
 - At most one flower per message (oneEmoji).
 - Automatic messages about a call (confirmation, reminders) are spaced: a reminder never follows within hours of the booking or confirmation.
 - "What is the call for?" has a fixed answer; it never goes to a person.

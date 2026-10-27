@@ -450,3 +450,20 @@ test("the operator routes a job seeker to the thank-you, and the supervisor neve
     assert.match(s, /reason: "job-enquiry"/, f);
   }
 });
+
+test("Abdur: a resume sent as a file with a caption is read, and gets the job thank-you, not the photo welcome", async () => {
+  const { decide, RESUME_FILE, jobSeeker } = await import("../lib/rules.mjs");
+  // the file named like a CV, with his caption
+  const text = ["👋 Rehman here\nI work as freelancer", "[sent a resume]"].join("\n");
+  assert.equal(decide(text, { name: "Abdur" }).intent, "job_seeker");
+  assert.equal(decide("[sent a resume]", {}).intent, "job_seeker");   // no caption at all
+  assert.ok(jobSeeker("Hi\n[sent a resume]"));
+  for (const f of ["Resume .pdf", "Rahul_CV_2026.pdf", "my-resume.docx", "CV.pdf", "Curriculum Vitae.pdf"]) assert.ok(RESUME_FILE.test(f), f);
+  for (const f of ["invoice.pdf", "decor-moodboard.pdf", "recvd.pdf", "scrum.pdf", ""]) assert.ok(!RESUME_FILE.test(f), f);
+  // a caption on a photo or file is what the lead said; only a file with no words at all gets the plain welcome
+  const { readFileSync } = await import("node:fs");
+  const s = readFileSync(new URL("../netlify/functions/wati-process-background.mjs", import.meta.url), "utf8");
+  assert.match(s, /if \(caption \|\| resume\) evt = \{ \.\.\.evt, type: "text"/);
+  assert.match(s, /else \{ await mediaRef\(waId, evt\.senderName/);
+  assert.match(s, /wati-media: type=/);
+});
