@@ -17,6 +17,7 @@ The full story of each mistake (the chat, what went wrong, the rule, the test, t
 - Messages sent a few seconds apart are one burst (8 seconds). If the lead sends something that already answers the question we are about to ask, the question is left out of our reply; her newer message gets the next one (dropAnswered).
 - A correction ("please rectify...", "actually...") replaces what we saved. It is never treated as a new answer, and never answered with the same question again. After a correction the summary must show it (check what was saved, not just that "updated" was said). A bare "wrong" is asked about once ("Which detail should we correct?"), not handed to a person.
 - A confirmation of the summary is any short yes-like reply ("This is completely correct", "all details are correct"), not only a message starting with "yes"; it leads straight to the call offer (isConfirmation). "Yes, but..." is a correction.
+- A lead who already confirmed the summary (on either channel) is never asked to confirm it again: the WhatsApp summary uses lead_confirmed_v1 ("tell us if you want to change anything"), via summaryChoice in lib/leadfields.mjs.
 - A number or email shared at any point is kept. Incomplete numbers ask once for the full number.
 - Book at once when we hold a number or an email. Ask for the email once afterwards, never as a condition.
 - One calendar event per person. A late email or number goes onto the same event.

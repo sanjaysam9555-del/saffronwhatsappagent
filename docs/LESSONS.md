@@ -262,5 +262,13 @@ Entries are in the order they were learned.
 - Test: Shruti: 'This is completely correct' confirms the summary
 - Commit: 35e1dda
 
+## L30 Never ask to confirm what the lead has already confirmed
+- Date: 2026-10-28
+- Chat: Shruti Singh, WhatsApp (after confirming on Instagram)
+- Went wrong: she wrote "This is completely correct." in the Instagram chat. The WhatsApp summary that followed still said "Please confirm if this is correct, or reply here with anything you would like to add", asking for the same confirmation a second time.
+- Rule: a lead whose Instagram chat is already past the confirmation step gets the confirmed template (lead_confirmed_v1, setting CONFIRMED_TEMPLATE_NAME): "This is what we have noted... If you would like to change anything, just reply here and let us know." Their WhatsApp reply then carries on where the Instagram chat is (the call offer, or a booked call), never back to "please confirm". Until the template is approved and set, the usual template is used.
+- Test: Shruti: a lead who already confirmed on Instagram is not asked to confirm again
+- Commit: 782ea28
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
