@@ -285,10 +285,10 @@ export default async (req) => {
         return ok();
       }
       const eventId = call && !/^(wa|ig)-/.test(call.id) ? call.id : "";
+      const base = c.q || newState({}, "WhatsApp");
+      const q0 = call ? { ...base, stage: "done", callPref: call.pref || base.callPref || "meet", missedCall: { label: call.label }, fields: { ...(base.fields || {}), ...(base.fields?.number ? {} : { number: `+${waId}` }) }, callBooked: { eventId, start: call.start, label: call.label, meetLink: base.callBooked?.meetLink || "", email: base.callBooked?.email || "", pref: call.pref || "meet" } } : null;
       if (r === "yes" && call && eventId && calendarEnabled()) {
         // The same calendar event is moved to the new time (no second event). A day or time they named is used.
-        const base = c.q || newState({}, "WhatsApp");
-        const q0 = { ...base, stage: "done", callPref: call.pref || base.callPref || "meet", fields: { ...(base.fields || {}), ...(base.fields?.number ? {} : { number: `+${waId}` }) }, callBooked: { eventId, start: call.start, label: call.label, meetLink: base.callBooked?.meetLink || "", email: base.callBooked?.email || "", pref: call.pref || "meet" } };
         const rs = await startReschedule(q0, text, consultDeps);
         if (rs) {
           await saveContact(waId, { q: rs.q, humanSpoke: false, missed: { ...mc, state: "offered" } });
@@ -298,11 +298,16 @@ export default async (req) => {
           return ok();
         }
       }
-      // A reply we cannot read as yes or no, or no way to move the call: a person answers.
-      await saveContact(waId, { missed: { ...mc, state: "handed" } });
-      await follow("handed");
-      await toHuman(r === "yes" ? "call-time-request" : "lead-question");
-      return ok();
+      if (r === "yes" || !q0) {
+        // They want another time but the call cannot be moved from here: a person answers.
+        await saveContact(waId, { missed: { ...mc, state: "handed" } });
+        await follow("handed");
+        await toHuman(r === "yes" ? "call-time-request" : "lead-question");
+        return ok();
+      }
+      // Anything else ("who is this?", "I was travelling, what was it about?"): answered like any finished chat, in context (step 3b below).
+      // The chat stays with the agent until a person writes. Their later yes or no is still read here.
+      if (!c.q || c.q.stage === "done") { Object.assign(c, { q: q0, humanSpoke: false }); await saveContact(waId, { q: q0, humanSpoke: false }); } // a chat still in the questions carries on as normal
     }
     if (d.intent === "job_seeker") { await jobSeekerNow(); return ok(); }
 

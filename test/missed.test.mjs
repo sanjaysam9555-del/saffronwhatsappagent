@@ -47,11 +47,11 @@ test("missed call: how the lead's answer is read", () => {
 
 test("missed call: only the team's words or the owner make it a missed call; nobody saying anything gets one question to the team", () => {
   const at = START + H;
-  // the team said so: wait a day after their message, then send
+  // the team said so: wait ten hours after their message (a booked call is a hot lead), then send
   const said = read([team(START + 20 * 60_000, "Hi Nikunj, tried calling you but could not connect")]);
   assert.deepEqual(m.assess(call(), said, at).do, "wait");
-  assert.equal(m.assess(call(), said, START + 20 * 60_000 + 24 * H - 1000).do, "wait");
-  const due = m.assess(call(), said, START + 20 * 60_000 + 24 * H);
+  assert.equal(m.assess(call(), said, START + 20 * 60_000 + 10 * H - 1000).do, "wait");
+  const due = m.assess(call(), said, START + 20 * 60_000 + 10 * H);
   assert.equal(due.do, "send");
   assert.equal(due.step, 1);
   // the owner said so: the first message goes as soon as the call time is over
@@ -130,4 +130,6 @@ test("missed call: the wiring exists (job, reminder cleanup, reply handling)", a
   assert.match(wa, /missedReply\(text\)/);
   assert.match(wa, /startReschedule\(q0, text, consultDeps\)/, "a yes moves the same calendar event to a new time");
   assert.match(wa, /const missedOpen/);
+  assert.match(wa, /Anything else \("who is this\?"/, "an unclear reply is answered like any finished chat, not sent to a person");
+  assert.ok(m.TEAM_WAIT_MS <= 12 * H, "the wait after the team's message is at most twelve hours");
 });
