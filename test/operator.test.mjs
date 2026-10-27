@@ -414,3 +414,39 @@ test("Tulsi: when Instagram's chat lags behind, our own record fills in what it 
   assert.match(ig, /mergeHistory\(real, own\)/);
   assert.match(ig, /ig-read: chat given to Claude/);
 });
+
+test("a CV or a job enquiry gets a thank-you, never the vendor link (the chat with +91 82096 93847)", async () => {
+  const { decide, jobReply, jobSeeker } = await import("../lib/rules.mjs");
+  const cv = "Hello, I am writing to express my interest in working with Saffron Collective. I have experience in event execution, vendor coordination, client handling, and sales.\n\nI would appreciate the opportunity to connect and discuss any relevant openings.\n\nI'm sharing my cv below please have a look I am looking forward to connect with you\n\nThank you.";
+  const d = decide(cv, { name: "Rahul" });
+  assert.equal(d.intent, "job_seeker");
+  assert.ok(!/https?:|vendor profile|sign.?up/i.test(d.text));
+  assert.match(jobReply({ name: "Rahul" }), /^Hello Rahul!\n\nThank you for your interest in working with Saffron Collective/);
+  assert.ok(!/https?:|🌼/.test(jobReply({ name: "Rahul" })));
+  assert.match(jobReply(), /^Thank you for your interest/);
+  // a CV that mentions pay is still a job enquiry, not a money question for a person
+  assert.equal(decide("Sharing my resume attached. Expected salary 40k, please pay attention to my experience", {}).intent, "job_seeker");
+  for (const yes of ["Please find my CV", "Any job openings at your company?", "I am looking for a job in event planning", "Applying for the position of coordinator", "Do you have an internship programme?"]) assert.ok(jobSeeker(yes), yes);
+  // clients and vendors are not mistaken for job seekers
+  for (const no of ["can we resume tomorrow", "any openings on 12 December?", "We need a photographer for our wedding", "I am a photographer looking for work, portfolio attached", "Is the venue vacancy still there", "great job on the decor", "Please share the vendor sign up link"]) assert.ok(!jobSeeker(no), no);
+  assert.equal(decide("I am a photographer looking for work, portfolio attached", {}).intent, "vendor_signup");
+});
+
+test("the operator routes a job seeker to the thank-you, and the supervisor never sends them the link", async () => {
+  const r = await withTool("acknowledge_job_seeker", { name: "Rahul 99" }, () => op.routeMessage({ channel: "WhatsApp", text: "Sharing my profile, keen to join your team" }));
+  assert.deepEqual(r, { kind: "job", name: "Rahul" });
+  const c = { lastIn: Date.now() - 40 * 60_000, name: "Rahul" };
+  const d = sdeps(c);
+  const res = await withTool("acknowledge_job_seeker", { name: "Rahul" }, () => superviseOnce(d));
+  assert.equal(res.sent, 1);
+  assert.ok(!/vendor-signup|https?:/.test(d.log.sent[0]));
+  assert.match(d.log.sent[0], /Thank you for your interest in working with Saffron Collective/);
+  assert.deepEqual(d.log.team, ["job-enquiry"]);
+  const { readFileSync } = await import("node:fs");
+  for (const f of ["netlify/functions/ig-process-background.mjs", "netlify/functions/wati-process-background.mjs"]) {
+    const s = readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
+    assert.match(s, /d\.intent === "job_seeker"/, f);
+    assert.match(s, /c\.jobSeeker/, f);
+    assert.match(s, /reason: "job-enquiry"/, f);
+  }
+});

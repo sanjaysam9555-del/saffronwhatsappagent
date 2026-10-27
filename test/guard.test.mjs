@@ -89,3 +89,9 @@ test("Tulsi: a question the lead has already answered in a newer message is left
   assert.match(ig, /queuedTexts\(sid\)/);
   assert.match(ig, /DEBOUNCE_MS = 8000/);
 });
+
+test("guard: the vendor sign-up link is never sent to someone sharing a CV", () => {
+  const link = "Thank you for your interest in working with Saffron Collective!\n\nPlease create your vendor profile here:\nhttps://example.test/vendor-signup";
+  assert.equal(checkOutgoing({ msg: link, lastIn: "I'm sharing my cv below, any relevant openings?", prev: {}, now: NOW }).code, "link-to-job-seeker");
+  assert.equal(checkOutgoing({ msg: link, lastIn: "I am a photographer looking for work", prev: {}, now: NOW }).action, "send");
+});

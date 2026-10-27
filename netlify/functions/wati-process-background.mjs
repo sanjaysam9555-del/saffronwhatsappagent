@@ -1,4 +1,4 @@
-import { decide, ESCALATION_ACK, CLIENT, vendorWelcome, vendorReminder } from "../../lib/rules.mjs";
+import { decide, ESCALATION_ACK, CLIENT, vendorWelcome, vendorReminder, jobReply } from "../../lib/rules.mjs";
 import { operatorOn, routeMessage, ownerCommand, isOwner, COMMAND_PREFIX } from "../../lib/operator.mjs";
 import { ownerDeps } from "../../lib/operatordeps.mjs";
 import { hardMoney, isPriceQuestion, priceAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
@@ -189,7 +189,14 @@ export default async (req) => {
 
   // What the operator (Claude) decided for a message outside the question flow. Returns true when it has been dealt with.
   const HANDOVER_REASON = { money: "money-or-commitment", existing_client: "existing-client", complaint: "complaint", unclear: "who-is-this", other: "unclear" };
+  // A CV or a job enquiry: a fixed thank-you, no vendor link, the team is told, and the chat is left alone afterwards.
+  const jobSeekerNow = async (who0) => {
+    await saveContact(waId, { kind: "vendor", jobSeeker: true, greeted: true });
+    if (await allow(`reply:${waId}:job`, 24 * HOUR)) { await agentSend(jobReply({ name: who0 || who })); await incr("job_enquiries"); }
+    await logNeedsTeam({ waId, name, reason: "job-enquiry", lastMsg: text, reply: "(thank-you sent, no link)" });
+  };
   const applyRoute = async (act) => {
+    if (act.kind === "job") { await jobSeekerNow(act.name); return true; }
     if (act.kind === "vendor") { // a vendor gets a greeting and the sign-up link, like any other vendor
       await saveContact(waId, { kind: "vendor" });
       if (await allow(`reply:${waId}:vendor_signup`, 6 * HOUR)) { await agentSend(vendorWelcome({ name: act.name || who, business: act.business })); await incr("vendor_links_sent"); }
@@ -254,6 +261,8 @@ export default async (req) => {
       return ok();
     }
     if (!chat) console.warn("chat history unavailable; continuing because DRY_RUN");
+    if (c.jobSeeker) return ok(); // already thanked: a person reads the rest
+    if (d.intent === "job_seeker") { await jobSeekerNow(); return ok(); }
 
     const inFlow = ["asking", "confirm", "call", "slots", "email"].includes(c.q?.stage);
     const isVendor = c.kind === "vendor" || contact?.kind === "vendor";

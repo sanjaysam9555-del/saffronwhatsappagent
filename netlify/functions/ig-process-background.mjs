@@ -1,4 +1,4 @@
-import { decide, ESCALATION_ACK, CLIENT, GREETING, OPTOUT, vendorWelcome, vendorReminder } from "../../lib/rules.mjs";
+import { decide, ESCALATION_ACK, CLIENT, GREETING, OPTOUT, vendorWelcome, vendorReminder, jobReply } from "../../lib/rules.mjs";
 import { hardMoney, isPriceQuestion, priceAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
 import { guidesFor, guideText, readingFor } from "../../lib/guides.mjs";
 import { extractPhone } from "../../lib/phone.mjs";
@@ -238,6 +238,12 @@ export default async (req) => {
     return false;
   };
 
+  // A CV or a job enquiry: a fixed thank-you, no vendor link, the team is told, and the chat is left alone afterwards.
+  const jobSeekerNow = async (who0) => {
+    await saveIg(sid, { kind: "vendor", jobSeeker: true, greeted: true });
+    if (await allow(`igreply:${sid}:job`, 24 * HOUR)) { await send(jobReply({ name: who0 || who })); await incr("job_enquiries"); }
+    await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "job-enquiry", lastMsg: text, reply: "(thank-you sent, no link)" });
+  };
   const lock = await acquireLock(`ig:${sid}`); // one message at a time per chat; a quick follow-up waits for the one before it
   try {
     let c = await saveIg(sid, { lastIn: Date.now(), name: name || undefined, username: username || undefined });
@@ -252,6 +258,8 @@ export default async (req) => {
       return ok();
     }
     if (c.dnc) return ok();
+    if (c.jobSeeker) return ok("job seeker: a person reads the rest"); // already thanked
+    if (d.intent === "job_seeker") { await jobSeekerNow(); return ok(); }
 
       // Photos, reels and links. Shared on their own they are references ("we want something like this"): say thank you and carry on.
     // Several in a row (a portfolio) pause the chat for a person. A file sent together with a message is just noted.
@@ -383,6 +391,7 @@ export default async (req) => {
       const history = mergeHistory(real, await getIgHistory(sid, { skipNewest: text }));
       const act = operatorOn() ? await routeMessage({ channel: "Instagram", profileName: name || username, text, history, state: { greeted: c.greeted } }) : null;
       if (act?.kind === "vendor") { await vendorWelcomeNow(act); return ok(); }
+      if (act?.kind === "job") { await jobSeekerNow(act.name); return ok(); }
       if (act?.kind === "intro") { // someone new at a business we probably already work with: a thank-you, no link, and the team updates the vendor record
         await saveIg(sid, { kind: "vendor", greeted: true });
         if (await allow(`igreply:${sid}:intro`, 6 * HOUR)) { await send(introReply({ name: act.name || who, business: act.business })); await incr("vendor_intros"); }
