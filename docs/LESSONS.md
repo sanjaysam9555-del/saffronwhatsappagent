@@ -199,5 +199,16 @@ Entries are in the order they were learned.
 - Test: Tulsi: when Instagram's chat lags behind
 - Commit: 6c2af9c
 
+## L23 A CV is not a vendor sign-up
+- Date: 2026-10-27
+- Chat: +91 82096 93847 (WhatsApp)
+- Went wrong: he wrote about working at Saffron (event execution, vendor coordination, client handling, sales), asked about relevant openings and shared his CV. The agent sent "Thank you for your interest in working with Saffron Collective! Please create your vendor profile here" with the vendor sign-up link.
+- Rule: someone asking for a job or sharing a CV gets a fixed thank-you with no link and no event questions. The team is told (Needs Team: job-enquiry) and the chat is left alone afterwards. This is checked before the vendor and money rules, by the operator, by the hourly supervisor, and again by the check before sending. Words like "resume", "opening" or "job" alone are not enough ("can we resume tomorrow", "any openings on 12 December", "great job").
+- Test: a CV or a job enquiry gets a thank-you
+- Test: the operator routes a job seeker to the thank-you
+- Test: guard: the vendor sign-up link is never sent to someone sharing a CV
+- Guard: link-to-job-seeker
+- Commit: c63bcb8
+
 ## Mistakes the guard watches for in every message
-These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
+These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
