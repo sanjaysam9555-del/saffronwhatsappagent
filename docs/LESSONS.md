@@ -230,5 +230,13 @@ Entries are in the order they were learned.
 - Test: owner order 'missed call'
 - Commit: 7719e6b
 
+## L26 A reply is never one block of text
+- Date: 2026-10-27
+- Chat: Shriya Verma (Instagram), Rishikesh wedding on 19th and 20th Feb
+- Went wrong: both replies Claude wrote for her went out as one long paragraph (a greeting, a fact and a question run together), while every fixed message we send is in short paragraphs. They were hard to read on Instagram.
+- Rule: every outgoing message is shaped into short paragraphs on both channels: the first sentence alone, the middle together, a closing question alone. A message that already has line breaks (a list of times, a fixed text) is never touched.
+- Test: Shriya: a reply written as one block of text
+- Commit: 43a3794
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
