@@ -4,7 +4,8 @@ import { testAllows } from "../../lib/testmode.mjs";
 import { getContact, saveContact } from "../../lib/contacts.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { sheetsClient, sheetReady, live } from "../../lib/sheet.mjs";
-import { assess, rowFields, confirmParams, joinList, COL } from "../../lib/leadfields.mjs";
+import { assess, rowFields, confirmParams, joinList, COL, summaryChoice, waStateAfterSummary } from "../../lib/leadfields.mjs";
+import { getIg } from "../../lib/igstate.mjs";
 import { newState } from "../../lib/qualify.mjs";
 
 export const config = { schedule: "*/30 * * * *" };
@@ -42,8 +43,11 @@ export default async () => {
       await saveContact(waId, { agentSent: Date.now() });
       if (action === "SEND_SUMMARY") {
         const f = rowFields(row);
-        await sendTemplateMessage(waId, process.env.LEAD_TEMPLATE_NAME, confirmParams(row[COL.name], f), "lead-audit");
-        await saveContact(waId, { q: { ...newState(f, "Instagram"), stage: "confirm" }, name: row[COL.name] });
+        let igQ = null;
+        try { igQ = row[COL.mcId] ? (await getIg(row[COL.mcId])).q || null : null; } catch { /* unknown: the usual template */ }
+        const pick = summaryChoice(igQ);
+        await sendTemplateMessage(waId, pick.template, confirmParams(row[COL.name], f), "lead-audit");
+        await saveContact(waId, { q: waStateAfterSummary(newState, f, igQ, pick.confirmed), name: row[COL.name] });
       } else if (action === "SEND_FINISH") {
         const f = rowFields(row);
         const need = joinList(a.missing.filter((m) => m.key !== "number").map((m) => m.label));

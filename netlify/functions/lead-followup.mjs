@@ -6,7 +6,7 @@ import { saveContact } from "../../lib/contacts.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { sheetsClient, live } from "../../lib/sheet.mjs";
-import { COL, assess, rowFields, confirmParams, summaryLine, joinList, firstName, igNudgeText, suggestNudge } from "../../lib/leadfields.mjs";
+import { COL, assess, rowFields, confirmParams, summaryLine, joinList, firstName, igNudgeText, suggestNudge, summaryChoice, waStateAfterSummary } from "../../lib/leadfields.mjs";
 import { newState, orderOf } from "../../lib/qualify.mjs";
 import { getIg, saveIg } from "../../lib/igstate.mjs";
 
@@ -103,9 +103,13 @@ export default async () => {
 
     if (action === "SEND_SUMMARY") {
       const f = rowFields(row);
-      await wa(process.env.LEAD_TEMPLATE_NAME, confirmParams(row[COL.name], f), "SENT", "summaries_sent",
-        // their next WhatsApp reply is handled as confirmation or additions
-        () => saveContact(a.waId, { q: { ...newState(f, "Instagram"), stage: "confirm" }, name: row[COL.name] }));
+      // Already confirmed in the Instagram chat: "this is what we have, tell us if you want to change anything", not "please confirm" again.
+      let igQ = null;
+      try { igQ = hasMc ? (await getIg(mcId)).q || null : null; } catch (e) { console.warn("instagram state:", e.message); }
+      const pick = summaryChoice(igQ);
+      await wa(pick.template, confirmParams(row[COL.name], f), pick.confirmed ? "SENT_CONFIRMED" : "SENT", pick.confirmed ? "summaries_sent_confirmed" : "summaries_sent",
+        // their next WhatsApp reply is handled in the right step: as a confirmation or additions, or, if they already confirmed, where the Instagram chat is
+        () => saveContact(a.waId, { q: waStateAfterSummary(newState, f, igQ, pick.confirmed), name: row[COL.name] }));
     } else if (action === "SEND_FINISH") {
       const f = rowFields(row);
       const need = joinList(a.missing.filter((m) => m.key !== "number").map((m) => m.label));

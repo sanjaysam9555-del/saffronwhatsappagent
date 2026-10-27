@@ -1695,3 +1695,37 @@ test("Shruti: 'This is completely correct' confirms the summary and the call is 
   // a correction hidden inside a longer yes is still a correction
   assert.notEqual(advance(q, "Yes but the date is wrong", { date: "Dec 2027", correcting: true }, "Shruti").kind, "confirmed");
 });
+
+test("Shruti: a lead who already confirmed on Instagram is not asked to confirm again on WhatsApp", async () => {
+  const { alreadyConfirmed, summaryChoice, waStateAfterSummary } = await import("../lib/leadfields.mjs");
+  const { advance, newState } = await import("../lib/qualify.mjs");
+  assert.equal(alreadyConfirmed({ stage: "confirm" }), false);
+  assert.equal(alreadyConfirmed({ stage: "asking" }), false);
+  for (const stage of ["call", "slots", "email", "done"]) assert.equal(alreadyConfirmed({ stage }), true, stage);
+  assert.equal(alreadyConfirmed({ stage: "confirm", confirmed: true }), true);
+  assert.equal(alreadyConfirmed(null), false);
+  const env = { LEAD_TEMPLATE_NAME: "lead_followup_v1", CONFIRMED_TEMPLATE_NAME: "lead_confirmed_v1" };
+  assert.deepEqual(summaryChoice({ stage: "call", confirmed: true }, env), { template: "lead_confirmed_v1", confirmed: true });
+  assert.deepEqual(summaryChoice({ stage: "confirm" }, env), { template: "lead_followup_v1", confirmed: false });
+  assert.deepEqual(summaryChoice(null, env), { template: "lead_followup_v1", confirmed: false });
+  // until the new template is set, the usual one is used (never the word undefined)
+  assert.deepEqual(summaryChoice({ stage: "call" }, { LEAD_TEMPLATE_NAME: "lead_followup_v1" }), { template: "lead_followup_v1", confirmed: false });
+  // the WhatsApp chat carries on where Instagram is: calls are offered, a booked call is not asked about again
+  const f = { occasion: "Wedding", date: "Nov - dec 2027" };
+  assert.equal(waStateAfterSummary(newState, f, null, false).stage, "confirm");
+  assert.equal(waStateAfterSummary(newState, f, { stage: "call", confirmed: true, callPref: "meet" }, true).stage, "call");
+  const booked = waStateAfterSummary(newState, f, { stage: "done", callBooked: { eventId: "e1", label: "Mon" } }, true);
+  assert.equal(booked.stage, "done");
+  assert.equal(booked.callBooked.eventId, "e1");
+  // confirming in the Instagram chat is remembered
+  const q = { ...newState({ occasion: "Wedding", date: "Nov 2027", location: "Patna", guests: "150", requirement: "Planning + Decoration" }, "Instagram", "instagram"), stage: "confirm" };
+  assert.equal(advance(q, "This is completely correct.", {}, "Shruti").q.confirmed, true);
+  // the template itself says "this is what we have", not "please confirm"
+  const { readFileSync } = await import("node:fs");
+  const t = JSON.parse(readFileSync(new URL("../wati-templates.json", import.meta.url), "utf8")).find((x) => x.ElementName === "lead_confirmed_v1");
+  assert.ok(t, "lead_confirmed_v1 is listed in wati-templates.json");
+  assert.match(t.Body, /This is what we have noted/);
+  assert.match(t.Body, /If you would like to change anything, just reply here and let us know/);
+  assert.doesNotMatch(t.Body, /confirm if this is correct/i);
+  assert.deepEqual(t.TemplateParamMapping.map((p) => p.ParamName), ["first_name", "full_name", "event", "event_date", "location", "service"]);
+});
