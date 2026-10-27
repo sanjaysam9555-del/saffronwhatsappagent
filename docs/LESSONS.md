@@ -218,5 +218,17 @@ Entries are in the order they were learned.
 - Test: Abdur: a resume sent as a file with a caption is read
 - Commit: 32e4a4c
 
+## L25 A call nobody picked up needs a next step
+- Date: 2026-10-27
+- Chat: Nikunj (WhatsApp), a booked call where the lead did not pick up
+- Went wrong: the call was booked and the details sent, the team rang and got no answer, and then nothing: no one was told, nothing was scheduled, and the chat sat silent. There was no way to see which booked calls had been missed, and the agent never followed up.
+- Rule: a call counts as missed only when the team's own message after the call says so ("tried calling", "could not connect"...) or the owner orders "agent, missed call <name>"; when nobody has said, the team is asked once. The agent then writes itself: first a QUESTION ("we could not connect last time, would you like to connect at a different time?", no times, no flower), and only when the lead says yes, new times (the same calendar event is moved, never a second one). No answer: a short follow-up a day later and a last note two days after that, then the lead is marked cold and the team is told once. Never more than three messages, only 9 am to 8 pm IST, inside the 24-hour window as a chat message and otherwise as the approved template (without one, the team gets a line to do it by hand). A "no" gets a polite close. Anything else the lead says goes to a person. If the lead wrote after the call time, or the team is already talking to them, the agent stays out. Team messages written before our question never block the lead's answer; a person writing after it does.
+- Test: missed call (Nikunj): the first message is the question
+- Test: missed call: only the team's words or the owner make it a missed call
+- Test: missed call: three messages at most, spaced, then cold
+- Test: missed call: how the lead's answer is read
+- Test: owner order 'missed call'
+- Commit: 7719e6b
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.

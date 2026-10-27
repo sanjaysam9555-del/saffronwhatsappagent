@@ -29,6 +29,7 @@ The full story of each mistake (the chat, what went wrong, the rule, the test, t
 - A file or photo with words (a caption) is read like any message; the words are what the lead said. A file named like a CV is noted as "[sent a resume]" and treated as a job enquiry. Only a file with no words gets the plain welcome.
 - At most one flower per message (oneEmoji).
 - Automatic messages about a call (confirmation, reminders) are spaced: a reminder never follows within hours of the booking or confirmation.
+- A booked call nobody picked up is followed up by the agent (lib/missed.mjs, netlify/functions/missed-calls.mjs): it counts as missed only when the team's message says so or the owner orders "agent, missed call <name>"; if nobody has said, the team is asked once. First message is a QUESTION (would you like to connect at a different time?), new times only after a yes (the same calendar event is moved); then one follow-up a day later and a last note, then cold. Three messages at most, 9 am to 8 pm IST, chat message inside 24 hours else the approved template. Never write to a lead who wrote after the call time.
 - "What is the call for?" has a fixed answer; it never goes to a person.
 - Instagram can only be written to within 24 hours of the lead's last message.
 
@@ -36,7 +37,7 @@ The full story of each mistake (the chat, what went wrong, the rule, the test, t
 lib/guard.mjs checks every outgoing message on both channels: unfilled values, the number text sent to someone who answered something else, the link or welcome twice, the same question twice. A mistake that can be spotted in the message text also gets a guard rule and a test in test/guard.test.mjs.
 
 ## Owner commands (WhatsApp, start with "agent,")
-send_vendor_link, send_message, show_chat, pause_agent, resume_agent, tell_owner, send_call_confirmation, reoffer_call_times, correct_lead_details.
+send_vendor_link, send_message, show_chat, pause_agent, resume_agent, tell_owner, send_call_confirmation, reoffer_call_times, correct_lead_details, missed_call.
 
 ## Tests
 `node --test` must pass before anything is committed.
