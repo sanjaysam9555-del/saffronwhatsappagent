@@ -246,5 +246,13 @@ Entries are in the order they were learned.
 - Test: Ajay: 'venue, decor and events' is not saved as Only Decoration
 - Commit: 6f7901a
 
+## L28 What a price includes is answered from the website
+- Date: 2026-10-27
+- Chat: Kajal Malkani, ikavi_26 (Instagram)
+- Went wrong: after the price list she asked "What does 3 lakh include" and was handed to the team with a holding message; her next message, "What's included in ₹3.5 lakh?", got no reply at all because the chat was already paused. The questions have no price keyword, so they were treated as unknown questions. The website's pricing page says exactly what each tier includes.
+- Rule: a question about what is included, covered or delivered (an amount, a tier or just "what do I get") gets the published inclusions from saffroncollective.in/pricing, word for word, fixed in lib/facts.mjs and never written by the AI: the tier she named, or all three with the pricing link. An amount that is not a tier's published start price is never repeated back as something we offer. This works in the questions, after the summary, in finished chats and in the first-contact route, on both channels.
+- Test: Kajal: 'what does 3 lakh include' is answered from the pricing page
+- Commit: 070ca7c
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
