@@ -238,5 +238,13 @@ Entries are in the order they were learned.
 - Test: Shriya: a reply written as one block of text
 - Commit: 43a3794
 
+## L27 A correction must show in the summary
+- Date: 2026-10-27
+- Chat: Ajay, ajayrtale (Instagram), Jaipur wedding on 15 Jan 2027
+- Went wrong: the summary said "Looking for: Decoration only". He wrote "looking for venue, decor and events". The agent said "Thank you, we have updated it." and showed the summary again, still "Decoration only", because any answer containing "decor" was saved as Only Decoration. It also thanked him twice in one message ("Thank you, we have updated it." and "Thank you Ajay!"). He then wrote "wrong" and was passed to the team with the holding message, with no question about what was wrong.
+- Rule: what they are looking for is Planning + Decoration whenever décor comes with anything more (a venue, events, coordination, catering...); "Only Decoration" only when it is just décor. A corrected summary carries one thank-you. A bare "wrong" is asked about once ("Which detail should we correct?") and the next answer is read as the correction.
+- Test: Ajay: 'venue, decor and events' is not saved as Only Decoration
+- Commit: 6f7901a
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
