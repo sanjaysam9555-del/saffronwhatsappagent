@@ -16,6 +16,7 @@ The full story of each mistake (the chat, what went wrong, the rule, the test, t
 - The answer belongs to the question we last asked. A check-in or follow-up records the question it asked; a count or range ("120-150") is never read as a phone number; the "a number helps our Founders" speech goes only to someone who avoided the number question, never to someone who answered something else.
 - Messages sent a few seconds apart are one burst (8 seconds). If the lead sends something that already answers the question we are about to ask, the question is left out of our reply; her newer message gets the next one (dropAnswered).
 - A correction ("please rectify...", "actually...") replaces what we saved. It is never treated as a new answer, and never answered with the same question again. After a correction the summary must show it (check what was saved, not just that "updated" was said). A bare "wrong" is asked about once ("Which detail should we correct?"), not handed to a person.
+- A confirmation of the summary is any short yes-like reply ("This is completely correct", "all details are correct"), not only a message starting with "yes"; it leads straight to the call offer (isConfirmation). "Yes, but..." is a correction.
 - A number or email shared at any point is kept. Incomplete numbers ask once for the full number.
 - Book at once when we hold a number or an email. Ask for the email once afterwards, never as a condition.
 - One calendar event per person. A late email or number goes onto the same event.

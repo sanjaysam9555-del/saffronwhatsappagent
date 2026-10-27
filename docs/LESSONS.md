@@ -254,5 +254,13 @@ Entries are in the order they were learned.
 - Test: Kajal: 'what does 3 lakh include' is answered from the pricing page
 - Commit: 070ca7c
 
+## L29 A confirmation is not only a message that starts with "yes"
+- Date: 2026-10-28
+- Chat: Shruti Singh (Instagram), full planning, Patna or closer
+- Went wrong: she answered the summary with "This is completely correct." The agent only counted messages that start with words like yes, correct or ok as a confirmation, so this was read as extra information: "Thank you, we have noted this. Our planner will review everything and be in touch shortly." The call was never offered, so there was no time to choose and no booking.
+- Rule: a confirmation also includes phrases like "this is completely correct", "all the details are correct" and "that's right" (short, no negation). A "yes, but..." or "all correct except..." is a correction, never a confirmation. A confirmed summary always leads straight to the call offer.
+- Test: Shruti: 'This is completely correct' confirms the summary
+- Commit: 35e1dda
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
