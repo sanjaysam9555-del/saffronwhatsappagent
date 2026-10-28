@@ -270,5 +270,13 @@ Entries are in the order they were learned.
 - Test: Shruti: a lead who already confirmed on Instagram is not asked to confirm again
 - Commit: 782ea28
 
+## L31 A missed-call text is not a missed call once the team has spoken to the lead
+- Date: 2026-10-28
+- Chat: Meghna Sethi, WhatsApp (call booked, then spoke)
+- Went wrong: at 9:00 AM the agent wrote "We tried to reach you for our call but could not connect last time", although the call had taken place: the night before the team had sent the Drive link, the wedding-services page ("like we discussed on call") and the portfolio. The agent had counted an earlier "tried calling" text (or the owner's flag) and never noticed that the team wrote to her afterwards.
+- Rule: the team's "tried calling" counts only while it is the team's last word on the chat. Any other team message after it (or after the owner's "missed call" order) means they got through: the agent skips the call ("the team has been in touch").
+- Test: Meghna: a 'tried calling' text followed by the team speaking to the lead is not a missed call
+- Commit: 9828b66
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
