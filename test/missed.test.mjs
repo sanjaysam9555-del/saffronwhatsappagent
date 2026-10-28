@@ -133,3 +133,25 @@ test("missed call: the wiring exists (job, reminder cleanup, reply handling)", a
   assert.match(wa, /Anything else \("who is this\?"/, "an unclear reply is answered like any finished chat, not sent to a person");
   assert.ok(m.TEAM_WAIT_MS <= 12 * H, "the wait after the team's message is at most twelve hours");
 });
+
+test("missed call (Meghna): a 'tried calling' text followed by the team speaking to the lead is not a missed call", () => {
+  const tried = team(START + 20 * 60_000, "Hi Meghna, we tried calling you but could not connect");
+  const later = [
+    team(START + 3 * H, "Hi Meghna, sharing our drive link"),
+    team(START + 3 * H + 60_000, "This contains all deliverables included in wedding planning, like we discussed on call."),
+  ];
+  // the agent's own 'tried calling' message is not the team
+  assert.equal(read([tried]).teamSaysMissed, true, "on its own it is a missed call");
+  const r = read([tried, ...later]);
+  assert.equal(r.teamSaysMissed, false, "the team got through afterwards");
+  const a = m.assess(call(), r, START + 40 * H);
+  assert.equal(a.do, "skip");
+  assert.match(a.why, /in touch/);
+  // a second 'could not connect' after the link is the last word again
+  assert.equal(read([tried, ...later, team(START + 5 * H, "Tried calling again, no answer")]).teamSaysMissed, true);
+  // the owner flagged it, then the team wrote to the lead: skip
+  const flagged = START + 2 * H;
+  assert.equal(m.assess(call({ missedFlag: flagged }), read([team(flagged + H, "Sharing the proposal as discussed")]), flagged + 20 * H).do, "skip");
+  // the owner flagged it and nobody wrote since: send
+  assert.equal(m.assess(call({ missedFlag: flagged }), read([team(flagged - H, "Tried calling")]), flagged + 1000).do, "send");
+});
