@@ -275,7 +275,7 @@ Entries are in the order they were learned.
 - Chat: Meghna Sethi, WhatsApp (call booked, then spoke)
 - Went wrong: at 9:00 AM the agent wrote "We tried to reach you for our call but could not connect last time", although the call had taken place: the night before the team had sent the Drive link, the wedding-services page ("like we discussed on call") and the portfolio. The agent had counted an earlier "tried calling" text (or the owner's flag) and never noticed that the team wrote to her afterwards.
 - Rule: the team's "tried calling" counts only while it is the team's last word on the chat. Any other team message after it (or after the owner's "missed call" order) means they got through: the agent skips the call ("the team has been in touch").
-- Test: Meghna: a 'tried calling' text followed by the team speaking to the lead is not a missed call
+- Test: missed call (Meghna): a 'tried calling' text followed by the team speaking to the lead is not a missed call
 - Commit: 9828b66
 
 ## Mistakes the guard watches for in every message
