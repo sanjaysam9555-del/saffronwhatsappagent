@@ -3,7 +3,7 @@ import { contextCheck } from "../../lib/presend.mjs";
 import { decide, ESCALATION_ACK, CLIENT, vendorWelcome, vendorReminder, jobReply, RESUME_FILE, maybeOptOut } from "../../lib/rules.mjs";
 import { operatorOn, routeMessage, ownerCommand, isOwner, COMMAND_PREFIX } from "../../lib/operator.mjs";
 import { ownerDeps } from "../../lib/operatordeps.mjs";
-import { hardMoney, isPriceQuestion, priceAnswer, isInclusionsQuestion, inclusionsAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
+import { hardMoney, isPriceQuestion, priceAnswer, isInclusionsQuestion, inclusionsAnswer, budgetLakhs, MIN_BUDGET_LAKHS, budgetQuestionKind } from "../../lib/facts.mjs";
 import { guidesFor, guideText } from "../../lib/guides.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
 import { findNameCandidate, classify } from "../../lib/match.mjs";
@@ -12,7 +12,7 @@ import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playb
 import { sendSessionMessage, updateContactAttributes, getRecentMessages } from "../../lib/wati.mjs";
 import { readChat } from "../../lib/team.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
-import { draftReply, extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail } from "../../lib/claude.mjs";
+import { draftReply, extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail, draftBudgetAnswer } from "../../lib/claude.mjs";
 import { lookupContact } from "../../lib/planning-studio.mjs";
 import { allow } from "../../lib/state.mjs";
 import { getContact, saveContact, AGENT_ECHO_MS } from "../../lib/contacts.mjs";
@@ -336,6 +336,7 @@ const runGated = async (req) => {
     // Asking our fee is answered from the website (fixed wording); a volunteered budget is noted. Payment, discount, contract
     // and availability questions are still for a person.
     const priceQ = isPriceQuestion(text);
+    const totalKind = budgetQuestionKind(text); // "what is the total / starting budget?", "can you do it in 30 lakh?": Claude answers from the budget facts (L40)
     const inclQ = isInclusionsQuestion(text); // "what does 3 lakh include?": the published inclusions answer (lib/facts.mjs), not a hand-over
     const guides = guidesFor(text).filter((g) => !(inclQ && g.url.endsWith("/wedding-services"))); // a page on the website answers this in detail: share the link
     const moneyish = (hardMoney(text) && !guides.length) || (!inFlow && /\b(available|availability|book|booking)\b/i.test(text));
@@ -464,7 +465,8 @@ const runGated = async (req) => {
       if (read?.intent === "confused") extracted.confused = true; // they did not understand us: said again in simpler words (L37)
       let opener = "";
       if (firstTouch && !GREETING.test(text)) opener = (await draftOpening({ text, name: who, greeted: c.greeted })) || "";
-      const pre = asking && !dupAnswered ? [inclQ ? inclusionsAnswer(text) : priceQ ? priceAnswer(text) : "", guides.length ? guideText(guides) : ""].filter(Boolean).join("\n\n") : "";
+      const priceText = !(asking && !dupAnswered) ? "" : inclQ ? inclusionsAnswer(text) : totalKind ? await draftBudgetAnswer({ text, name: who, history: withoutCurrent((await getRecentMessages(waId, 12)) || [], text), kind: totalKind }) : priceQ ? priceAnswer(text) : "";
+      const pre = asking && !dupAnswered ? [priceText, guides.length ? guideText(guides) : ""].filter(Boolean).join("\n\n") : "";
       if ((guides.length || inclQ) && ["confirm", "call"].includes(q.stage) && (await allow(`guide:${waId}:${inclQ ? "inclusions" : guides[0].url}`, 6 * HOUR))) {
         await agentSend(inclQ ? inclusionsAnswer(text) : guideText(guides)); await incr(inclQ ? "inclusions_answered" : "guide_links_sent"); return ok(); // after the summary: just the link, state unchanged
       }
@@ -558,7 +560,7 @@ const runGated = async (req) => {
     // decides. Chats already handed to the team are left alone unless it is a vendor. If it cannot decide, the older rules below do.
     if (operatorOn() && (isVendor || (!c.esc && !c.humanSpoke))) {
       const act = await routeMessage({ channel: "WhatsApp", profileName: name, text, history: (await getRecentMessages(waId, 12)) || [], state: { kind: isVendor ? "vendor" : c.kind, stage: c.q?.stage, greeted: c.greeted, fields: c.q?.fields } });
-      if (act?.kind === "price") { if (await allow(`reply:${waId}:price`, 6 * HOUR)) await agentSend(inclQ ? inclusionsAnswer(text) : priceAnswer(text)); return ok(); }
+      if (act?.kind === "price") { if (await allow(`reply:${waId}:price`, 6 * HOUR)) await agentSend(inclQ ? inclusionsAnswer(text) : totalKind ? await draftBudgetAnswer({ text, name: who, history: (await getRecentMessages(waId, 12)) || [], kind: totalKind }) : priceAnswer(text)); return ok(); }
       if (act && act.kind !== "client" && (await applyRoute(act))) return ok();
     }
     // Older rules: simple rules, then Claude for light replies, otherwise a human.

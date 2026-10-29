@@ -2,14 +2,14 @@ import { withChat, noteRead, exemptFromGate } from "../../lib/readgate.mjs";
 import { contextCheck } from "../../lib/presend.mjs";
 import { getRecentMessages } from "../../lib/wati.mjs";
 import { decide, ESCALATION_ACK, CLIENT, GREETING, OPTOUT, vendorWelcome, vendorReminder, jobReply, isOptOut, maybeOptOut } from "../../lib/rules.mjs";
-import { hardMoney, isPriceQuestion, priceAnswer, isInclusionsQuestion, inclusionsAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
+import { hardMoney, isPriceQuestion, priceAnswer, isInclusionsQuestion, inclusionsAnswer, budgetLakhs, MIN_BUDGET_LAKHS, budgetQuestionKind } from "../../lib/facts.mjs";
 import { guidesFor, guideText, readingFor } from "../../lib/guides.mjs";
 import { extractPhone } from "../../lib/phone.mjs";
 import { sendTemplateMessage } from "../../lib/wati.mjs";
 import { callBookedParams } from "../../lib/leadfields.mjs";
 import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playbook.mjs";
 import { holdContact, resumeOnNumber } from "../../lib/qualify.mjs";
-import { extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail } from "../../lib/claude.mjs";
+import { extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail, draftBudgetAnswer } from "../../lib/claude.mjs";
 import { newState, advance, numberInChat, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest, slotStillFree } from "../../lib/calendar.mjs";
 import { recordCall, callRecord, touchCall } from "../../lib/calls.mjs";
@@ -350,6 +350,7 @@ const runGated = async (req) => {
     vendorChat = isVendor;
     const canQualify = !isVendor && c.q?.stage !== "done";
     const priceQ = isPriceQuestion(text);
+    const totalKind = budgetQuestionKind(text); // "what is the total / starting budget?", "can you do it in 30 lakh?": Claude answers from the budget facts (L40)
     const inclQ = isInclusionsQuestion(text); // "what does 3 lakh include?": the published inclusions answer (lib/facts.mjs), not a hand-over
     const guides = guidesFor(text).filter((g) => !(inclQ && g.url.endsWith("/wedding-services"))); // a page on the website answers this in detail: share the link
     const moneyish = (hardMoney(text) && !guides.length) || (!inFlow && /\b(available|availability|book|booking)\b/i.test(text));
@@ -477,7 +478,8 @@ const runGated = async (req) => {
     if (read?.intent === "confused") extracted.confused = true; // they did not understand us: said again in simpler words (L37)
     let opener = "";
     if (firstTouch && !GREETING.test(text)) opener = (await draftOpening({ text, name: who, greeted: c.greeted })) || "";
-    const pre = asking ? [inclQ ? inclusionsAnswer(text) : priceQ ? priceAnswer(text) : "", guides.length ? guideText(guides) : ""].filter(Boolean).join("\n\n") : "";
+    const priceText = inclQ ? inclusionsAnswer(text) : totalKind ? await draftBudgetAnswer({ text, name: who, history: await chatHistory(text), kind: totalKind }) : priceQ ? priceAnswer(text) : "";
+    const pre = asking ? [priceText, guides.length ? guideText(guides) : ""].filter(Boolean).join("\n\n") : "";
     if ((guides.length || inclQ) && ["confirm", "call"].includes(q.stage) && (await allow(`igguide:${sid}:${inclQ ? "inclusions" : guides[0].url}`, 6 * HOUR))) {
       await send(inclQ ? inclusionsAnswer(text) : guideText(guides)); await incr(inclQ ? "inclusions_answered" : "guide_links_sent"); return ok(); // after the summary: just the link, state unchanged
     }
