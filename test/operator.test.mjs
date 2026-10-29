@@ -490,3 +490,23 @@ test("owner order 'missed call': marks the booked call missed; nothing is sent f
   assert.match(await withTool("missed_call", { to: "Zed" }, () => op.ownerCommand({ text: "agent x", deps: d })), /could not find a booked call/);
   assert.deepEqual(flagged, ["e1"], "only the one clear match was marked");
 });
+
+test("Kapil: the router is told we wrote first, and cannot hand over as 'money' a reply that has no money in it", async () => {
+  const history = [{ from: "us", text: "We would like a few more details: event date, location and what you need from us. Could you please reply here with them?", t: 1 }];
+  let prompt = "";
+  const real = globalThis.fetch;
+  globalThis.fetch = async (_u, o) => { prompt = JSON.parse(o.body).messages[0].content; return { ok: true, json: async () => ({ content: [{ type: "tool_use", name: "hand_to_team", input: { reason: "money", hold_text: "A member of our team will get back to you." } }] }) }; };
+  try {
+    const r = await op.routeMessage({ channel: "WhatsApp", text: "Hi,\nPlanning in the coming year\nDates not finalized", history });
+    assert.deepEqual(r, { kind: "client" }, "the questions carry on, nobody is handed over");
+    assert.match(prompt, /We wrote to them first/);
+    assert.doesNotMatch(prompt, /have not spoken to before/);
+    // real money words still go to a person
+    const m = await op.routeMessage({ channel: "WhatsApp", text: "Can you give a discount on the advance payment?", history });
+    assert.equal(m.kind, "handover");
+    assert.equal(m.reason, "money");
+    // with no earlier chat the AI's decision stands
+    const n = await op.routeMessage({ channel: "WhatsApp", text: "Dates not finalized", history: [] });
+    assert.equal(n.kind, "handover");
+  } finally { globalThis.fetch = real; }
+});
