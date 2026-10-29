@@ -286,5 +286,13 @@ Entries are in the order they were learned.
 - Test: Kapil: a reply to the 'few more details' message is read as the answer, not handed to the team as a stranger
 - Commit: 6aab647
 
+## L33 "Read the chat first" must hold at every door, not only in the question flow
+- Date: 2026-10-29
+- Chat: Kapil, @kn.follows (same chat as L32)
+- Went wrong: the rule "read the whole chat before answering" was built into the question flow (understandChat) but not into the older front-desk router, which a lead reaches when no state is saved. The router was given the chat, but the line telling it what we know said "A contact we have not spoken to before", contradicting the chat. It then chose "hand to team: money" for "dates not finalized", a message with no money in it.
+- Rule: wherever the AI decides what to do with a message it is told when we wrote first ("most likely the answer to our last message, never a stranger"). A handover for "money" is accepted only when their words contain money (price, payment, discount, advance, availability); otherwise, in a chat we started, the questions carry on.
+- Test: Kapil: the router is told we wrote first, and cannot hand over as 'money' a reply that has no money in it
+- Commit: 85c369d
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.

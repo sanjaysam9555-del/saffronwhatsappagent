@@ -19,6 +19,7 @@ The full story of each mistake (the chat, what went wrong, the rule, the test, t
 - A confirmation of the summary is any short yes-like reply ("This is completely correct", "all details are correct"), not only a message starting with "yes"; it leads straight to the call offer (isConfirmation). "Yes, but..." is a correction.
 - A lead who already confirmed the summary (on either channel) is never asked to confirm it again: the WhatsApp summary uses lead_confirmed_v1 ("tell us if you want to change anything"), via summaryChoice in lib/leadfields.mjs.
 - Every message we send that asks the lead something saves the question it asked (waStateAfterSummary, waStateAfterFinish): the reply is read as the answer, never as a stranger's first message, and never sent to the AI front desk. A lead we wrote to first is not a stranger even if the state is missing (sheetLead). A handle like "@kn.follows" is never used as a first name. "Not finalized" is a date answer.
+- "Read first" holds at every door, not only in the question flow: the front-desk router is told when we wrote first, and a handover as "money" needs money words in the lead's message (lib/operator.mjs, L33).
 - A number or email shared at any point is kept. Incomplete numbers ask once for the full number.
 - Book at once when we hold a number or an email. Ask for the email once afterwards, never as a condition.
 - One calendar event per person. A late email or number goes onto the same event.
