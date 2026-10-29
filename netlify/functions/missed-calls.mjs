@@ -39,10 +39,11 @@ const runGated = async () => {
       if (!msgs) continue; // could not read the chat: do nothing rather than guess
       const read = afterCall(msgs, call, c.agentSends || (c.agentSent ? [c.agentSent] : []));
       if (call.follow?.step) {
-        const n = nextStep(call, read.lastCustomerAt, now);
+        const n = nextStep(call, read.lastCustomerAt, now, read);
         if (n.do === "send") sent += await deliver(call, n.step, read.lastCustomerAt, c, msgs);
         else if (n.do === "cold") await goCold(call);
         else if (n.why === "replied") await touchCall(call.id, { follow: { ...call.follow, state: "replied" } });
+        else if (n.why === "team") { console.log(`missed-calls: ${call.id}: the team has been in touch since our last note, chain stopped`); await touchCall(call.id, { follow: { ...call.follow, state: "team" } }); }
         continue;
       }
       const a = assess(call, read, now);

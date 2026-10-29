@@ -155,3 +155,22 @@ test("missed call (Meghna): a 'tried calling' text followed by the team speaking
   // the owner flagged it and nobody wrote since: send
   assert.equal(m.assess(call({ missedFlag: flagged }), read([team(flagged - H, "Tried calling")]), flagged + 1000).do, "send");
 });
+
+test("missed call (Meghna step 2): the follow-up chain re-reads the chat at every step and stops when the team has been in touch", async () => {
+  const T = START + H, f = (step) => ({ ...call(), follow: { step, at: T, state: "asked", via: "session" } });
+  const ours = [{ ...team(T, "Hi Meghna! Would you like to connect at a different time?") }];
+  // nothing from the team since our note: step 2 is due after a day
+  assert.deepEqual(m.nextStep(f(1), 0, T + 24 * H, read(ours, call(), [T])), { do: "send", step: 2 });
+  // the team shared a link / spoke to her after our note (even if the note itself was deleted from the chat): stop, send nothing
+  const spoke = [...ours, team(T + 3 * H, "Sharing our drive link, like we discussed on call")];
+  const n = m.nextStep(f(1), 0, T + 24 * H, read(spoke, call(), [T]));
+  assert.equal(n.do, "none");
+  assert.equal(n.why, "team");
+  assert.equal(m.nextStep(f(2), 0, T + 48 * H, read(spoke, call(), [T])).do, "none", "step 3 too");
+  assert.equal(m.nextStep(f(3), 0, T + 48 * H, read(spoke, call(), [T])).do, "none", "and going cold does not need a reminder either");
+  // a 'tried calling' text from the team is not 'in touch'
+  assert.equal(m.nextStep(f(1), 0, T + 24 * H, read([team(T + H, "Tried calling again, no answer")])).do, "send");
+  const { readFileSync } = await import("node:fs");
+  const src = (p) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
+  assert.match(src("netlify/functions/missed-calls.mjs"), /nextStep\(call, read\.lastCustomerAt, now, read\)/, "the job hands the chat reading to every step");
+});
