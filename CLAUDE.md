@@ -10,6 +10,7 @@ The full story of each mistake (the chat, what went wrong, the rule, the test, t
 - When she shares a screenshot, work out from the chat what the lead actually said and what state the agent was in. Do not guess from one message.
 
 ## What the agent must do in a chat
+- THE ONE RULE, enforced in code (L35): no message to a lead leaves unless, in that same run, the real chat was read and Claude was given it. The check sits at the only two exits (sendSessionMessage / sendTemplateMessage in lib/wati.mjs, sendInstagramText in lib/manychat.mjs) via assertContext (lib/readgate.mjs). Every function that can send runs inside withChat; every handler reads first; every message nobody just asked for (follow-up, reminder, missed-call note, call confirmation, owner order) goes through contextCheck (lib/presend.mjs) first. Never add a send path without these; test/gate.test.mjs fails if one skips them. CONTEXT_GATE=log or off is the emergency switch only.
 - Read first. The whole recent chat, what we have saved and the last question we asked are read before any rule answers (lib/understand.mjs, understandChat in lib/claude.mjs).
 - Never send the same message twice in a row. A repeat means the agent has not understood: hand over to a person (reason "repeating-itself").
 - Ask once. If the lead does not share something, do not insist.

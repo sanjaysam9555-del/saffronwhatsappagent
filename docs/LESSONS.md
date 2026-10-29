@@ -302,5 +302,14 @@ Entries are in the order they were learned.
 - Test: audit: one word never decides (opt-out, existing client, money, vendor link, scheduled sends)
 - Commit: 901c31c
 
+## L35 The one rule, enforced where messages leave: read the chat, hand it to Claude, then send
+- Date: 2026-10-29
+- Chat: Swati after Kapil (L32 to L34): "no message goes out without reading the context, no matter where or what the chat is"
+- Went wrong: "read the chat first" was a habit built into some paths, not something the system enforced. Each time a new path (a scheduled job, the front desk router, a template send) missed it, a lead got a wrong message. Fixing paths one by one left the next unwritten path open.
+- Rule: nothing is sent to a lead unless, in that same run, (1) the real chat was read (getRecentMessages, or Instagram's own history / our record) and (2) Claude was handed that chat and answered (understandChat, routeMessage, draftReply, draftFollowUp, reviewChat or contextCheck). This is enforced at the only two exits, sendSessionMessage/sendTemplateMessage (lib/wati.mjs) and sendInstagramText (lib/manychat.mjs), by assertContext (lib/readgate.mjs): a send without both is blocked, the team is told (agent-error), and the breach is logged ("CONTEXT GATE"). Both inbound handlers read first, before decide(). Every message nobody just asked for (follow-ups, reminders, missed-call notes, call confirmations, owner-ordered sends) first goes through contextCheck (lib/presend.mjs): Claude gets the chat and the planned message and says send or do not send; if the chat cannot be read or Claude cannot answer, nothing is sent. Messages to your own number are exempt. A new send path that skips this fails test/gate.test.mjs. Emergency switch: CONTEXT_GATE=log (log only) or off.
+- Limit, stated plainly: this proves the chat was read and handed to Claude. It cannot prove Claude judged it well; that is covered by the guard, the other rules and corrections.
+- Test: THE ONE RULE: nothing goes to a lead unless the chat was read and Claude was given it
+- Commit: cef7c86
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
