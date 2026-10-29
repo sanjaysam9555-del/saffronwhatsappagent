@@ -6,7 +6,7 @@ import { saveContact } from "../../lib/contacts.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { sheetsClient, live } from "../../lib/sheet.mjs";
-import { COL, assess, rowFields, confirmParams, summaryLine, joinList, firstName, igNudgeText, suggestNudge, summaryChoice, waStateAfterSummary } from "../../lib/leadfields.mjs";
+import { COL, assess, rowFields, confirmParams, summaryLine, joinList, firstName, igNudgeText, suggestNudge, summaryChoice, waStateAfterSummary, waStateAfterFinish } from "../../lib/leadfields.mjs";
 import { newState, orderOf } from "../../lib/qualify.mjs";
 import { getIg, saveIg } from "../../lib/igstate.mjs";
 
@@ -113,7 +113,9 @@ export default async () => {
     } else if (action === "SEND_FINISH") {
       const f = rowFields(row);
       const need = joinList(a.missing.filter((m) => m.key !== "number").map((m) => m.label));
-      await wa(process.env.FINISH_TEMPLATE_NAME, { ...confirmParams(row[COL.name], f), missing_details: need || "a few details" }, "FINISH_SENT", "wa_finish_sent");
+      await wa(process.env.FINISH_TEMPLATE_NAME, { ...confirmParams(row[COL.name], f), missing_details: need || "a few details" }, "FINISH_SENT", "wa_finish_sent",
+        // we asked for the missing details: their reply is read as the answer, not as a first message from a stranger
+        () => saveContact(a.waId, { q: waStateAfterFinish(newState, f, a.missing), name: row[COL.name] }));
     } else if (action === "SEND_IG") {
       try {
         await sendInstagramText(mcId, igNudgeText(row, a));

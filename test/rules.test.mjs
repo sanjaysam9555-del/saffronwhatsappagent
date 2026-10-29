@@ -8,7 +8,7 @@ import { cleanName, chunk } from "../netlify/functions/ig-process-background.mjs
 import { priceAnswer, isPriceQuestion, hardMoney, budgetLakhs } from "../lib/facts.mjs";
 import { sameName, sameDate, sameCity, classify } from "../lib/match.mjs";
 import { isUrgent, describe, openCounts, HEADERS } from "../lib/needsteam.mjs";
-import { assess, missingFields, suggestNudge, igNudgeText, summaryLine, rowFields, confirmParams } from "../lib/leadfields.mjs";
+import { assess, missingFields, suggestNudge, igNudgeText, summaryLine, rowFields, confirmParams, waStateAfterFinish } from "../lib/leadfields.mjs";
 import { newState, advance, serviceLine, doneContext, applyAfter } from "../lib/qualify.mjs";
 import { checkReply, parseModelJson } from "../lib/claude.mjs";
 import { stage, CFG } from "../netlify/functions/lead-followup.mjs";
@@ -1728,4 +1728,26 @@ test("Shruti: a lead who already confirmed on Instagram is not asked to confirm 
   assert.match(t.Body, /If you would like to change anything, just reply here and let us know/);
   assert.doesNotMatch(t.Body, /confirm if this is correct/i);
   assert.deepEqual(t.TemplateParamMapping.map((p) => p.ParamName), ["first_name", "full_name", "event", "event_date", "location", "service"]);
+});
+
+test("Kapil: a reply to the 'few more details' message is read as the answer, not handed to the team as a stranger", () => {
+  // the template went out with only the occasion known; nothing used to be saved, so his reply looked like a first message and was handed over
+  const f = { occasion: "Getting married" };
+  const missing = [{ key: "date", label: "event date" }, { key: "location", label: "location" }, { key: "number", label: "WhatsApp number" }, { key: "requirement", label: "what you need from us" }];
+  const st = waStateAfterFinish(newState, f, missing);
+  assert.equal(st.stage, "asking");
+  assert.equal(st.asked, "date");
+  assert.equal(st.greeted, true);
+  assert.equal(st.fields.occasion, "Getting married");
+  // "Planning in the coming year / Dates not finalized": the date and the service are kept, no second ask for a month, and the next question is the location
+  const r = advance(st, "Hi,\nPlanning in the coming year\nDates not finalized", { date: "Not finalized, coming year", requirement: "Planning" }, "Kapil");
+  assert.equal(r.kind, "ask");
+  assert.match(r.reply, /city or destination/i, "the location is asked next");
+  assert.doesNotMatch(r.reply, /Roughly which month/i, "'not finalized' is an answer, not a vague date to ask again");
+  assert.ok(r.q.fields.date && r.q.fields.requirement, "both answers are saved");
+  // only the number missing: still a state that reads the reply
+  assert.equal(waStateAfterFinish(newState, f, [{ key: "number", label: "WhatsApp number" }]).asked, null);
+  // an Instagram handle is not a first name
+  assert.equal(confirmParams("@kn.follows", f).first_name, "there");
+  assert.equal(confirmParams("Kapil Nair", f).first_name, "Kapil");
 });

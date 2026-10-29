@@ -4,7 +4,7 @@ import { testAllows } from "../../lib/testmode.mjs";
 import { getContact, saveContact } from "../../lib/contacts.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { sheetsClient, sheetReady, live } from "../../lib/sheet.mjs";
-import { assess, rowFields, confirmParams, joinList, COL, summaryChoice, waStateAfterSummary } from "../../lib/leadfields.mjs";
+import { assess, rowFields, confirmParams, joinList, COL, summaryChoice, waStateAfterSummary, waStateAfterFinish } from "../../lib/leadfields.mjs";
 import { getIg } from "../../lib/igstate.mjs";
 import { newState } from "../../lib/qualify.mjs";
 
@@ -52,6 +52,7 @@ export default async () => {
         const f = rowFields(row);
         const need = joinList(a.missing.filter((m) => m.key !== "number").map((m) => m.label));
         await sendTemplateMessage(waId, process.env.FINISH_TEMPLATE_NAME, { ...confirmParams(row[COL.name], f), missing_details: need || "a few details" }, "lead-audit");
+        await saveContact(waId, { q: waStateAfterFinish(newState, f, a.missing), name: row[COL.name] });
       } else if (action === "QUIET_FOLLOWUP") {
         const n = c.followups || 0;
         if (quiet.length < 3 || n >= 3) { await mark("Skipped: no template"); continue; }

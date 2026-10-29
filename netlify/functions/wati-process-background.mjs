@@ -326,7 +326,9 @@ export default async (req) => {
     const inclQ = isInclusionsQuestion(text); // "what does 3 lakh include?": the published inclusions answer (lib/facts.mjs), not a hand-over
     const guides = guidesFor(text).filter((g) => !(inclQ && g.url.endsWith("/wedding-services"))); // a page on the website answers this in detail: share the link
     const moneyish = (hardMoney(text) && !guides.length) || (!inFlow && /\b(available|availability|book|booking)\b/i.test(text));
-    const firstTouch = canQualify && !inFlow && !c.q && !CLIENT.test(text) && d.intent !== "vendor_signup";
+    // A lead we wrote to first (Instagram lead, a template sent from the sheet) whose state was not saved is not a stranger: their reply answers our message.
+    const sheetLead = canQualify && !inFlow && !c.q && c.lastOut ? await findLead(waId) : null;
+    const firstTouch = canQualify && !inFlow && !c.q && !sheetLead && !CLIENT.test(text) && d.intent !== "vendor_signup";
     if (moneyish && !firstTouch) {
       await toHuman("money-or-commitment");
       return ok();
@@ -405,8 +407,9 @@ export default async (req) => {
       let q = c.q;
       let known = null;
       if (!q) {
-        known = await findLead(waId); // did they start on Instagram? (same number: certain)
+        known = sheetLead || await findLead(waId); // did they start on Instagram? (same number: certain)
         q = newState(known ? rowFields(known.row) : {}, known ? "Instagram" : "WhatsApp");
+        if (sheetLead) { const nxt = ORDER.find((k) => !q.fields[k]); if (nxt) q = { ...q, stage: "asking", asked: nxt, greeted: true }; }
         if (!known) {
           const cand = await findNameCandidate(name); // same name on Instagram: only a hint until the lead confirms
           if (cand) q.cand = cand;
