@@ -1,4 +1,4 @@
-import { decide, ESCALATION_ACK, CLIENT, vendorWelcome, vendorReminder, jobReply, RESUME_FILE } from "../../lib/rules.mjs";
+import { decide, ESCALATION_ACK, CLIENT, vendorWelcome, vendorReminder, jobReply, RESUME_FILE, maybeOptOut } from "../../lib/rules.mjs";
 import { operatorOn, routeMessage, ownerCommand, isOwner, COMMAND_PREFIX } from "../../lib/operator.mjs";
 import { ownerDeps } from "../../lib/operatordeps.mjs";
 import { hardMoney, isPriceQuestion, priceAnswer, isInclusionsQuestion, inclusionsAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
@@ -249,6 +249,9 @@ export default async (req) => {
       return ok();
     }
 
+    // "Not interested in a video call, phone please": the words of a stop inside a longer message are read like any message, but the team is told.
+    if (maybeOptOut(text)) await toHuman("possible-opt-out", false);
+
     // 1a. Numbers listed on the "Known Contacts" tab (vendor, client, team, ignore) never get the new-client questions.
     const known = await knownType(waId);
     if (known?.type === "team" || known?.type === "ignore") return ok();
@@ -328,7 +331,10 @@ export default async (req) => {
     const moneyish = (hardMoney(text) && !guides.length) || (!inFlow && /\b(available|availability|book|booking)\b/i.test(text));
     // A lead we wrote to first (Instagram lead, a template sent from the sheet) whose state was not saved is not a stranger: their reply answers our message.
     const sheetLead = canQualify && !inFlow && !c.q && c.lastOut ? await findLead(waId) : null;
-    const firstTouch = canQualify && !inFlow && !c.q && !sheetLead && !CLIENT.test(text) && d.intent !== "vendor_signup";
+    // The sign-up link goes out on words alone only for an unmistakable offer of services (or when the AI front desk is off). Anything softer ("link", "join",
+    // "register": a client asking for the Meet link, someone joining from abroad) is read by the front desk in context, with the chat (L34).
+    const vendorByWords = d.intent === "vendor_signup" && (d.strong || !operatorOn());
+    const firstTouch = canQualify && !inFlow && !c.q && !sheetLead && !CLIENT.test(text) && !vendorByWords;
     if (moneyish && !firstTouch) {
       await toHuman("money-or-commitment");
       return ok();
@@ -342,7 +348,7 @@ export default async (req) => {
 
     // 3. Vendor asking for work: sign-up link. Mid-flow, only an unmistakable offer of services ("I am a photographer",
     // "I want to work with you") switches the chat to the vendor link; ordinary answers like "decoration" never do.
-    if (d.intent === "vendor_signup" && (!inFlow || d.strong)) {
+    if (vendorByWords && (!inFlow || d.strong)) {
       await saveContact(waId, { kind: "vendor", ...(c.q ? { q: { ...c.q, stage: "done" } } : {}) });
       if (await allow(`reply:${waId}:vendor_signup`, 6 * HOUR)) {
         await agentSend(d.text);

@@ -1,4 +1,4 @@
-import { decide, ESCALATION_ACK, CLIENT, GREETING, OPTOUT, vendorWelcome, vendorReminder, jobReply } from "../../lib/rules.mjs";
+import { decide, ESCALATION_ACK, CLIENT, GREETING, OPTOUT, vendorWelcome, vendorReminder, jobReply, isOptOut, maybeOptOut } from "../../lib/rules.mjs";
 import { hardMoney, isPriceQuestion, priceAnswer, isInclusionsQuestion, inclusionsAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
 import { guidesFor, guideText, readingFor } from "../../lib/guides.mjs";
 import { extractPhone } from "../../lib/phone.mjs";
@@ -252,12 +252,13 @@ export default async (req) => {
     leadQ = c.q || null;
     const d = decide(text, { name });
 
-    if (OPTOUT.test(text)) {
+    if (isOptOut(text)) {
       await saveIg(sid, { dnc: true });
       await send("Understood, we won't message you again. Thank you for your time.");
       return ok();
     }
     if (c.dnc) return ok();
+    if (maybeOptOut(text)) await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "possible-opt-out", lastMsg: text }); // the words of a stop inside a longer message: read like any message, the team is told
     if (c.jobSeeker) return ok("job seeker: a person reads the rest"); // already thanked
     if (d.intent === "job_seeker") { await jobSeekerNow(); return ok(); }
 
@@ -313,7 +314,9 @@ export default async (req) => {
     const inclQ = isInclusionsQuestion(text); // "what does 3 lakh include?": the published inclusions answer (lib/facts.mjs), not a hand-over
     const guides = guidesFor(text).filter((g) => !(inclQ && g.url.endsWith("/wedding-services"))); // a page on the website answers this in detail: share the link
     const moneyish = (hardMoney(text) && !guides.length) || (!inFlow && /\b(available|availability|book|booking)\b/i.test(text));
-    const firstTouch = canQualify && !inFlow && !c.q && !CLIENT.test(text) && d.intent !== "vendor_signup";
+    // Sign-up link on words alone only for an unmistakable offer of services (see the WhatsApp handler, L34).
+    const vendorByWords = d.intent === "vendor_signup" && (d.strong || !operatorOn());
+    const firstTouch = canQualify && !inFlow && !c.q && !CLIENT.test(text) && !vendorByWords;
 
     // A vendor who already has the link writes again: read it in context and answer. Never ignore them.
     if (isVendor) {
@@ -333,7 +336,7 @@ export default async (req) => {
     if (moneyish && !firstTouch) { await toHuman("money-or-commitment"); return ok(); }
     if (CLIENT.test(text)) { await toHuman("existing-client"); return ok(); }
 
-    if (d.intent === "vendor_signup" && (!inFlow || d.strong)) {
+    if (vendorByWords && (!inFlow || d.strong)) {
       await saveIg(sid, { kind: "vendor", ...(c.q ? { q: { ...c.q, stage: "done" } } : {}) });
       if (await allow(`igreply:${sid}:vendor`, 6 * HOUR)) { await send(d.text); await incr("ig_vendor_links_sent"); }
       else if (await allow(`igreply:${sid}:vendor_reminder`, 3 * HOUR)) { await send(vendorReminder()); await incr("ig_vendor_reminders"); } // sent twice in a row: answer, do not ignore

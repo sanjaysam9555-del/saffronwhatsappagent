@@ -4,7 +4,7 @@ import { testAllows } from "../../lib/testmode.mjs";
 import { getContact, saveContact } from "../../lib/contacts.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { sheetsClient, sheetReady, live } from "../../lib/sheet.mjs";
-import { assess, rowFields, confirmParams, joinList, COL, summaryChoice, waStateAfterSummary, waStateAfterFinish } from "../../lib/leadfields.mjs";
+import { assess, rowFields, confirmParams, joinList, COL, summaryChoice, waStateAfterSummary, waStateAfterFinish, chatHolds } from "../../lib/leadfields.mjs";
 import { getIg } from "../../lib/igstate.mjs";
 import { newState } from "../../lib/qualify.mjs";
 
@@ -34,6 +34,8 @@ export default async () => {
       if (c.dnc || c.kind === "vendor") { await mark("Skipped: opted out or vendor"); continue; }
       const chat = await readChat(waId, c, 40);
       if (!chat) continue;
+      const held = chatHolds(c, chat); // the chat already belongs to the team or to the agent's questions (the lead having written last is what the audit is for)
+      if (held && held !== "lead-wrote-last") { await mark(`Skipped: ${held}`); continue; }
       if (action !== "SEND_SUMMARY" && action !== "SEND_FINISH" && chat.lastCustomerAt > chat.lastOutAt) { await mark("Skipped: lead wrote since audit"); continue; }
       if (chat.teamSpoke && (action === "SEND_SUMMARY" || action === "SEND_FINISH") && Date.now() - chat.lastTeamAt < 24 * 3600_000) { await mark("Skipped: team spoke recently"); continue; }
       const { data } = await sheets.spreadsheets.values.get({ spreadsheetId: id, range: `${main}!A${sheetRow}:Q${sheetRow}` });

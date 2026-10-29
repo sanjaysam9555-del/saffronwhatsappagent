@@ -2,11 +2,12 @@ import { normalizePhone } from "../../lib/phone.mjs";
 import { sendTemplateMessage } from "../../lib/wati.mjs";
 import { sendInstagramText } from "../../lib/manychat.mjs";
 import { sinceChange, getFlag, setFlag } from "../../lib/state.mjs";
-import { saveContact } from "../../lib/contacts.mjs";
+import { saveContact, getContact } from "../../lib/contacts.mjs";
+import { readChat } from "../../lib/team.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { sheetsClient, live } from "../../lib/sheet.mjs";
-import { COL, assess, rowFields, confirmParams, summaryLine, joinList, firstName, igNudgeText, suggestNudge, summaryChoice, waStateAfterSummary, waStateAfterFinish } from "../../lib/leadfields.mjs";
+import { COL, assess, rowFields, confirmParams, summaryLine, joinList, firstName, igNudgeText, suggestNudge, summaryChoice, waStateAfterSummary, waStateAfterFinish, chatHolds } from "../../lib/leadfields.mjs";
 import { newState, orderOf } from "../../lib/qualify.mjs";
 import { getIg, saveIg } from "../../lib/igstate.mjs";
 
@@ -100,6 +101,24 @@ export default async () => {
         if (isLive) { await incr(metric); await afterSend?.(); }
       } catch (e) { console.error(`row ${sheetRow}:`, e.message); mark("FAILED", e.message.slice(0, 100)); }
     };
+
+    // Read the chat before anything goes out: the team may already be talking to them (a call took place), they may be mid-questions with the agent or have
+    // just written. Unreadable chat: send nothing. (L34)
+    if (a.waId && (action === "SEND_SUMMARY" || action === "SEND_FINISH")) {
+      const c0 = await getContact(a.waId);
+      const chat = await readChat(a.waId, c0, 40);
+      if (!chat) { console.log(`row ${sheetRow}: chat could not be read, nothing sent`); continue; }
+      const why = chatHolds(c0, chat);
+      if (why) {
+        console.log(`row ${sheetRow}: not sent (${why})`);
+        if (why !== "lead-wrote-last") mark(why === "with-team" || why === "team-recent" ? "TEAM_IN_CHAT" : why === "in-questions" ? "IN_CHAT" : "SKIPPED");
+        continue;
+      }
+    }
+    if (action === "SEND_IG" && hasMc) { // the Instagram chat may already be with the team or stopped
+      let st = null; try { st = await getIg(mcId); } catch (e) { console.warn("instagram state:", e.message); }
+      if (st && (st.esc || st.dnc || st.kind === "vendor" || st.q?.stage === "paused")) { console.log(`row ${sheetRow}: Instagram chat is with the team, no nudge`); mark("IG_WITH_TEAM"); continue; }
+    }
 
     if (action === "SEND_SUMMARY") {
       const f = rowFields(row);

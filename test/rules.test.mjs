@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { decide, MONEY, vendorStrong, CLIENT } from "../lib/rules.mjs";
+import { decide, MONEY, vendorStrong, CLIENT, isOptOut, maybeOptOut } from "../lib/rules.mjs";
 import { normalizePhone, countryOf, theirTime, extractPhone } from "../lib/phone.mjs";
 import { guidesFor, guideText, GUIDES } from "../lib/guides.mjs";
 import { isMediaOnly, recordMedia } from "../lib/media.mjs";
@@ -8,7 +8,7 @@ import { cleanName, chunk } from "../netlify/functions/ig-process-background.mjs
 import { priceAnswer, isPriceQuestion, hardMoney, budgetLakhs } from "../lib/facts.mjs";
 import { sameName, sameDate, sameCity, classify } from "../lib/match.mjs";
 import { isUrgent, describe, openCounts, HEADERS } from "../lib/needsteam.mjs";
-import { assess, missingFields, suggestNudge, igNudgeText, summaryLine, rowFields, confirmParams, waStateAfterFinish } from "../lib/leadfields.mjs";
+import { assess, missingFields, suggestNudge, igNudgeText, summaryLine, rowFields, confirmParams, waStateAfterFinish, chatHolds } from "../lib/leadfields.mjs";
 import { newState, advance, serviceLine, doneContext, applyAfter } from "../lib/qualify.mjs";
 import { checkReply, parseModelJson } from "../lib/claude.mjs";
 import { stage, CFG } from "../netlify/functions/lead-followup.mjs";
@@ -1750,4 +1750,33 @@ test("Kapil: a reply to the 'few more details' message is read as the answer, no
   // an Instagram handle is not a first name
   assert.equal(confirmParams("@kn.follows", f).first_name, "there");
   assert.equal(confirmParams("Kapil Nair", f).first_name, "Kapil");
+});
+
+test("audit: one word never decides (opt-out, existing client, money, vendor link, scheduled sends)", () => {
+  // opt-out: a real stop is short and alone; the same words inside a longer message are read, never put on the do-not-contact list
+  for (const t of ["Stop", "not interested", "please don't call me", "unsubscribe", "Remove me"]) assert.ok(isOptOut(t), t);
+  for (const t of ["Not interested in a video call, phone call please", "Please don't call me today, call Friday", "I am not interested in decor, only planning", "we are not interested in a package with catering but want the venue help"]) {
+    assert.ok(!isOptOut(t), t);
+    assert.ok(maybeOptOut(t), `${t} is flagged to the team`);
+    assert.notEqual(decide(t).action, "optout", t);
+  }
+  // existing client: "already booked the venue" is a lead talking about their wedding
+  for (const t of ["We already booked the venue and need decor", "we have already paid the venue, need a planner", "already signed the photographer"]) assert.ok(!CLIENT.test(t), t);
+  for (const t of ["I have already booked with you", "we already paid you the advance", "I am already a client", "I paid the advance last week"]) assert.ok(CLIENT.test(t), t);
+  // money: a budget they volunteer and "in advance" are not a payment question
+  for (const t of ["our budget is flexible", "we want to book 6 months in advance", "budget is not decided yet"]) assert.equal(hardMoney(t), false, t);
+  for (const t of ["what is the advance payment?", "can I get a discount", "can we pay in instalments", "send the invoice", "any discounts?"]) assert.equal(hardMoney(t), true, t);
+  // the vendor link on words alone: only an unmistakable offer of services is "strong"; "link", "join" and "register" are not
+  for (const t of ["please send the Meet link for tomorrow's call", "my cousin will join the call from Dubai", "can we register for the planning session"]) assert.ok(decide(t).strong !== true, t);
+  assert.ok(decide("We are a decor vendor, want to work with you").strong);
+  // scheduled sends: the chat is read first
+  const now = Date.now(), chat = (o) => ({ teamSpoke: false, lastTeamAt: 0, lastCustomerAt: 0, lastOutAt: 0, ...o });
+  assert.equal(chatHolds({}, chat({})), "");
+  assert.equal(chatHolds({ q: { stage: "asking" } }, chat({})), "in-questions");
+  assert.equal(chatHolds({ humanSpoke: true }, chat({})), "with-team");
+  assert.equal(chatHolds({}, chat({ teamSpoke: true, lastTeamAt: now - 3600_000 }), now), "team-recent", "the team spoke an hour ago (we spoke on a call)");
+  assert.equal(chatHolds({}, chat({ teamSpoke: true, lastTeamAt: now - 30 * 3600_000 }), now), "");
+  assert.equal(chatHolds({}, chat({ lastCustomerAt: now - 1000, lastOutAt: now - 9000 }), now), "lead-wrote-last");
+  assert.equal(chatHolds({ dnc: true }, chat({})), "opted-out");
+  assert.equal(chatHolds({ kind: "vendor" }, chat({})), "vendor");
 });
