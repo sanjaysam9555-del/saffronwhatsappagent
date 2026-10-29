@@ -1,4 +1,6 @@
+import { withChat } from "../../lib/readgate.mjs";
 import { sendSessionMessage, sendTemplateMessage, getRecentMessages } from "../../lib/wati.mjs";
+import { contextCheck } from "../../lib/presend.mjs";
 import { analyse } from "../../lib/team.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
 import { listContacts, saveContact } from "../../lib/contacts.mjs";
@@ -15,7 +17,8 @@ export const config = { schedule: "*/30 * * * *" };
 
 const istHour = () => Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(new Date()));
 
-export default async () => {
+export default () => withChat(() => runGated()); // every message that can leave runs inside the one-rule gate (lib/readgate.mjs)
+const runGated = async () => {
   const h = istHour();
   const from = Number(process.env.SEND_FROM_HOUR || 10), to = Number(process.env.SEND_TO_HOUR || 20);
   if (h < from || h >= to) return console.log(`Outside sending hours (IST ${h}:00).`);
@@ -60,6 +63,8 @@ export default async () => {
         await logExchange({ channel: "WhatsApp", contact: `+${waId}`, lead: "(no reply yet)", agent: msg });
         await incr("nudges_sent"); sent++;
       } else {
+        const v = await contextCheck({ channel: "WhatsApp", to: waId, history: msgs, planned: `Approved template "${template}": a short reminder that we are happy to continue whenever they are ready`, purpose: "the lead went quiet; the 24-hour chat window has passed so only a template can go", state: c.q ? `stage ${c.q.stage}` : "" });
+        if (!v.send) { console.log(`follow-up ${waId}: Claude said not to send (${v.why})`); await saveContact(waId, { nudgeSkipFor: chat.lastOutAt }); continue; }
         await saveContact(waId, { agentSent: Date.now() });
         await sendTemplateMessage(waId, template, { first_name: first }, "lead-nudge");
         await logExchange({ channel: "WhatsApp", contact: `+${waId}`, lead: "(no reply yet)", agent: `Reminder template ${template} sent` });

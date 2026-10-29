@@ -1,3 +1,4 @@
+import { withChat } from "../../lib/readgate.mjs";
 import { listCalls, touchCall } from "../../lib/calls.mjs";
 import { sendSessionMessage, sendTemplateMessage, getRecentMessages } from "../../lib/wati.mjs";
 import { getContact, saveContact } from "../../lib/contacts.mjs";
@@ -7,6 +8,7 @@ import { live } from "../../lib/sheet.mjs";
 import { allow } from "../../lib/state.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
 import { logExchange } from "../../lib/playbook.mjs";
+import { contextCheck } from "../../lib/presend.mjs";
 import { afterCall, assess, nextStep, missedText, missedParams, stepTemplate, windowOpen, inSendingHours, FIRST_AFTER_MS, GIVE_UP_AFTER_MS } from "../../lib/missed.mjs";
 
 // Every 30 minutes (09:00-20:00 IST). A booked call that nobody picked up gets, from the agent itself:
@@ -18,7 +20,8 @@ export const config = { schedule: "*/30 * * * *" };
 
 const HOUR = 3600_000;
 
-export default async () => {
+export default () => withChat(() => runGated()); // every message that can leave runs inside the one-rule gate (lib/readgate.mjs)
+const runGated = async () => {
   const now = Date.now();
   if (!live()) return console.log("Not live: no missed-call follow-ups.");
   if (!inSendingHours(now)) return console.log("Outside sending hours: no missed-call follow-ups.");
@@ -37,7 +40,7 @@ export default async () => {
       const read = afterCall(msgs, call, c.agentSends || (c.agentSent ? [c.agentSent] : []));
       if (call.follow?.step) {
         const n = nextStep(call, read.lastCustomerAt, now);
-        if (n.do === "send") sent += await deliver(call, n.step, read.lastCustomerAt, c);
+        if (n.do === "send") sent += await deliver(call, n.step, read.lastCustomerAt, c, msgs);
         else if (n.do === "cold") await goCold(call);
         else if (n.why === "replied") await touchCall(call.id, { follow: { ...call.follow, state: "replied" } });
         continue;
@@ -47,7 +50,7 @@ export default async () => {
         await touchCall(call.id, { teamAsked: now });
         await logNeedsTeam({ waId: call.waId, name: call.name, channel: call.channel, reason: "missed-call-check", lastMsg: `Call ${call.label}` });
         await incr("missed_checks");
-      } else if (a.do === "send") sent += await deliver(call, 1, read.lastCustomerAt, c);
+      } else if (a.do === "send") sent += await deliver(call, 1, read.lastCustomerAt, c, msgs);
       else console.log(`missed-calls: ${call.id}: ${a.do} (${a.why})`);
     } catch (e) { console.error(`missed-calls ${call.id}:`, e.message); }
   }
@@ -56,7 +59,11 @@ export default async () => {
 
 // Sends one step. Returns 1 if a message went out. A plain chat message while their 24-hour window is open, otherwise the approved template;
 // without a template the team gets a line to do it by hand (and nothing more is sent automatically).
-async function deliver(call, step, lastCustomerAt, c) {
+async function deliver(call, step, lastCustomerAt, c, msgs) {
+  const text0 = missedText(step, call.name);
+  // Claude reads the whole chat and the planned message before it goes (the one rule, lib/readgate.mjs). It is asked again at the next run if it said no.
+  const v = await contextCheck({ channel: "WhatsApp", to: call.waId, history: msgs, planned: text0, purpose: `the booked call (${call.label}) was not picked up; missed-call follow-up ${step} of 3` });
+  if (!v.send) { console.log(`missed-calls: ${call.id}: Claude said not to send (${v.why})`); return 0; }
   if (!(await allow(`missed:${call.id}:${step}`, 12 * HOUR))) return 0; // never twice, even if two runs overlap
   const text = missedText(step, call.name);
   const tpl = stepTemplate(step);

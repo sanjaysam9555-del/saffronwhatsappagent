@@ -1,3 +1,5 @@
+import { withChat } from "../../lib/readgate.mjs";
+import { contextCheck } from "../../lib/presend.mjs";
 import { decide, ESCALATION_ACK, CLIENT, vendorWelcome, vendorReminder, jobReply, RESUME_FILE, maybeOptOut } from "../../lib/rules.mjs";
 import { operatorOn, routeMessage, ownerCommand, isOwner, COMMAND_PREFIX } from "../../lib/operator.mjs";
 import { ownerDeps } from "../../lib/operatordeps.mjs";
@@ -66,6 +68,9 @@ async function mediaRef(waId, name, label) {
     const send = async (msg) => {
       msg = paragraphs(oneEmoji(msg));
       if (isRepeatOut(c.lastOutText, c.lastOut, msg)) { console.log(`${waId}: media reply skipped, it would repeat our last message`); return; }
+      // Claude reads the chat and our planned thank-you before it goes (the one rule, lib/readgate.mjs).
+      const v = await contextCheck({ to: waId, history: await getRecentMessages(waId, 12), planned: msg, purpose: "they sent a photo, reel or link with no words: this is our short thank-you or welcome", state: c.q ? `stage ${c.q.stage}` : "no questions started yet" });
+      if (!v.send) { console.log(`${waId}: media reply not sent (${v.why})`); return; }
       await saveContact(waId, { agentSent: Date.now(), lastOut: Date.now(), lastOutText: String(msg).slice(0, 600) });
       return sendSessionMessage(waId, msg);
     };
@@ -80,7 +85,8 @@ async function mediaRef(waId, name, label) {
 
 // Wati webhook. Subscribe to: Message Received, Session Message Sent, Template Message Sent.
 //   https://<site>.netlify.app/.netlify/functions/wati-webhook?key=<WEBHOOK_SECRET>
-export default async (req) => {
+export default (req) => withChat(() => runGated(req)); // every message that can leave runs inside the one-rule gate (lib/readgate.mjs)
+const runGated = async (req) => {
   const url = new URL(req.url);
   if (url.searchParams.get("key") !== process.env.WEBHOOK_SECRET) return new Response("forbidden", { status: 403 });
   let evt;
@@ -235,6 +241,10 @@ export default async (req) => {
   const lock = await acquireLock(`wa:${waId}`); // one message at a time per chat; a quick follow-up waits for the one before it
   try {
     const c = await saveContact(waId, { lastIn: Date.now(), followups: 0, nudges: 0, name }); // a reply resets quiet follow-ups and nudges
+    // READ FIRST, before any rule answers anything: the real chat is read from Wati and handed to Claude, together with what we saved and the last question.
+    // Nothing can be sent to this person otherwise (lib/readgate.mjs). If Wati or Claude cannot be reached the send is blocked and the team is told.
+    const chat0 = await getRecentMessages(waId, 12);
+    if (chat0) await understandChat({ text, name: who, history: withoutCurrent(chat0, text), q: c.q, asked: c.q?.asked });
     pendingAsk = c.q?.stage === "asking" ? pendingQuestion(c.q) : "";
     leadQ = c.q || null;
     const contact = await lookupContact(waId); // null until Planning Studio is wired

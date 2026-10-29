@@ -1,3 +1,6 @@
+import { withChat, noteRead, exemptFromGate } from "../../lib/readgate.mjs";
+import { contextCheck } from "../../lib/presend.mjs";
+import { getRecentMessages } from "../../lib/wati.mjs";
 import { decide, ESCALATION_ACK, CLIENT, GREETING, OPTOUT, vendorWelcome, vendorReminder, jobReply, isOptOut, maybeOptOut } from "../../lib/rules.mjs";
 import { hardMoney, isPriceQuestion, priceAnswer, isInclusionsQuestion, inclusionsAnswer, budgetLakhs, MIN_BUDGET_LAKHS } from "../../lib/facts.mjs";
 import { guidesFor, guideText, readingFor } from "../../lib/guides.mjs";
@@ -50,7 +53,8 @@ export function chunk(text, max = 900) {
   return out;
 }
 
-export default async (req) => {
+export default (req) => withChat(() => runGated(req)); // every message that can leave runs inside the one-rule gate (lib/readgate.mjs)
+const runGated = async (req) => {
   const url = new URL(req.url);
   if (url.searchParams.get("key") !== process.env.WEBHOOK_SECRET) return new Response("forbidden", { status: 403 });
   const rawBody = await req.text().catch(() => "");
@@ -79,11 +83,11 @@ export default async (req) => {
   if (!sid || !testAllows({ mcId: sid })) return ok("ignored");
   if (/^\s*agenttest\s+reset\b/i.test(evtText)) { // test helper: start over
     await resetIg(sid);
-    await sendInstagramText(sid, "Test reset done. Send \"agenttest\" followed by your message to start again.");
+    exemptFromGate(sid); await sendInstagramText(sid, "Test reset done. Send \"agenttest\" followed by your message to start again.");
     return ok("reset");
   }
   if (/^\s*agenttest\s+igdebug\b/i.test(evtText)) { // test helper: what does Meta's Instagram API say?
-    await sendInstagramText(sid, await debugInstagramApi(username));
+    exemptFromGate(sid); await sendInstagramText(sid, await debugInstagramApi(username));
     return ok("igdebug");
   }
   if (blankText && alreadyAnswered) return ok("nothing new from them: our message is the newest"); // e.g. the phone card that came with a message we already answered
@@ -186,6 +190,9 @@ export default async (req) => {
       const num = String(q?.fields?.number || "");
       const waId = /pending|not shared/i.test(num) ? "" : num.replace(/\D/g, "");
       if (!tpl || !q?.callBooked || q.waConfirmSent || waId.length < 8 || waId.length > 15) return q;
+      // The one rule: their WhatsApp chat is read and Claude sees it with the planned confirmation before it goes.
+      const vw = await contextCheck({ channel: "WhatsApp", to: waId, history: await getRecentMessages(waId, 20), planned: `Approved call-confirmation template for the call on ${q.callBooked.label} with their details`, purpose: "the Instagram lead booked a call and gave their number; the confirmation goes to their WhatsApp" });
+      if (!vw.send) { console.log(`ig ${sid}: WhatsApp call confirmation not sent (${vw.why})`); await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "call-confirmation-failed", lastMsg: `Not sent: ${vw.why}` }).catch(() => {}); return q; }
       await sendTemplateMessage(waId, tpl, callBookedParams(name, q.fields, q.callBooked.label, readingFor(q.fields)), "call-confirmation");
       await incr("call_confirmations_sent");
       if (q.callBooked.eventId) await touchCall(q.callBooked.eventId, { confirmedAt: Date.now() });
@@ -247,6 +254,11 @@ export default async (req) => {
   const lock = await acquireLock(`ig:${sid}`); // one message at a time per chat; a quick follow-up waits for the one before it
   try {
     let c = await saveIg(sid, { lastIn: Date.now(), name: name || undefined, username: username || undefined });
+    // READ FIRST, before any rule answers anything: the chat (Instagram's own when it can be read, else our record) is handed to Claude with what we saved
+    // and the last question. Nothing can be sent to this person otherwise (lib/readgate.mjs).
+    const chat0 = await chatHistory(text);
+    noteRead(sid);
+    await understandChat({ text, name: who, history: chat0, q: c.q, asked: c.q?.asked });
     if (c.q?.numCard && [PLACEHOLDER, "Pending"].includes(c.q.fields?.number) && (await fillNumberFromChat(1))) c = await getIg(sid); // still unread from an earlier turn: check the chat once more
     pendingAsk = c.q?.stage === "asking" ? pendingQuestion(c.q) : "";
     leadQ = c.q || null;

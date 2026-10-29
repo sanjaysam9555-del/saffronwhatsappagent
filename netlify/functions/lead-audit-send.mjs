@@ -1,5 +1,7 @@
+import { withChat } from "../../lib/readgate.mjs";
 import { sendTemplateMessage } from "../../lib/wati.mjs";
-import { readChat } from "../../lib/team.mjs";
+import { readChatFull } from "../../lib/team.mjs";
+import { contextCheck } from "../../lib/presend.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
 import { getContact, saveContact } from "../../lib/contacts.mjs";
 import { incr } from "../../lib/metrics.mjs";
@@ -12,7 +14,8 @@ export const config = { schedule: "*/30 * * * *" };
 const TAB = "Lead Audit";
 const istHour = () => Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(new Date()));
 
-export default async () => {
+export default () => withChat(() => runGated()); // every message that can leave runs inside the one-rule gate (lib/readgate.mjs)
+const runGated = async () => {
   const h = istHour();
   if (h < Number(process.env.SEND_FROM_HOUR || 10) || h >= Number(process.env.SEND_TO_HOUR || 20)) return console.log("Outside sending hours.");
   if (!sheetReady() || !live()) return console.log("Not live or sheet not set.");
@@ -32,12 +35,15 @@ export default async () => {
     try {
       const c = await getContact(waId);
       if (c.dnc || c.kind === "vendor") { await mark("Skipped: opted out or vendor"); continue; }
-      const chat = await readChat(waId, c, 40);
+      const chat = await readChatFull(waId, c, 40);
       if (!chat) continue;
       const held = chatHolds(c, chat); // the chat already belongs to the team or to the agent's questions (the lead having written last is what the audit is for)
       if (held && held !== "lead-wrote-last") { await mark(`Skipped: ${held}`); continue; }
       if (action !== "SEND_SUMMARY" && action !== "SEND_FINISH" && chat.lastCustomerAt > chat.lastOutAt) { await mark("Skipped: lead wrote since audit"); continue; }
       if (chat.teamSpoke && (action === "SEND_SUMMARY" || action === "SEND_FINISH") && Date.now() - chat.lastTeamAt < 24 * 3600_000) { await mark("Skipped: team spoke recently"); continue; }
+      // Claude reads the whole chat and what we plan to send before it goes (the one rule, lib/readgate.mjs).
+      const vv = await contextCheck({ channel: "WhatsApp", to: waId, history: chat.msgs, planned: `Audit follow-up (${action}): ${String(r[9] || "").slice(0, 200)}`, purpose: "a lead whose chat the audit found unanswered or unfinished; we are following up on WhatsApp with an approved template" });
+      if (!vv.send) { await mark(`Skipped by Claude: ${vv.why}`.slice(0, 120)); continue; }
       const { data } = await sheets.spreadsheets.values.get({ spreadsheetId: id, range: `${main}!A${sheetRow}:Q${sheetRow}` });
       const row = data.values?.[0] || [];
       const a = assess(row);

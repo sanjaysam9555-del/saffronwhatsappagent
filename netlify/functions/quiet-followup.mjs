@@ -1,5 +1,7 @@
+import { withChat } from "../../lib/readgate.mjs";
 import { sendTemplateMessage } from "../../lib/wati.mjs";
-import { readChat } from "../../lib/team.mjs";
+import { readChatFull } from "../../lib/team.mjs";
+import { contextCheck } from "../../lib/presend.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
 import { listContacts, saveContact } from "../../lib/contacts.mjs";
 import { incr } from "../../lib/metrics.mjs";
@@ -42,7 +44,8 @@ async function applyApprovals() {
 const istHour = () =>
   Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(new Date()));
 
-export default async () => {
+export default () => withChat(() => runGated()); // every message that can leave runs inside the one-rule gate (lib/readgate.mjs)
+const runGated = async () => {
   const h = istHour();
   const from = Number(process.env.SEND_FROM_HOUR || 10), to = Number(process.env.SEND_TO_HOUR || 20);
   if (h < from || h >= to) return console.log(`Outside sending hours (IST ${h}:00).`);
@@ -57,10 +60,12 @@ export default async () => {
     if (sent >= max) break;
     if (!testAllows({ waId })) continue;
     let c = c0;
+    let chatMsgs = null; // this contact's own chat only (never carried over from the previous one)
     // Business-App messages never reach the webhook, so re-read the stored chat before deciding. Approved or live contacts only.
     if (!c.dnc && !c.hold && !c.skip && !c.esc && c.kind !== "vendor" && refreshed < 80) {
       refreshed++;
-      const chat = await readChat(waId, c);
+      const chat = await readChatFull(waId, c);
+      chatMsgs = chat?.msgs;
       if (!chat) continue; // can't see the chat: don't guess
       c = await saveContact(waId, {
         humanSpoke: c.humanSpoke || chat.teamSpoke,
@@ -71,6 +76,9 @@ export default async () => {
     if (!isEligible(c)) continue;
     const n = c.followups || 0;
     try {
+      // Claude reads the whole chat and the planned message before it goes (the one rule, lib/readgate.mjs). No chat read this run: nothing is sent.
+      const v = await contextCheck({ channel: "WhatsApp", to: waId, history: chatMsgs, planned: `Approved quiet follow-up template ${n + 1} of ${MAX_FOLLOWUPS} ("${templates[n]}"): a gentle check-in`, purpose: "the lead has been quiet; gentle follow-up outside the chat window" });
+      if (!v.send) { console.log(`quiet follow-up ${waId}: Claude said not to send (${v.why})`); continue; }
       await saveContact(waId, { agentSent: Date.now() }); // so the Sent event isn't mistaken for a human
       await sendTemplateMessage(waId, templates[n], { first_name: (c.name || "there").split(" ")[0] }, "quiet-followup");
       await saveContact(waId, { followups: n + 1, lastOut: Date.now(), agentSent: Date.now() });

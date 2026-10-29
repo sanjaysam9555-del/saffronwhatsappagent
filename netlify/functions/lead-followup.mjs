@@ -1,15 +1,17 @@
+import { withChat } from "../../lib/readgate.mjs";
 import { normalizePhone } from "../../lib/phone.mjs";
 import { sendTemplateMessage } from "../../lib/wati.mjs";
 import { sendInstagramText } from "../../lib/manychat.mjs";
-import { sinceChange, getFlag, setFlag } from "../../lib/state.mjs";
+import { sinceChange, getFlag, setFlag, allow } from "../../lib/state.mjs";
 import { saveContact, getContact } from "../../lib/contacts.mjs";
-import { readChat } from "../../lib/team.mjs";
+import { readChatFull } from "../../lib/team.mjs";
+import { contextCheck } from "../../lib/presend.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { sheetsClient, live } from "../../lib/sheet.mjs";
 import { COL, assess, rowFields, confirmParams, summaryLine, joinList, firstName, igNudgeText, suggestNudge, summaryChoice, waStateAfterSummary, waStateAfterFinish, chatHolds } from "../../lib/leadfields.mjs";
 import { newState, orderOf } from "../../lib/qualify.mjs";
-import { getIg, saveIg } from "../../lib/igstate.mjs";
+import { getIg, saveIg, getIgHistory } from "../../lib/igstate.mjs";
 
 // Runs every 5 minutes over the ManyChat-filled leads sheet. The flow asks: date, location, number, occasion, requirement.
 // "Quiet time" = time since the row last changed (ManyChat fills it column by column).
@@ -53,7 +55,8 @@ export function stage(a, quiet, inWindow, ctx = {}, cfg = CFG) {
 const istHour = () =>
   Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Asia/Kolkata" }).format(new Date()));
 
-export default async () => {
+export default () => withChat(() => runGated()); // every message that can leave runs inside the one-rule gate (lib/readgate.mjs)
+const runGated = async () => {
   const fromRow = Number(process.env.FOLLOWUP_FROM_ROW);
   if (!fromRow) return console.log("FOLLOWUP_FROM_ROW not set; nothing to do.");
   const h = istHour();
@@ -106,7 +109,7 @@ export default async () => {
     // just written. Unreadable chat: send nothing. (L34)
     if (a.waId && (action === "SEND_SUMMARY" || action === "SEND_FINISH")) {
       const c0 = await getContact(a.waId);
-      const chat = await readChat(a.waId, c0, 40);
+      const chat = await readChatFull(a.waId, c0, 40);
       if (!chat) { console.log(`row ${sheetRow}: chat could not be read, nothing sent`); continue; }
       const why = chatHolds(c0, chat);
       if (why) {
@@ -114,10 +117,21 @@ export default async () => {
         if (why !== "lead-wrote-last") mark(why === "with-team" || why === "team-recent" ? "TEAM_IN_CHAT" : why === "in-questions" ? "IN_CHAT" : "SKIPPED");
         continue;
       }
+      // Claude reads the whole chat and the planned message before it goes (the one rule). If it says no, it is looked at again in two hours.
+      if (!(await allow(`precheck:${a.waId}`, 2 * H))) continue;
+      const f0 = rowFields(row);
+      const planned = action === "SEND_SUMMARY"
+        ? `Template: "Here is what we have noted so far" with Event: ${f0.occasion || "-"}, Date: ${f0.date || "-"}, Location: ${f0.location || "-"}, Service: ${f0.requirement || "-"}; asks them to confirm or add anything.`
+        : `Template: lists what we have noted and says "we would like a few more details before we can share a quote or some designs: ${joinList(a.missing.filter((m) => m.key !== "number").map((m) => m.label)) || "a few details"}. Could you please reply here with them?"`;
+      const v = await contextCheck({ channel: "WhatsApp", to: a.waId, history: chat.msgs, planned, purpose: "scheduled message to a lead who came from Instagram and has not been messaged on WhatsApp about these details" });
+      if (!v.send) { console.log(`row ${sheetRow}: Claude said not to send (${v.why})`); continue; }
     }
     if (action === "SEND_IG" && hasMc) { // the Instagram chat may already be with the team or stopped
       let st = null; try { st = await getIg(mcId); } catch (e) { console.warn("instagram state:", e.message); }
       if (st && (st.esc || st.dnc || st.kind === "vendor" || st.q?.stage === "paused")) { console.log(`row ${sheetRow}: Instagram chat is with the team, no nudge`); mark("IG_WITH_TEAM"); continue; }
+      if (!(await allow(`precheck:ig:${mcId}`, 2 * H))) continue;
+      const v = await contextCheck({ channel: "Instagram", to: mcId, history: await getIgHistory(mcId).catch(() => null), planned: igNudgeText(row, a), purpose: "scheduled Instagram check-in to a lead who went quiet part-way through the questions", state: st?.q ? `stage ${st.q.stage}` : "" });
+      if (!v.send) { console.log(`row ${sheetRow}: Claude said not to nudge on Instagram (${v.why})`); continue; }
     }
 
     if (action === "SEND_SUMMARY") {
