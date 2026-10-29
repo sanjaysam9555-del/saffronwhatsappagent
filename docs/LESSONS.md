@@ -358,7 +358,7 @@ Entries are in the order they were learned.
 - Went wrong: the process rules (ask before pushing, batch deploys, a test, a lessons entry and a rule for every correction) sat in a CLAUDE.md of 40+ rules mixed with the agent's own behaviour rules, and slipped in long sessions.
 - Rule: process rules are enforced by git hooks (.githooks/, scripts/process-check.mjs): a code commit without a test, a lessons entry and a rule line fails; a push fails unless Swati has said "Push" (PUSH_APPROVED=1); both run the tests. CLAUDE.md stays under 45 lines (process rules and principles); every detailed agent rule lives in docs/AGENT_RULES.md; the skill saffron-fix-workflow carries the checklist.
 - Test: process: a change to the agent needs a test, a lessons entry and a rule line in the same commit
-- Commit: 0af906c
+- Commit: 4cbabf7
 
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
