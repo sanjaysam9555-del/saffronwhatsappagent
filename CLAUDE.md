@@ -6,6 +6,7 @@ The full story of each mistake (the chat, what went wrong, the rule, the test, t
 
 ## How we work together
 - Ask Swati before pushing or deploying. She replies "Push". Stop-hook notices about unpushed commits are automatic, not a request to push.
+- Every deploy costs Netlify credits (15 each; 63 deploys used 945 credits in one week). Batch: collect fixes, run the tests, and push once when she says "Push", not one push per fix. Tests, docs, CLAUDE.md and the template file never need a deploy (netlify.toml skips them). Never push only to "save" a commit.
 - Every mistake she reports becomes a lessons entry and a test (test/rules.test.mjs, test/operator.test.mjs, or a replay in test/scenarios) before it is called fixed.
 - When she shares a screenshot, work out from the chat what the lead actually said and what state the agent was in. Do not guess from one message.
 

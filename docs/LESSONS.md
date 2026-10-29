@@ -328,5 +328,13 @@ Entries are in the order they were learned.
 - Test: Zainab: 'I didn't get you' is never an answer or an addition; it is said again in simpler words, once
 - Commit: 5417676
 
+## L38 Deploys cost credits: batch them, and never deploy for a change the agent does not use
+- Date: 2026-10-29
+- Chat: Swati, Netlify usage page: 63 production deploys used 945 of the 1,010 credits spent this period (15 each); 493 credits were left with auto recharge off
+- Went wrong: nearly every fix, and every docs-only or tests-only commit, was pushed on its own, and each push is a deploy. Lessons and test commits cost as much as code changes.
+- Rule: fixes are collected and pushed together when Swati says "Push". Netlify skips the build when nothing the running agent uses changed (lib, netlify, package files, netlify.toml); tests, docs, CLAUDE.md, README and wati-templates.json never trigger a deploy. If the credits run low, the site may stop working, so the team is told before that happens.
+- Test: deploys: netlify.toml skips the build unless something the agent runs on changed
+- Commit: 0000000
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.

@@ -1,5 +1,8 @@
 [build]
   functions = "netlify/functions"
+  # Every deploy costs credits (15 each). Build only when something the running agent uses has changed; a change to the tests, docs/LESSONS.md,
+  # CLAUDE.md, README or the template reference file is not deployed. Exit 0 = skip the build, exit 1 = build.
+  ignore = "git diff --quiet $CACHED_COMMIT_REF $COMMIT_REF -- lib netlify package.json package-lock.json netlify.toml"
 
 [functions]
   node_bundler = "esbuild"
