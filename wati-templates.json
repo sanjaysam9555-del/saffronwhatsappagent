@@ -1154,5 +1154,74 @@
   "TrackingUrlVersion": 1,
   "ClientName": null,
   "FromTrial": false
+ },
+ {
+  "Id": "",
+  "TenantId": "10223625",
+  "WabaContextId": null,
+  "ClareTemplateId": null,
+  "Status": {
+   "ClareTemplateId": null,
+   "WATemplateId": null,
+   "NewStatus": 0,
+   "Feedback": null,
+   "SubmittedAt": "0001-01-01T00:00:00",
+   "CurrencyMigration": false
+  },
+  "TemplateParamMapping": [
+   {
+    "Index": 1,
+    "ParamName": "first_name"
+   }
+  ],
+  "WATemplateId": "",
+  "ElementName": "missed_shared_v1",
+  "Category": "UTILITY",
+  "CorrectCategory": null,
+  "SubCategory": "STANDARD",
+  "CatalogInfo": null,
+  "Language": "en",
+  "CustomParams": [
+   {
+    "ParamName": "first_name",
+    "ParamValue": "Meghna"
+   }
+  ],
+  "Hsm": null,
+  "HsmOriginal": "",
+  "LocalizableParams": null,
+  "LastModified": "10-29-2026",
+  "Created": "10-29-2026",
+  "LastSynchronized": "10-29-2026",
+  "Type": 1,
+  "Header": null,
+  "Body": "Hi {{first_name}}! Did you get a chance to look at what we shared?\n\nPlease let us know when we can connect next.",
+  "BodyOriginal": "",
+  "Footer": null,
+  "Buttons": [],
+  "CarouselCards": null,
+  "ButtonsType": 0,
+  "LastSubmitAttemptDate": null,
+  "SubmittedUserId": "",
+  "WABACheckPendingStatusTimes": 0,
+  "LastWABACheckStatusDate": null,
+  "ExpiresIn": 0,
+  "IncludeExpiryTime": false,
+  "AddSecurityRecommendation": false,
+  "IsUrlBtnClickTrackingEnabled": false,
+  "LimitedTimeOffer": null,
+  "Quality": 0,
+  "CreationMethod": 0,
+  "ShopifyTrigger": 0,
+  "IncludeCoupon": false,
+  "CouponType": 0,
+  "DiscountValue": null,
+  "CouponCode": null,
+  "EnableThirdPartyCheckout": false,
+  "AttributionDays": 2,
+  "TrackingUrlType": 0,
+  "TrackingUrlVersion": 1,
+  "ClientName": null,
+  "FromTrial": false
  }
 ]

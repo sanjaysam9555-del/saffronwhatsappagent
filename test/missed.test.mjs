@@ -192,3 +192,12 @@ test("missed call (Meghna step 2): after the team shared things, the chain sends
   assert.match(src("netlify/functions/missed-calls.mjs"), /nextStep\(call, read\.lastCustomerAt, now, read\)/, "the job hands the chat reading to every step");
   assert.match(src("netlify/functions/missed-calls.mjs"), /one simple follow-up asking if they had a chance to look/, "Claude is told why the message is sent");
 });
+
+test("the approved-template text for the 'did you get a chance to look' note matches what the agent would send (missed_shared_v1)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const all = JSON.parse(readFileSync(new URL("../wati-templates.json", import.meta.url), "utf8"));
+  const t = all.find((x) => x.ElementName === "missed_shared_v1");
+  assert.ok(t, "the template definition is in wati-templates.json");
+  assert.deepEqual(t.TemplateParamMapping.map((p) => p.ParamName), ["first_name"]);
+  assert.equal(t.Body.replace("{{first_name}}", "Meghna"), m.sharedText("Meghna Sethi"));
+});
