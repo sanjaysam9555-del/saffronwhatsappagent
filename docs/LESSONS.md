@@ -317,7 +317,7 @@ Entries are in the order they were learned.
 - Went wrong: L31 made the FIRST missed-call message check whether the team had since spoken to the lead. Step 2 ("Just checking in. Would you like us to set up a new time for the call with our Founders?", 9:30 AM) did not: once step 1 had gone, the chain moved on by the clock alone, a day later, even though the team had shared the Drive link and written "like we discussed on call" in the meantime (and had deleted our first note from the chat). The team was talking to her; the agent asked as if nobody had been. This message went out from the code that ran before the one-rule gate was pushed.
 - Rule: every step of the chain (2, 3 and going cold) reads the chat first. If the team wrote anything to the lead since our last note (not a "tried calling" text), the chain stops with state "team" and nothing more is sent. A note the team deleted cannot be seen through Wati, so the team's later messages are what stop it.
 - Test: missed call (Meghna step 2): the follow-up chain re-reads the chat at every step and stops when the team has been in touch
-- Commit: 1d4386c
+- Commit: 3dc0c1b
 
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
