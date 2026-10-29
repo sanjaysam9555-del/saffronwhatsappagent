@@ -1,0 +1,4 @@
+#!/bin/sh
+# Rules from CLAUDE.md, enforced. Turn on once per clone: npm run setup
+node scripts/process-check.mjs commit || exit 1
+node --test >/dev/null 2>&1 || { echo "pre-commit: node --test fails; fix it before committing"; node --test 2>&1 | grep -E "^not ok|^# (pass|fail)"; exit 1; }

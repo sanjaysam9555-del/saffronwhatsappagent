@@ -6,7 +6,7 @@ How to add one (do this every time Swati corrects something, before calling it f
 1. Add an entry below, copying the shape of the others.
 2. `Test:` is a piece of the title of a test in test/ that covers it. `test/lessons.test.mjs` fails if no test has that text in its title, or if the commit does not exist.
 3. If the mistake is a type that can be spotted in the message itself, add it to lib/guard.mjs with a test in test/guard.test.mjs and name it in `Guard:`.
-4. Put the one-line rule in CLAUDE.md as well.
+4. Put the one-line rule in docs/AGENT_RULES.md (CLAUDE.md is kept short; the pre-commit hook fails a code commit without the test, this entry and the rule line).
 
 Entries are in the order they were learned.
 
@@ -351,6 +351,14 @@ Entries are in the order they were learned.
 - Rule: a question about the total cost of a wedding, or whether we can do it within a budget (budgetQuestionKind), is answered by Claude in its own words and in the context of the chat, from BUDGET_FACTS only: the planning fee is flat and starts at 3.5 lakh; the wedding budget is entirely the client's choice (venue, guests, preferences); as an idea only, about 30 lakh for 100 guests up to about 60 lakh for 250 guests; a 3-star venue can cost about 40% less than a 5-star; invite them to share how, when and where they envision it. "Can you do it within X?" gets: we can get it done, it entirely depends on preferences, no figures. The context always comes first; only then the invitation to walk through the process and a couple of venue options, and then the usual next question (the contact number on Instagram). Every figure is checked (checkBudgetText); if Claude is unavailable or says anything else (another number, a discount, a guarantee, a question, a link) the fixed text (budgetFallback) is sent. Budgets under 40 lakh are still flagged quietly to the team and the lead is never told she is under budget. Discounts, negotiation, payments and contracts still go to a person (hardMoney).
 - Test: budget: Rajlakshmi's question is a question about the total cost, our fee question is not
 - Commit: 842cc59
+
+## L41 The working rules must not depend on being remembered
+- Date: 2026-10-30
+- Chat: Swati, after a long session ("you keep forgetting the rules")
+- Went wrong: the process rules (ask before pushing, batch deploys, a test, a lessons entry and a rule for every correction) sat in a CLAUDE.md of 40+ rules mixed with the agent's own behaviour rules, and slipped in long sessions.
+- Rule: process rules are enforced by git hooks (.githooks/, scripts/process-check.mjs): a code commit without a test, a lessons entry and a rule line fails; a push fails unless Swati has said "Push" (PUSH_APPROVED=1); both run the tests. CLAUDE.md stays under 45 lines (process rules and principles); every detailed agent rule lives in docs/AGENT_RULES.md; the skill saffron-fix-workflow carries the checklist.
+- Test: process: a change to the agent needs a test, a lessons entry and a rule line in the same commit
+- Commit: 0af906c
 
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
