@@ -92,7 +92,7 @@ const runGated = async (req) => {
   }
   if (blankText && alreadyAnswered) return ok("nothing new from them: our message is the newest"); // e.g. the phone card that came with a message we already answered
   if (recoveredId && !(await allow(`igmid:${sid}:${recoveredId}`, 24 * HOUR))) return ok("that message was already answered"); // the message and its card each start a run
-  if (!(await allow(`igevt:${sid}:${rawText.slice(0, 40)}`, recoveredId ? 60_000 : 15_000))) return ok("duplicate"); // ManyChat can fire twice
+  if (!(await allow(`igevt:${sid}:${rawText.slice(0, 40)}`, recoveredId ? 60_000 : 45_000))) return ok("duplicate"); // ManyChat can fire twice
 
   // Burst handling: only the last message of a burst answers, to all of them.
   const msgId = await queueMessage(sid, rawText);
@@ -253,7 +253,14 @@ const runGated = async (req) => {
   };
   const lock = await acquireLock(`ig:${sid}`); // one message at a time per chat; a quick follow-up waits for the one before it
   try {
-    let c = await saveIg(sid, { lastIn: Date.now(), name: name || undefined, username: username || undefined });
+    // The same message handled a moment ago by the run we just waited for (ManyChat fires twice, a little more than 15 seconds apart): already answered, so
+    // it must not be read again as a NEW message, which is how "I didn't get you" became a second "Thank you, we have noted this" (Zainab, L37).
+    const before = await getIg(sid), sameKey = String(text).trim().slice(0, 120);
+    if (lock.waited && before.lastInKey === sameKey && Date.now() - (before.lastIn || 0) < 90_000 && (before.lastOut || 0) > (before.lastIn || 0)) {
+      console.log(`ig ${sid}: the same message was just answered by the run before; not answering it twice`);
+      return ok("answered by the run before");
+    }
+    let c = await saveIg(sid, { lastIn: Date.now(), lastInKey: sameKey, name: name || undefined, username: username || undefined });
     // READ FIRST, before any rule answers anything: the chat (Instagram's own when it can be read, else our record) is handed to Claude with what we saved
     // and the last question. Nothing can be sent to this person otherwise (lib/readgate.mjs).
     const chat0 = await chatHistory(text);
@@ -447,6 +454,7 @@ const runGated = async (req) => {
     delete extracted.number;
     if (ph.status === "ok") extracted.number = `+${ph.number}`;
     if (ph.status === "ambiguous") extracted.numberAmbiguous = true;
+    if (read?.intent === "confused") extracted.confused = true; // they did not understand us: said again in simpler words (L37)
     let opener = "";
     if (firstTouch && !GREETING.test(text)) opener = (await draftOpening({ text, name: who, greeted: c.greeted })) || "";
     const pre = asking ? [inclQ ? inclusionsAnswer(text) : priceQ ? priceAnswer(text) : "", guides.length ? guideText(guides) : ""].filter(Boolean).join("\n\n") : "";

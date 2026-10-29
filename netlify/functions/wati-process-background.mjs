@@ -461,6 +461,7 @@ const runGated = async (req) => {
       }
       if (read?.complaint && q.stage !== "new") { await toHuman("complaint"); return ok(); }
       const extracted = q.stage === "asking" || q.stage === "new" || (q.stage === "confirm" && (CORRECTION.test(text) || q.fixAsked || read?.intent === "correcting")) ? (!GREETING.test(text) && !dupAnswered ? await extractFields(text, q.asked, read) : {}) : {};
+      if (read?.intent === "confused") extracted.confused = true; // they did not understand us: said again in simpler words (L37)
       let opener = "";
       if (firstTouch && !GREETING.test(text)) opener = (await draftOpening({ text, name: who, greeted: c.greeted })) || "";
       const pre = asking && !dupAnswered ? [inclQ ? inclusionsAnswer(text) : priceQ ? priceAnswer(text) : "", guides.length ? guideText(guides) : ""].filter(Boolean).join("\n\n") : "";

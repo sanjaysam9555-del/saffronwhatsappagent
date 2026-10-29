@@ -320,5 +320,13 @@ Entries are in the order they were learned.
 - Test: missed call (Meghna step 2): after the team shared things, the chain sends one simple follow-up instead of asking for a new call time
 - Commit: 9c231db
 
+## L37 "I didn't get you" is not an answer and not an addition: say it again in simpler words
+- Date: 2026-10-29
+- Chat: Zainab, Instagram (13:38 UTC, 28 Oct)
+- Went wrong: Zainab replied to "Would you like help with full planning, decoration only, or both?" with "I didn't get you". Nothing in the flow knew that this means "I did not understand your message". The agent sent the summary with "Looking for: Planning and Decoration", which she had never said (I could not see her saved record, so I cannot say for certain where that value came from). The same message was then handled by a second run (ManyChat delivered it twice, just over 15 seconds apart, so the duplicate check let it through). The second run found the chat at the summary stage and read "I didn't get you" as something she had ADDED to the summary: "Thank you, we have noted this. Our planner will review everything and be in touch shortly", and the team was told "added extra details". She still had not been helped.
+- Rule: a message that says the lead did not understand us ("I didn't get you", "what do you mean", "samajh nahi aaya", or Claude's reading says intent "confused") is never an answer, never an addition and never a complaint. Nothing is saved from it. We say the last thing again in plainer words, once (a different wording each time: the question simply, the summary as "Is everything correct?", the call question with what the call is for), and the question stays open. A second confusion in a row goes to a person. A message that is confused AND gives a detail is read as the detail. Also: a message answered a moment ago by the run we waited for is not answered again (lastInKey, 90 seconds), and the duplicate window is 45 seconds instead of 15.
+- Test: Zainab: 'I didn't get you' is never an answer or an addition; it is said again in simpler words, once
+- Commit: 0000000
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.

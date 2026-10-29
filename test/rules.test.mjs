@@ -1780,3 +1780,48 @@ test("audit: one word never decides (opt-out, existing client, money, vendor lin
   assert.equal(chatHolds({ dnc: true }, chat({})), "opted-out");
   assert.equal(chatHolds({ kind: "vendor" }, chat({})), "vendor");
 });
+
+test("Zainab: 'I didn't get you' is never an answer or an addition; it is said again in simpler words, once", async () => {
+  const { CONFUSED } = await import("../lib/qualify.mjs");
+  for (const yes of ["I didn't get you", "I didn’t get you", "i did not understand", "What do you mean?", "sorry?", "samajh nahi aaya", "Pardon", "I am confused", "can't understand this"]) assert.match(yes, CONFUSED, yes);
+  for (const no of ["both", "Wedding in January 2027", "I get it, thanks", "yes", "Planning and decoration"]) assert.doesNotMatch(no, CONFUSED, no);
+  // walk to the last question (requirement), as in the chat
+  let r = advance(newState(), "hi", {}, "Zainab");
+  r = advance(r.q, "wedding", {}); r = advance(r.q, "January 2027", {}); r = advance(r.q, "Bangalore", {}); r = advance(r.q, "300", {});
+  assert.equal(r.q.asked, "requirement");
+  // she did not understand the last question: nothing is saved from it, the question stays, and it comes back in plainer words
+  const c1 = advance(r.q, "I didn't get you", {}, "Zainab");
+  assert.equal(c1.kind, "clarify");
+  assert.equal(c1.q.asked, "requirement");
+  assert.ok(!c1.q.fields.requirement, "\"I didn't get you\" is not a requirement");
+  assert.match(c1.reply, /^Sorry for the confusion!/);
+  assert.match(c1.reply, /whole event.*decoration only.*both/s);
+  assert.notEqual(c1.reply, "Would you like help with full planning, decoration only, or both?", "never the same words again");
+  // her next message answers it normally
+  const ok = advance(c1.q, "both", { requirement: "both" }, "Zainab");
+  assert.equal(ok.q.fields.requirement, "Planning + Decoration");
+  assert.equal(ok.q.confusedTries, undefined, "the count is reset by a real answer");
+  // twice in a row: a person reads it
+  assert.equal(advance(c1.q, "still don't get it", {}, "Zainab").kind, "escalate");
+  // after the summary: not "Thank you, we have noted this", and not a person; the summary is asked about again in plain words
+  const sum = advance(ok.q, "x", { requirement: "both" }, "Zainab");
+  const conf = sum.q.stage === "confirm" ? sum : null;
+  assert.ok(conf, "the summary stage was reached");
+  const c2 = advance(conf.q, "I didn't get you", {}, "Zainab");
+  assert.equal(c2.kind, "clarify");
+  assert.doesNotMatch(c2.reply, /noted this|planner will review/i);
+  assert.match(c2.reply, /Is everything correct\?/);
+  assert.ok(!/didn.t get you/i.test(c2.q.notes || ""), "not saved as an addition");
+  assert.equal(c2.q.stage, "confirm");
+  // a confused message that also carries a detail is read as the detail
+  assert.notEqual(advance(r.q, "I didn't get you, planning and decor both", { requirement: "planning and decor" }, "Zainab").kind, "clarify");
+  // the reading step can flag it too (a wording the pattern does not know)
+  assert.equal(advance(conf.q, "could you put that differently", { confused: true }, "Zainab").kind, "clarify");
+  // the structure: both handlers pass Claude's reading on, one message is never answered by two runs, and the reading knows the intent
+  const { readFileSync } = await import("node:fs");
+  const src = (p) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
+  assert.match(src("netlify/functions/ig-process-background.mjs"), /read\?\.intent === "confused"\) extracted\.confused = true/);
+  assert.match(src("netlify/functions/wati-process-background.mjs"), /read\?\.intent === "confused"\) extracted\.confused = true/);
+  assert.match(src("netlify/functions/ig-process-background.mjs"), /not answering it twice/);
+  assert.match(src("lib/understand.mjs"), /"confused"/);
+});
