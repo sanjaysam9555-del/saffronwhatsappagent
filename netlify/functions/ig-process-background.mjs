@@ -8,7 +8,7 @@ import { extractPhone } from "../../lib/phone.mjs";
 import { sendTemplateMessage } from "../../lib/wati.mjs";
 import { callBookedParams } from "../../lib/leadfields.mjs";
 import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playbook.mjs";
-import { holdContact } from "../../lib/qualify.mjs";
+import { holdContact, resumeOnNumber } from "../../lib/qualify.mjs";
 import { extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail } from "../../lib/claude.mjs";
 import { newState, advance, numberInChat, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest, slotStillFree } from "../../lib/calendar.mjs";
@@ -174,7 +174,7 @@ const runGated = async (req) => {
       if (taught) { await send(pendingAsk ? `${taught}\n\n${pendingAsk}` : taught); await incr("playbook_answers"); return; }
       await recordQuestion({ channel: "Instagram", text });
     }
-    await saveIg(sid, { esc: true, escAt: Date.now() });
+    await saveIg(sid, { esc: true, escAt: Date.now(), escReason: reason });
     if (ack && (await allow(`igack:${sid}`, 6 * HOUR))) await send(hold || (await draftHold({ text, name: who })) || ESCALATION_ACK);
     await incr("ig_escalations");
     console.log(`ESCALATE ig ${sid} (${reason}): ${text.slice(0, 120)}`);
@@ -294,6 +294,26 @@ const runGated = async (req) => {
         await saveIg(sid, { esc: true, ...(c.q ? { q: { ...c.q, stage: "paused" } } : {}) });
         await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "media-received", lastMsg: "[sent several files or links]" });
         return ok("media burst");
+      }
+    }
+    // Paused only because the agent handed over softly, and WE then asked for their number: the number is the answer to our question. Keep it and offer times.
+    if (c.esc && c.q && calendarEnabled() && !mediaCount) {
+      const p1 = extractPhone(text), e1 = extractEmail(text);
+      if (resumeOnNumber(c, { shared: p1.status === "ok" || Boolean(e1) })) {
+        const held = holdContact(c.q, { number: p1.status === "ok" ? `+${p1.number}` : "", email: e1 });
+        try {
+          const ft = await fastTrack({ ...held, stage: "call" }, { name: name || label, svc: "", deps: consultDeps });
+          if (ft) {
+            const nq = { ...ft.q, confirmed: true, notes: [ft.q.notes, "Shared their number after our check-in; call times offered"].filter(Boolean).join(" / ").slice(0, 400) };
+            await saveIg(sid, { esc: false, q: nq });
+            await upsertInstagramLead(sid, name || label, nq, { notes: nq.notes, lastMsg: text.slice(0, 200) });
+            await send(ft.reply);
+            await incr("calls_requested");
+            console.log(`ig ${sid}: number shared after our check-in while paused: times offered`);
+            return ok();
+          }
+        } catch (e) { console.error("offering times after the number failed:", e.message); }
+        await saveIg(sid, { q: held }); // could not offer times: the number is kept and the chat stays with the team (below)
       }
     }
     if (c.esc || c.q?.stage === "paused" || (c.kind === "vendor" && mediaCount && !message)) {
@@ -531,6 +551,7 @@ const runGated = async (req) => {
     if (pre) await incr("price_answers");
     if (r.kind === "summary") await incr("ig_leads_completed");
     if (r.kind === "confirmed") await incr("ig_leads_confirmed");
+    if (r.kind === "confirmed" && r.extra) await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "lead-question", lastMsg: r.extra, reply: "(confirmed the summary and asked this; the call was offered, the agent stays on the chat)" });
     if (r.kind === "call-pref") { await incr("calls_requested"); await toHuman("ready-for-call", false); }
     else if (r.kind === "addition") await toHuman("lead-added-details", false);
     else if (firstTouch && moneyish) await toHuman("pricing-or-availability-question", false);

@@ -547,6 +547,7 @@ const runGated = async (req) => {
       if (pre) await incr("price_answers");
       if (r.kind === "summary") await incr("wa_leads_completed");
       if (r.kind === "confirmed") await incr("wa_leads_confirmed");
+      if (r.kind === "confirmed" && r.extra) await logNeedsTeam({ waId, name, reason: "lead-question", lastMsg: r.extra, reply: "(confirmed the summary and asked this; the call was offered, the agent stays on the chat)" });
       if (r.kind === "call-pref") { await incr("calls_requested"); await toHuman("ready-for-call", false); } // the team sends times
       else if (r.kind === "addition") await toHuman("lead-added-details", false); // a person should read what they added
       else if (firstTouch && moneyish) await toHuman("pricing-or-availability-question", false); // flag the team; the flow carries on

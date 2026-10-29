@@ -1825,3 +1825,39 @@ test("Zainab: 'I didn't get you' is never an answer or an addition; it is said a
   assert.match(src("netlify/functions/ig-process-background.mjs"), /not answering it twice/);
   assert.match(src("lib/understand.mjs"), /"confused"/);
 });
+
+test("Siddharth: 'It's correct. I'd like to know the property options and costs' confirms the summary, the question goes to the team, and the call is offered", async () => {
+  const { isConfirmation, confirmExtra, resumeOnNumber } = await import("../lib/qualify.mjs");
+  const msg = "It's correct. I'd like to know the different property options and their costs";
+  assert.equal(isConfirmation(msg), true, "it confirms, whatever else it says");
+  assert.equal(confirmExtra(msg), "I'd like to know the different property options and their costs");
+  for (const yes of ["It's correct", "That's right", "This is all correct", "It’s absolutely correct, thanks", "All the details are correct", "yes"]) assert.equal(isConfirmation(yes), true, yes);
+  for (const no of ["It's not correct", "It's correct but the date is wrong", "That's wrong", "it is not right, the city is Delhi"]) assert.equal(isConfirmation(no), false, no);
+  assert.equal(confirmExtra("yes"), "");
+  // through the flow: the call is offered, the question is kept and flagged for the team, no pause
+  let r = advance(newState(), "hi", {}, "Siddharth");
+  r = advance(r.q, "wedding", {}); r = advance(r.q, "December 2027", {}); r = advance(r.q, "Mumbai or Delhi", {}); r = advance(r.q, "175", {}); r = advance(r.q, "both", { requirement: "both" });
+  assert.equal(r.q.stage, "confirm");
+  const c = advance(r.q, msg, {}, "Siddharth");
+  assert.equal(c.kind, "confirmed");
+  assert.equal(c.extra, "I'd like to know the different property options and their costs");
+  assert.match(c.reply, /Thank you for confirming!/);
+  assert.match(c.reply, /Google Meet video call or a phone call/);
+  assert.match(c.q.notes, /Asked when confirming/);
+  assert.equal(c.q.stage, "call");
+  // the number he sends after our check-in is the answer to our question, even though the chat was paused softly
+  const paused = { esc: true, escAt: 1000, escReason: "lead-added-details", q: { stage: "confirm" }, lastOut: 2000, lastOutText: "Hi Siddharth! Just checking in. What is the best WhatsApp number to reach you on?" };
+  assert.equal(resumeOnNumber(paused, { shared: true }), true);
+  assert.equal(resumeOnNumber({ ...paused, escReason: undefined }, { shared: true }), true, "a chat paused before the reason was saved, at the summary");
+  assert.equal(resumeOnNumber(paused, { shared: false }), false, "no number or email in the message");
+  assert.equal(resumeOnNumber({ ...paused, escReason: "complaint" }, { shared: true }), false, "a real handover stays with the team");
+  assert.equal(resumeOnNumber({ ...paused, lastOut: 500 }, { shared: true }), false, "we did not write after the handover");
+  assert.equal(resumeOnNumber({ ...paused, lastOutText: "Thank you, we have noted this." }, { shared: true }), false, "we asked nothing about a number");
+  assert.equal(resumeOnNumber({ ...paused, q: { stage: "confirm", callBooked: { eventId: "e1" } } }, { shared: true }), false, "already booked");
+  const { readFileSync } = await import("node:fs");
+  const src = (p) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
+  assert.match(src("netlify/functions/ig-process-background.mjs"), /escReason: reason/);
+  assert.match(src("netlify/functions/ig-process-background.mjs"), /resumeOnNumber\(c, \{ shared:/);
+  assert.match(src("netlify/functions/ig-process-background.mjs"), /r\.kind === "confirmed" && r\.extra/);
+  assert.match(src("netlify/functions/wati-process-background.mjs"), /r\.kind === "confirmed" && r\.extra/);
+});

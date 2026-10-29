@@ -336,5 +336,13 @@ Entries are in the order they were learned.
 - Test: deploys: netlify.toml skips the build unless something the agent runs on changed
 - Commit: 5402b69
 
+## L39 "It's correct, and I'd like to know..." confirms; a number sent after our check-in is never dropped in silence
+- Date: 2026-10-29
+- Chat: Siddharth, Instagram (summary confirmed, then a number at 2:16 PM IST)
+- Went wrong: (1) He answered the summary with "It's correct. I'd like to know the different property options and their costs". A confirmation was only recognised when it was short (10 words) and started with "yes/correct/right"; "It's correct" at the start of a longer reply was not, so the whole message was read as an addition: "Thank you, we have noted this. Our planner will review everything", no call offered, and the agent handed the chat to the team, which always pauses the agent. (2) Later our check-in asked "What is the best WhatsApp number to reach you on?" and he answered with his number at 2:16 PM. The chat was still paused from step 1, so the handler read the chat, kept the number for the team and sent nothing at all (the logs show the chat read, no reply, no error). A person who answers a question we asked was left without a word, and no call was offered.
+- Rule: "It's correct", "That's right", "This is all correct" at the start of a reply confirm the summary, even with more after it; what comes after is kept in the notes and told to the team (lead-question) while the agent carries on with the call offer, without pausing. A chat paused only because the agent itself handed over softly (an addition to the summary, escReason "lead-added-details"; nobody on the team has written) is not closed: if we later asked for the number and they send it, the number is kept and call times are offered at once (resumeOnNumber). A real handover (complaint, a question only a person can answer) still stays with the team. Not verified: how the 10:00 AM check-in was sent while the chat was paused (the Instagram nudge job is supposed to skip paused chats).
+- Test: Siddharth: 'It's correct. I'd like to know the property options and costs' confirms the summary, the question goes to the team, and the call is offered
+- Commit: 0000000
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
