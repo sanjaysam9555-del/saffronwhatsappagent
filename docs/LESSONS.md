@@ -294,5 +294,13 @@ Entries are in the order they were learned.
 - Test: Kapil: the router is told we wrote first, and cannot hand over as 'money' a reply that has no money in it
 - Commit: 85c369d
 
+## L34 Audit: no single word decides, and nothing is sent before the chat is read
+- Date: 2026-10-29
+- Chat: found while auditing after Kapil (L32, L33); no new chat yet, but each of these would have hit a real lead
+- Went wrong: the same mistake as Kapil sat in other places. (1) A stop word ("not interested", "don't call") inside a longer message put the lead on the do-not-contact list: "not interested in a video call, phone please" would have ended the chat for good. (2) "already booked" or "paid the" made a lead an existing client: "we already booked the venue" was handed to the team. (3) "budget" or "advance" made a message money: "book in advance" was handed to the team. (4) The words "link", "join" or "register" sent the vendor sign-up link before the front desk read the chat: a client asking for "the Meet link" could get it. (5) The scheduled "summary / a few more details" sender read no chat at all: it could message someone the team was already speaking to, or someone mid-questions with the agent.
+- Rule: a stop is short and stands alone (isOptOut); the same words in a longer message are read normally and the team is told (possible-opt-out), no do-not-contact flag. Existing client needs "with you/us" or the advance/final payment to us. Money needs a payment word ("advance payment", not "in advance"; a volunteered budget is noted). The vendor link goes on words alone only for an unmistakable offer of services; anything softer goes to the front desk with the chat. Every scheduled message to a lead reads the chat first and sends nothing if the team has the chat, the lead is mid-questions, the lead wrote last (chatHolds), or the chat cannot be read; the same on Instagram when the chat is with the team.
+- Test: audit: one word never decides (opt-out, existing client, money, vendor link, scheduled sends)
+- Commit: 901c31c
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
