@@ -278,5 +278,13 @@ Entries are in the order they were learned.
 - Test: missed call (Meghna): a 'tried calling' text followed by the team speaking to the lead is not a missed call
 - Commit: 9828b66
 
+## L32 Every message we send that asks something must save what we asked
+- Date: 2026-10-29
+- Chat: Kapil, @kn.follows (Instagram lead), WhatsApp
+- Went wrong: at 10:00 AM the "we would like a few more details: event date, location and what you need from us" template went out (greeting him as "Hi @kn.follows"). It saved no conversation state. At 11:38 he answered "Planning in the coming year, dates not finalized" and the agent treated him as a stranger writing for the first time: the AI front desk guessed "money" and handed him to the team with "a member of our team will get back to you", without asking his location or offering a call. A further gap: "dates not finalized" is a real answer, but would have been asked again as a vague date.
+- Rule: any template or message that asks the lead something (the summary, the "few more details" message, a check-in) records the question it asked (waStateAfterFinish, waStateAfterSummary), so the reply is read as its answer. A lead we wrote to first (a sheet row and our last message in the chat) is never treated as a stranger, even if the state was not saved (sheetLead). A profile handle ("@name") is not a first name: the greeting says "there". "Not finalized", "not fixed", "not decided" count as a date answer, asked about once at most.
+- Test: Kapil: a reply to the 'few more details' message is read as the answer, not handed to the team as a stranger
+- Commit: 6aab647
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
