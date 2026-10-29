@@ -318,7 +318,7 @@ Entries are in the order they were learned.
 - What Swati said it should have been: "Hi Meghna, did you get a chance to look at the things we shared? Please let us know when we can connect next." Simple, for people we have already spoken to and sent details.
 - Rule: every step of the chain (2, 3 and going cold) reads the chat first. If the call was missed and the team has since spoken to the lead or shared details (not a "tried calling" text), the agent never asks about "a new time for the call with our Founders". It sends ONE simple follow-up (sharedText), a day after the team's last message, with its own template (CALL_MISSED_SHARED_TEMPLATE; without one the team gets the draft to send by hand). That is the end of the chain: nothing more is sent, then cold. This holds for the first message as well as for steps 2 and 3. A note the team deleted cannot be seen through Wati, so the team's later messages are what show it. If the team spoke and nobody ever said the call was missed, the call happened and nothing is sent.
 - Test: missed call (Meghna step 2): after the team shared things, the chain sends one simple follow-up instead of asking for a new call time
-- Commit: 3dc0c1b, 9c231db
+- Commit: 9c231db
 
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
