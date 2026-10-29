@@ -144,8 +144,9 @@ test("missed call (Meghna): a 'tried calling' text followed by the team speaking
   assert.equal(read([tried]).teamSaysMissed, true, "on its own it is a missed call");
   const r = read([tried, ...later]);
   assert.equal(r.teamSaysMissed, false, "the team got through afterwards");
-  // never the "new time for the call" question: one simple "did you get a chance to look", a day after the team's last message
+  // never the "new time for the call" question: one simple "did you get a chance to look", 36 hours after the team's last message, so she can go through what was shared
   assert.equal(m.assess(call(), r, START + 10 * H).do, "wait");
+  assert.equal(m.assess(call(), r, START + 3 * H + 60_000 + 35 * H).do, "wait", "not inside 36 hours of the team's message");
   const a = m.assess(call(), r, START + 40 * H);
   assert.equal(a.do, "send");
   assert.equal(a.kind, "shared");
@@ -155,10 +156,10 @@ test("missed call (Meghna): a 'tried calling' text followed by the team speaking
   assert.doesNotMatch(txt, /new time for the call|Founders|"yes"|🌼/);
   // a second 'could not connect' after the link is the last word again
   assert.equal(read([tried, ...later, team(START + 5 * H, "Tried calling again, no answer")]).teamSaysMissed, true);
-  // the owner flagged it, then the team wrote to the lead: the simple follow-up, after a day
+  // the owner flagged it, then the team wrote to the lead: the simple follow-up, after 36 hours
   const flagged = START + 2 * H;
-  assert.equal(m.assess(call({ missedFlag: flagged }), read([team(flagged + H, "Sharing the proposal as discussed")]), flagged + 20 * H).do, "wait");
-  assert.equal(m.assess(call({ missedFlag: flagged }), read([team(flagged + H, "Sharing the proposal as discussed")]), flagged + 26 * H).kind, "shared");
+  assert.equal(m.assess(call({ missedFlag: flagged }), read([team(flagged + H, "Sharing the proposal as discussed")]), flagged + 36 * H).do, "wait");
+  assert.equal(m.assess(call({ missedFlag: flagged }), read([team(flagged + H, "Sharing the proposal as discussed")]), flagged + 38 * H).kind, "shared");
   // the team spoke and nobody ever said the call was missed: the call happened, nothing is sent
   assert.equal(m.assess(call(), read([team(START + H, "Thank you for your time today, sharing the proposal")]), START + 40 * H).do, "skip");
   // the owner flagged it and nobody wrote since: send
@@ -173,8 +174,9 @@ test("missed call (Meghna step 2): after the team shared things, the chain sends
   // the team shared a link / spoke to her after our note (even if our note was deleted from the chat): not the "new time" question
   const spoke = [...ours, team(T + 3 * H, "Sharing our drive link, like we discussed on call")];
   const r = read(spoke, call(), [T]);
-  assert.equal(m.nextStep(f(1), 0, T + 24 * H, r).do, "wait", "a day after the team's last message, not before");
-  assert.deepEqual(m.nextStep(f(1), 0, T + 28 * H, r), { do: "send", step: 2, kind: "shared" });
+  assert.equal(m.nextStep(f(1), 0, T + 24 * H, r).do, "wait", "36 hours after the team's last message, not before");
+  assert.equal(m.nextStep(f(1), 0, T + 38 * H, r).do, "wait", "still inside the 36 hours");
+  assert.deepEqual(m.nextStep(f(1), 0, T + 40 * H, r), { do: "send", step: 2, kind: "shared" });
   assert.deepEqual(m.nextStep(f(2), 0, T + 52 * H, r), { do: "send", step: 3, kind: "shared" });
   assert.equal(m.nextStep(f(3), 0, T + 52 * H, r).do, "none", "after the last note the team has it");
   // the simple follow-up is the end of the chain: nothing more is sent, then cold
