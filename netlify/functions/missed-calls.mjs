@@ -9,7 +9,7 @@ import { allow } from "../../lib/state.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
 import { logExchange } from "../../lib/playbook.mjs";
 import { contextCheck } from "../../lib/presend.mjs";
-import { afterCall, assess, nextStep, missedText, missedParams, stepTemplate, windowOpen, inSendingHours, FIRST_AFTER_MS, GIVE_UP_AFTER_MS } from "../../lib/missed.mjs";
+import { afterCall, assess, nextStep, missedText, sharedText, missedParams, stepTemplate, windowOpen, inSendingHours, FIRST_AFTER_MS, GIVE_UP_AFTER_MS } from "../../lib/missed.mjs";
 
 // Every 30 minutes (09:00-20:00 IST). A booked call that nobody picked up gets, from the agent itself:
 //   1. a QUESTION ("we could not connect last time, would you like to connect at a different time?"). Times are offered only after the lead says yes (the WhatsApp handler does that),
@@ -40,10 +40,10 @@ const runGated = async () => {
       const read = afterCall(msgs, call, c.agentSends || (c.agentSent ? [c.agentSent] : []));
       if (call.follow?.step) {
         const n = nextStep(call, read.lastCustomerAt, now, read);
-        if (n.do === "send") sent += await deliver(call, n.step, read.lastCustomerAt, c, msgs);
+        if (n.do === "send") sent += await deliver(call, n.step, read.lastCustomerAt, c, msgs, n.kind);
         else if (n.do === "cold") await goCold(call);
         else if (n.why === "replied") await touchCall(call.id, { follow: { ...call.follow, state: "replied" } });
-        else if (n.why === "team") { console.log(`missed-calls: ${call.id}: the team has been in touch since our last note, chain stopped`); await touchCall(call.id, { follow: { ...call.follow, state: "team" } }); }
+        else if (n.why === "team" && n.do === "none") { console.log(`missed-calls: ${call.id}: the team has been in touch since our last note, chain stopped`); await touchCall(call.id, { follow: { ...call.follow, state: "team" } }); }
         continue;
       }
       const a = assess(call, read, now);
@@ -51,7 +51,7 @@ const runGated = async () => {
         await touchCall(call.id, { teamAsked: now });
         await logNeedsTeam({ waId: call.waId, name: call.name, channel: call.channel, reason: "missed-call-check", lastMsg: `Call ${call.label}` });
         await incr("missed_checks");
-      } else if (a.do === "send") sent += await deliver(call, 1, read.lastCustomerAt, c, msgs);
+      } else if (a.do === "send") sent += await deliver(call, 1, read.lastCustomerAt, c, msgs, a.kind);
       else console.log(`missed-calls: ${call.id}: ${a.do} (${a.why})`);
     } catch (e) { console.error(`missed-calls ${call.id}:`, e.message); }
   }
@@ -60,14 +60,15 @@ const runGated = async () => {
 
 // Sends one step. Returns 1 if a message went out. A plain chat message while their 24-hour window is open, otherwise the approved template;
 // without a template the team gets a line to do it by hand (and nothing more is sent automatically).
-async function deliver(call, step, lastCustomerAt, c, msgs) {
-  const text0 = missedText(step, call.name);
+async function deliver(call, step, lastCustomerAt, c, msgs, kind = "") {
+  const shared = kind === "shared";
+  const text0 = shared ? sharedText(call.name) : missedText(step, call.name);
   // Claude reads the whole chat and the planned message before it goes (the one rule, lib/readgate.mjs). It is asked again at the next run if it said no.
-  const v = await contextCheck({ channel: "WhatsApp", to: call.waId, history: msgs, planned: text0, purpose: `the booked call (${call.label}) was not picked up; missed-call follow-up ${step} of 3` });
+  const v = await contextCheck({ channel: "WhatsApp", to: call.waId, history: msgs, planned: text0, purpose: shared ? `the booked call (${call.label}) was missed, then our team spoke to the lead and shared details; one simple follow-up asking if they had a chance to look at what was shared` : `the booked call (${call.label}) was not picked up; missed-call follow-up ${step} of 3` });
   if (!v.send) { console.log(`missed-calls: ${call.id}: Claude said not to send (${v.why})`); return 0; }
   if (!(await allow(`missed:${call.id}:${step}`, 12 * HOUR))) return 0; // never twice, even if two runs overlap
-  const text = missedText(step, call.name);
-  const tpl = stepTemplate(step);
+  const text = shared ? sharedText(call.name) : missedText(step, call.name);
+  const tpl = stepTemplate(step, process.env, kind);
   const open = windowOpen(lastCustomerAt || c.lastIn);
   const now = Date.now();
   if (!open && !tpl) {
@@ -87,7 +88,7 @@ async function deliver(call, step, lastCustomerAt, c, msgs) {
   }
   // The agent now has this chat again: the lead's answer to the question is read by the WhatsApp handler (see wati-process-background, "missed").
   await saveContact(call.waId, { humanSpoke: false, esc: false, lastOut: now, lastOutText: text.slice(0, 600), missed: { callId: call.id, step, askedAt: now, state: "asked" } });
-  await touchCall(call.id, { follow: { step, at: now, state: "asked", via: open ? "chat" : "template" } });
+  await touchCall(call.id, { follow: { step, at: now, state: "asked", kind: shared ? "shared" : undefined, via: open ? "chat" : "template" } });
   await logExchange({ channel: "WhatsApp", contact: `+${call.waId}`, lead: "(missed call, no reply yet)", agent: open ? text : `Template ${tpl} sent: ${text}` });
   await incr(`missed_followups_${step}`);
   return 1;

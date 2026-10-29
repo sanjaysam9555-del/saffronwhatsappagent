@@ -311,12 +311,13 @@ Entries are in the order they were learned.
 - Test: THE ONE RULE: nothing goes to a lead unless the chat was read and Claude was given it
 - Commit: cef7c86
 
-## L36 The missed-call chain re-reads the chat at every step, not only the first
+## L36 The missed-call chain re-reads the chat at every step, and after the team shared things it asks one simple question
 - Date: 2026-10-29
 - Chat: Meghna Sethi, WhatsApp (same chat as L31)
 - Went wrong: L31 made the FIRST missed-call message check whether the team had since spoken to the lead. Step 2 ("Just checking in. Would you like us to set up a new time for the call with our Founders?", 9:30 AM) did not: once step 1 had gone, the chain moved on by the clock alone, a day later, even though the team had shared the Drive link and written "like we discussed on call" in the meantime (and had deleted our first note from the chat). The team was talking to her; the agent asked as if nobody had been. This message went out from the code that ran before the one-rule gate was pushed.
-- Rule: every step of the chain (2, 3 and going cold) reads the chat first. If the team wrote anything to the lead since our last note (not a "tried calling" text), the chain stops with state "team" and nothing more is sent. A note the team deleted cannot be seen through Wati, so the team's later messages are what stop it.
-- Test: missed call (Meghna step 2): the follow-up chain re-reads the chat at every step and stops when the team has been in touch
+- What Swati said it should have been: "Hi Meghna, did you get a chance to look at the things we shared? Please let us know when we can connect next." Simple, for people we have already spoken to and sent details.
+- Rule: every step of the chain (2, 3 and going cold) reads the chat first. If the call was missed and the team has since spoken to the lead or shared details (not a "tried calling" text), the agent never asks about "a new time for the call with our Founders". It sends ONE simple follow-up (sharedText), a day after the team's last message, with its own template (CALL_MISSED_SHARED_TEMPLATE; without one the team gets the draft to send by hand). That is the end of the chain: nothing more is sent, then cold. This holds for the first message as well as for steps 2 and 3. A note the team deleted cannot be seen through Wati, so the team's later messages are what show it. If the team spoke and nobody ever said the call was missed, the call happened and nothing is sent.
+- Test: missed call (Meghna step 2): after the team shared things, the chain sends one simple follow-up instead of asking for a new call time
 - Commit: 3dc0c1b
 
 ## Mistakes the guard watches for in every message

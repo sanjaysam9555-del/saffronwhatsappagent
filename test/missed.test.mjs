@@ -144,33 +144,49 @@ test("missed call (Meghna): a 'tried calling' text followed by the team speaking
   assert.equal(read([tried]).teamSaysMissed, true, "on its own it is a missed call");
   const r = read([tried, ...later]);
   assert.equal(r.teamSaysMissed, false, "the team got through afterwards");
+  // never the "new time for the call" question: one simple "did you get a chance to look", a day after the team's last message
+  assert.equal(m.assess(call(), r, START + 10 * H).do, "wait");
   const a = m.assess(call(), r, START + 40 * H);
-  assert.equal(a.do, "skip");
-  assert.match(a.why, /in touch/);
+  assert.equal(a.do, "send");
+  assert.equal(a.kind, "shared");
+  assert.equal(a.step, 1);
+  const txt = m.sharedText("Meghna Sethi");
+  assert.match(txt, /^Hi Meghna! Did you get a chance to look at what we shared\?\n\nPlease let us know when we can connect next\.$/);
+  assert.doesNotMatch(txt, /new time for the call|Founders|"yes"|🌼/);
   // a second 'could not connect' after the link is the last word again
   assert.equal(read([tried, ...later, team(START + 5 * H, "Tried calling again, no answer")]).teamSaysMissed, true);
-  // the owner flagged it, then the team wrote to the lead: skip
+  // the owner flagged it, then the team wrote to the lead: the simple follow-up, after a day
   const flagged = START + 2 * H;
-  assert.equal(m.assess(call({ missedFlag: flagged }), read([team(flagged + H, "Sharing the proposal as discussed")]), flagged + 20 * H).do, "skip");
+  assert.equal(m.assess(call({ missedFlag: flagged }), read([team(flagged + H, "Sharing the proposal as discussed")]), flagged + 20 * H).do, "wait");
+  assert.equal(m.assess(call({ missedFlag: flagged }), read([team(flagged + H, "Sharing the proposal as discussed")]), flagged + 26 * H).kind, "shared");
+  // the team spoke and nobody ever said the call was missed: the call happened, nothing is sent
+  assert.equal(m.assess(call(), read([team(START + H, "Thank you for your time today, sharing the proposal")]), START + 40 * H).do, "skip");
   // the owner flagged it and nobody wrote since: send
   assert.equal(m.assess(call({ missedFlag: flagged }), read([team(flagged - H, "Tried calling")]), flagged + 1000).do, "send");
 });
 
-test("missed call (Meghna step 2): the follow-up chain re-reads the chat at every step and stops when the team has been in touch", async () => {
-  const T = START + H, f = (step) => ({ ...call(), follow: { step, at: T, state: "asked", via: "session" } });
-  const ours = [{ ...team(T, "Hi Meghna! Would you like to connect at a different time?") }];
+test("missed call (Meghna step 2): after the team shared things, the chain sends one simple follow-up instead of asking for a new call time", async () => {
+  const T = START + H, f = (step, extra = {}) => ({ ...call(), follow: { step, at: T, state: "asked", via: "chat", ...extra } });
+  const ours = [team(T, "Hi Meghna! We tried to reach you for our call but could not connect last time.")];
   // nothing from the team since our note: step 2 is due after a day
   assert.deepEqual(m.nextStep(f(1), 0, T + 24 * H, read(ours, call(), [T])), { do: "send", step: 2 });
-  // the team shared a link / spoke to her after our note (even if the note itself was deleted from the chat): stop, send nothing
+  // the team shared a link / spoke to her after our note (even if our note was deleted from the chat): not the "new time" question
   const spoke = [...ours, team(T + 3 * H, "Sharing our drive link, like we discussed on call")];
-  const n = m.nextStep(f(1), 0, T + 24 * H, read(spoke, call(), [T]));
-  assert.equal(n.do, "none");
-  assert.equal(n.why, "team");
-  assert.equal(m.nextStep(f(2), 0, T + 48 * H, read(spoke, call(), [T])).do, "none", "step 3 too");
-  assert.equal(m.nextStep(f(3), 0, T + 48 * H, read(spoke, call(), [T])).do, "none", "and going cold does not need a reminder either");
+  const r = read(spoke, call(), [T]);
+  assert.equal(m.nextStep(f(1), 0, T + 24 * H, r).do, "wait", "a day after the team's last message, not before");
+  assert.deepEqual(m.nextStep(f(1), 0, T + 28 * H, r), { do: "send", step: 2, kind: "shared" });
+  assert.deepEqual(m.nextStep(f(2), 0, T + 52 * H, r), { do: "send", step: 3, kind: "shared" });
+  assert.equal(m.nextStep(f(3), 0, T + 52 * H, r).do, "none", "after the last note the team has it");
+  // the simple follow-up is the end of the chain: nothing more is sent, then cold
+  assert.equal(m.nextStep(f(2, { kind: "shared" }), 0, T + 47 * H, r).do, "wait");
+  assert.equal(m.nextStep(f(2, { kind: "shared" }), 0, T + 49 * H, r).do, "cold");
   // a 'tried calling' text from the team is not 'in touch'
   assert.equal(m.nextStep(f(1), 0, T + 24 * H, read([team(T + H, "Tried calling again, no answer")])).do, "send");
+  // her own template: its own approved template, never the "new time" ones
+  assert.equal(m.stepTemplate(2, { CALL_MISSED_FOLLOWUP_TEMPLATE: "f_v1", CALL_MISSED_SHARED_TEMPLATE: " shared_v1 " }, "shared"), "shared_v1");
+  assert.equal(m.stepTemplate(2, { CALL_MISSED_FOLLOWUP_TEMPLATE: "f_v1" }, "shared"), "");
   const { readFileSync } = await import("node:fs");
   const src = (p) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
   assert.match(src("netlify/functions/missed-calls.mjs"), /nextStep\(call, read\.lastCustomerAt, now, read\)/, "the job hands the chat reading to every step");
+  assert.match(src("netlify/functions/missed-calls.mjs"), /one simple follow-up asking if they had a chance to look/, "Claude is told why the message is sent");
 });
