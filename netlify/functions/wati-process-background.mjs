@@ -10,7 +10,7 @@ import { findNameCandidate, classify } from "../../lib/match.mjs";
 import { countryOf, extractPhone } from "../../lib/phone.mjs";
 import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playbook.mjs";
 import { sendSessionMessage, updateContactAttributes, getRecentMessages } from "../../lib/wati.mjs";
-import { readChat, isOwnFixedText } from "../../lib/team.mjs";
+import { readChat, isOwnFixedText, followOpenFor } from "../../lib/team.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
 import { draftReply, extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail, draftBudgetAnswer } from "../../lib/claude.mjs";
 import { lookupContact } from "../../lib/planning-studio.mjs";
@@ -279,7 +279,9 @@ const runGated = async (req) => {
     // ("tried calling you"). Only if a person has written since our question does the person take over. (lib/missed.mjs, docs/LESSONS.md L25)
     const mc = c.missed;
     const missedOpen = Boolean(mc && ["asked", "offered"].includes(mc.state) && chat && !(chat.lastTeamAt > mc.askedAt));
-    if (!missedOpen && (chat?.teamSpoke || (!chat && live()))) {
+    // Same for our own follow-up (quiet follow-up template, nudge): we wrote to them, so their reply is ours to answer until a person writes again (L44).
+    const followOpen = followOpenFor(c, chat);
+    if (!missedOpen && !followOpen && (chat?.teamSpoke || (!chat && live()))) {
       await saveContact(waId, { humanSpoke: chat?.teamSpoke ? true : c.humanSpoke, ...(chat ? { lastOut: chat.lastOutAt || c.lastOut } : {}) });
       await toHuman(chat ? "team-already-in-chat" : "history-unavailable", false);
       return ok();
@@ -322,6 +324,14 @@ const runGated = async (req) => {
       // The chat stays with the agent until a person writes. Their later yes or no is still read here.
       if (!c.q || c.q.stage === "done") { Object.assign(c, { q: q0, humanSpoke: false }); await saveContact(waId, { q: q0, humanSpoke: false }); } // a chat still in the questions carries on as normal
     }
+    if (followOpen && !missedOpen && (!c.q || ["done", "paused"].includes(c.q.stage))) {
+      // Their chat was a person's, then our follow-up: the answer is read in context like any finished chat (3b below). A question only a person can answer still goes to the team.
+      const base = c.q || newState({}, "WhatsApp");
+      const note = "A person from our team wrote to them earlier; they replied to our follow-up.";
+      const q0 = { ...base, stage: "done", fields: { ...(base.fields || {}), ...(base.fields?.number ? {} : { number: `+${waId}` }) }, notes: String(base.notes || "").includes(note) ? base.notes : [base.notes, note].filter(Boolean).join(" / ") };
+      Object.assign(c, { q: q0, humanSpoke: false, esc: false });
+      await saveContact(waId, { q: q0, humanSpoke: false, esc: false });
+    } else if (followOpen && !missedOpen && c.humanSpoke) { Object.assign(c, { humanSpoke: false }); await saveContact(waId, { humanSpoke: false }); }
     if (d.intent === "job_seeker") { await jobSeekerNow(); return ok(); }
 
     const inFlow = ["asking", "confirm", "call", "slots", "email"].includes(c.q?.stage);

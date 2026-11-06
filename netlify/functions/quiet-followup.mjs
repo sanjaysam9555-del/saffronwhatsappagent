@@ -81,7 +81,7 @@ const runGated = async () => {
       if (!v.send) { console.log(`quiet follow-up ${waId}: Claude said not to send (${v.why})`); continue; }
       await saveContact(waId, { agentSent: Date.now() }); // so the Sent event isn't mistaken for a human
       await sendTemplateMessage(waId, templates[n], { first_name: (c.name || "there").split(" ")[0] }, "quiet-followup");
-      await saveContact(waId, { followups: n + 1, lastOut: Date.now(), agentSent: Date.now() });
+      await saveContact(waId, { followups: n + 1, lastOut: Date.now(), agentSent: Date.now(), followOpen: { at: Date.now(), kind: "quiet" } }); // their reply is ours to answer (L44)
       await incr("quiet_followups_sent");
       sent++;
     } catch (e) {

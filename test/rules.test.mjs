@@ -1887,3 +1887,24 @@ test("Yugdipinder: the stores that decide who spoke are strongly consistent and 
   const h = readFileSync(new URL("../netlify/functions/wati-process-background.mjs", import.meta.url), "utf8");
   assert.match(h, /AGENT_ECHO_MS && !isOwnFixedText\(evt\.text\)/);
 });
+
+// ---------- Khushi (WhatsApp, 6 Nov): our quiet follow-up at 11:00, her "Hi" at 11:01, no reply (L44) ----------
+test("Khushi: a reply to our own follow-up in a chat the team has spoken in is answered, not dropped", async () => {
+  const { followOpenFor } = await import("../lib/team.mjs");
+  const { readFileSync } = await import("node:fs");
+  const evening = Date.parse("2026-11-05T12:14:00Z"); // 5:44 PM IST: Swati wrote to her
+  const followAt = Date.parse("2026-11-06T05:30:30Z"); // 11:00 AM IST: our quiet follow-up template
+  const now = followAt + 60_000;
+  const chat = { teamSpoke: true, lastTeamAt: evening, lastAgentAt: followAt, lastCustomerAt: now };
+  assert.equal(followOpenFor({ followOpen: { at: followAt, kind: "quiet" } }, chat, now), true, "her reply to our follow-up is ours to answer");
+  assert.equal(followOpenFor({}, chat, now), false, "no follow-up from us: the team's chat stays with the team");
+  assert.equal(followOpenFor({ followOpen: { at: followAt } }, { ...chat, lastTeamAt: followAt + 30_000 }, now), false, "a person wrote after our follow-up: the person has it");
+  assert.equal(followOpenFor({ followOpen: { at: followAt } }, null, now), false, "the chat could not be read");
+  assert.equal(followOpenFor({ followOpen: { at: followAt } }, chat, followAt + 8 * 24 * 3600_000), false, "a week later it is the team's again");
+  const read = (f) => readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
+  assert.match(read("netlify/functions/quiet-followup.mjs"), /followOpen: \{ at: Date\.now\(\), kind: "quiet" \}/);
+  assert.match(read("netlify/functions/lead-nudge.mjs"), /followOpen: \{ at: Date\.now\(\), kind: "nudge" \}/);
+  const h = read("netlify/functions/wati-process-background.mjs");
+  assert.match(h, /!missedOpen && !followOpen && \(chat\?\.teamSpoke/);
+  assert.match(h, /followOpen && !missedOpen && \(!c\.q \|\| \["done", "paused"\]\.includes\(c\.q\.stage\)\)/);
+});

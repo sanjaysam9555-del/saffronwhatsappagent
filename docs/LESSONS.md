@@ -376,5 +376,13 @@ Entries are in the order they were learned.
 - Test: answer command: releases the chat and hands the message back to the normal handler with its own time
 - Commit: 3225db1
 
+## L44 A lead who answers our own follow-up must be answered, even in a chat the team has been in
+- Date: 2026-11-06
+- Chat: Khushi, WhatsApp (+91 81719...): Swati wrote the evening before ("Can we connect to discuss today?"), our quiet follow-up template went at 11:00, she replied "Hi" at 11:01 and nothing came back
+- Went wrong: the agent decided the chat belonged to the team (a person had written the day before) and logged team-already-in-chat, even though the agent had itself written to her a minute earlier and invited a reply ("Reply here whenever you are ready"). Only the missed-call chain had an exception for this; the quiet follow-ups and nudges did not. Same family as L36 (Meghna).
+- Rule: when the agent sends a quiet follow-up or a nudge it records followOpen. A reply to it, in a chat the team has spoken in, is answered in context like any finished chat (draftAfter), and a question only a person can answer goes to the team. A person writing after our follow-up takes the chat back; after a week it is the team's again.
+- Test: Khushi: a reply to our own follow-up in a chat the team has spoken in is answered, not dropped
+- Commit: 0af906c
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.

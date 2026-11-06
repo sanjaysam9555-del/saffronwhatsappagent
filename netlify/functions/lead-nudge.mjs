@@ -70,7 +70,7 @@ const runGated = async () => {
         await logExchange({ channel: "WhatsApp", contact: `+${waId}`, lead: "(no reply yet)", agent: `Reminder template ${template} sent` });
         await incr("nudge_reminders_sent"); reminders++;
       }
-      await saveContact(waId, { nudges: n + 1, nudgedAt: Date.now(), lastOut: Date.now(), agentSent: Date.now() });
+      await saveContact(waId, { nudges: n + 1, nudgedAt: Date.now(), lastOut: Date.now(), agentSent: Date.now(), followOpen: { at: Date.now(), kind: "nudge" } }); // their reply is ours to answer (L44)
     } catch (e) {
       console.error(`follow-up ${waId}:`, e.message);
     }
