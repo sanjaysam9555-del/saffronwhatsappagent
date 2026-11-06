@@ -374,7 +374,7 @@ Entries are in the order they were learned.
 - Went wrong: there was no owner command to answer a lead whose last message had been held back, so the owner had to wait for the lead to write again or write by hand, while a first-time lead waited.
 - Rule: "agent, answer <name>" (answer_lead) releases the chat and puts the lead's last unanswered message (at most the last three) back through the normal WhatsApp handler, so the agent reads the chat first and sends only through the one-rule gate. The message keeps its own time (replayLastInAt), so the 24-hour window is never stretched. It refuses, changing nothing, when the last message in the chat is ours, a person on the team has written there, the window is closed, or it was just released.
 - Test: answer command: releases the chat and hands the message back to the normal handler with its own time
-- Commit: 0af906c
+- Commit: 3225db1
 
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
