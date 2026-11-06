@@ -12,7 +12,7 @@ import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playb
 import { sendSessionMessage, updateContactAttributes, getRecentMessages } from "../../lib/wati.mjs";
 import { readChat, isOwnFixedText, followOpenFor } from "../../lib/team.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
-import { draftReply, extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail, draftBudgetAnswer } from "../../lib/claude.mjs";
+import { draftReply, extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail, draftBudgetAnswer, draftClarify } from "../../lib/claude.mjs";
 import { lookupContact } from "../../lib/planning-studio.mjs";
 import { allow } from "../../lib/state.mjs";
 import { getContact, saveContact, AGENT_ECHO_MS } from "../../lib/contacts.mjs";
@@ -523,6 +523,7 @@ const runGated = async (req) => {
         if (ack) r = advance(q, text, extracted, name, opener, ack);
       }
 
+      if (r.kind === "clarify") r = { ...r, reply: await draftClarify({ text, name: who, history: withoutCurrent((await getRecentMessages(waId, 12)) || [], text), fields: r.q.fields, stage: r.q.stage, asked: r.q.asked, pending: r.q.stage === "asking" ? pendingQuestion(r.q) : "", fixed: r.reply }) }; // what we noted, what is missing and why, from the real chat (L45)
       if (r.kind === "escalate") { await saveContact(waId, { q: holdContact(q, { email: extractEmail(text) }) }); await toHuman("lead-question"); return ok(); }
       if (r.kind === "call-pref" && calendarEnabled()) { // offer real times; if that fails the team does it by hand, as before
         try {

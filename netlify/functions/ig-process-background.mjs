@@ -9,7 +9,7 @@ import { sendTemplateMessage } from "../../lib/wati.mjs";
 import { callBookedParams } from "../../lib/leadfields.mjs";
 import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playbook.mjs";
 import { holdContact, resumeOnNumber } from "../../lib/qualify.mjs";
-import { extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail, draftBudgetAnswer } from "../../lib/claude.mjs";
+import { extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail, draftBudgetAnswer, draftClarify } from "../../lib/claude.mjs";
 import { newState, advance, numberInChat, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest, slotStillFree } from "../../lib/calendar.mjs";
 import { recordCall, callRecord, touchCall } from "../../lib/calls.mjs";
@@ -525,6 +525,7 @@ const runGated = async (req) => {
       const ack = await draftAck({ text, name: who, kind: r.kind, asked: q.asked, fields: r.q.fields });
       if (ack) r = advance(q, text, extracted, name, opener, ack);
     }
+    if (r.kind === "clarify") r = { ...r, reply: await draftClarify({ text, name: who, history: await chatHistory(text), fields: r.q.fields, stage: r.q.stage, asked: r.q.asked, pending: r.q.stage === "asking" ? pendingQuestion(r.q) : "", fixed: r.reply }) }; // what we noted, what is missing and why, from the real chat (L45)
     if (r.kind === "escalate") { await saveIg(sid, { q: holdContact(q, { number: ph.status === "ok" ? `+${ph.number}` : "", email: extractEmail(text) }) }); await toHuman("lead-question"); return ok(); }
     if (r.kind === "call-pref" && calendarEnabled()) { // offer real times; if that fails the team does it by hand, as before
       try {
