@@ -366,7 +366,7 @@ Entries are in the order they were learned.
 - Went wrong: the log said ESCALATE (team-already-in-chat) 30 seconds after our own welcome. The agent decides whether a person spoke by looking for messages from our number that it did not send itself, and it knows which it sent from a record kept in the contact store. That store (wa-contacts) was read with the default eventual consistency (Instagram's store and the lock already used strong), so a read seconds after the write can miss the welcome; the welcome then looks typed by the team and the agent stays silent without a word to the lead. Nobody was told the lead was waiting.
 - Rule: the fixed welcome and thank-you are recognised by their words as ours (isOwnFixedText) in the chat history and in the outbound echo, whatever the send record says; wa-contacts and the limiter/flag store read with strong consistency. A silent hand-over on a first message is a bug.
 - Test: Yugdipinder: our own welcome is never mistaken for the team, even when the send record is missing
-- Commit: 0af906c
+- Commit: 36c29db
 
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
