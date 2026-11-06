@@ -390,7 +390,7 @@ Entries are in the order they were learned.
 - Went wrong: our template listed what we had noted (wedding, date, near Jaipur, "Service Required: Not provided") and asked for "what you need from us". She read it as "tell me what you need" and asked us back. Nothing in the agent knew that this hands the question back: replayed through the flow, her sentence would have been saved as what she is looking for and the next question asked, with no explanation of what we hold, what is missing or why we need it (to arrange the call). The reason the real chat got no reply at all could not be traced: the logs of that day were gone (24-hour retention).
 - Rule: handing the question back is "confused" (ASKS_US, and Claude's reading), never an answer; nothing is saved. The reply is written by Claude from OUR last message in the real chat, what we hold and the one thing still missing, and why we need it, in plain words; every reply is checked (no prices or times, one question, about the pending question) with the plain rewording as the fallback; a second time in a row goes to a person.
 - Test: Devika: a lead who hands the question back is not giving an answer; nothing is saved from it
-- Commit: 0af906c
+- Commit: 1d4c96d
 
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
