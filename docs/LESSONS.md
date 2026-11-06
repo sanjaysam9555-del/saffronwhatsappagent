@@ -392,5 +392,13 @@ Entries are in the order they were learned.
 - Test: Devika: a lead who hands the question back is not giving an answer; nothing is saved from it
 - Commit: 1d4c96d
 
+## L46 A message that gets no reply must leave its reason, in a place that outlives the 24-hour logs
+- Date: 2026-11-06
+- Chat: Yugdipinder, Devika (Sat 31 Oct) and Pardeep Bhatt (Fri 30 Oct, a bare "Hi" with no welcome at all): three silences in a row, and for the last two the cause could not be found because Netlify keeps only 24 hours of logs
+- Went wrong: every silent exit (team-already-in-chat, a known contact, a duplicate, an error) only wrote a console line. The Agent Log showed what we said, never what we chose not to say, so each unanswered lead needed a guess.
+- Rule: every lead message the agent starts to handle and ends without sending anything to the lead leaves one Agent Log row, "(no reply: <reason> · build <commit>)": the reason is the hand-over reason, the named exit, an error text, or, for a bare exit, the file and line it ended at. Messages to our own team do not count as a reply. Both channels, no new send path.
+- Test: no-reply log: a lead's message that ends with nothing sent leaves a reason line
+- Commit: f50a31a
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.

@@ -1,4 +1,5 @@
-import { withChat } from "../../lib/readgate.mjs";
+import { withChat, noteInbound, noteWhy, runTrace, callerOf } from "../../lib/readgate.mjs";
+import { logNoReply } from "../../lib/noreply.mjs";
 import { contextCheck } from "../../lib/presend.mjs";
 import { decide, ESCALATION_ACK, CLIENT, vendorWelcome, vendorReminder, jobReply, RESUME_FILE, maybeOptOut } from "../../lib/rules.mjs";
 import { operatorOn, routeMessage, ownerCommand, isOwner, COMMAND_PREFIX } from "../../lib/operator.mjs";
@@ -39,7 +40,8 @@ const HOUR = 3600_000;
 // Wati names these inconsistently (sessionMessageSent, templateMessageSent_v2, ...). Delivery/read/replied status
 // events (sentMessageDELIVERED_v2 etc.) are NOT a person speaking, so they are deliberately excluded.
 const isSentEvent = (t) => /^(session|template)MessageSent(_v\d+)?$/i.test(String(t || ""));
-const ok = (b = "ok") => new Response(b, { status: 200 }); // always 200 so Wati doesn't retry-storm
+// L46: a bare ok() ends the run; the reason (or, with none, where it ended) is kept for the no-reply log.
+const ok = (b) => { if (b) noteWhy(b); else if (!runTrace().why) noteWhy(`ended at ${callerOf()}`); return new Response(b || "ok", { status: 200 }); }; // always 200 so Wati doesn't retry-storm
 
 // A photo, reel or link on its own. Every one starts its own background run, so they all race: each one takes the chat's lock, reads the chat
 // again and only then decides. A vendor (or anyone already welcomed, handed over or answered) gets nothing from this path.
@@ -85,7 +87,11 @@ async function mediaRef(waId, name, label) {
 
 // Wati webhook. Subscribe to: Message Received, Session Message Sent, Template Message Sent.
 //   https://<site>.netlify.app/.netlify/functions/wati-webhook?key=<WEBHOOK_SECRET>
-export default (req) => withChat(() => runGated(req)); // every message that can leave runs inside the one-rule gate (lib/readgate.mjs)
+// Every message that can leave runs inside the one-rule gate (lib/readgate.mjs). A lead's message that ends with no reply is written to the Agent Log with the reason (L46).
+export default (req) => withChat(async () => {
+  try { const res = await runGated(req); await logNoReply(); return res; }
+  catch (e) { await logNoReply(`error: ${e.message}`); throw e; }
+});
 const runGated = async (req) => {
   const url = new URL(req.url);
   if (url.searchParams.get("key") !== process.env.WEBHOOK_SECRET) return new Response("forbidden", { status: 403 });
@@ -139,6 +145,7 @@ const runGated = async (req) => {
   if (!incoming || !evt.text) return ok("ignored");
   const text = String(evt.text);
   const name = evt.senderName || "";
+  noteInbound({ channel: "WhatsApp", contact: `+${waId}`, text });
   const who = greetName(name); // first name for greetings, only when the profile name looks like a person
   if (isMediaOnly(text)) { await mediaRef(waId, name, "link"); return ok("link reference"); } // a pasted reel or Pinterest link
 
@@ -184,6 +191,7 @@ const runGated = async (req) => {
   let vendorChat = false, leadQ = null; // set once the chat is loaded; used to give every real lead a row, even one who asks a question and goes quiet
   const ROW_REASONS = new Set(["lead-question", "money-or-commitment", "pricing-or-availability-question", "call-time-request"]);
   const toHuman = async (reason, ack = true, hold = "") => {
+    noteWhy(`handed to the team: ${reason}`);
     if (reason === "lead-question") { // an answer you have already taught the agent is used before anyone is bothered
       const taught = await answerFromPlaybook(text);
       if (taught) {

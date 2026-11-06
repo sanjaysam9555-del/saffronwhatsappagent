@@ -1,4 +1,5 @@
-import { withChat, noteRead, exemptFromGate } from "../../lib/readgate.mjs";
+import { withChat, noteRead, exemptFromGate, noteInbound, noteWhy, runTrace, callerOf } from "../../lib/readgate.mjs";
+import { logNoReply } from "../../lib/noreply.mjs";
 import { contextCheck } from "../../lib/presend.mjs";
 import { getRecentMessages } from "../../lib/wati.mjs";
 import { decide, ESCALATION_ACK, CLIENT, GREETING, OPTOUT, vendorWelcome, vendorReminder, jobReply, isOptOut, maybeOptOut } from "../../lib/rules.mjs";
@@ -34,7 +35,7 @@ import { igApiOn, getInstagramHistory, getLatestCustomerText, recoverLatest, fin
 // first (we do not have it yet). Replies go back through ManyChat's API, inside Meta's 24h window after their message.
 const HOUR = 3600_000;
 const DEBOUNCE_MS = 8000; // messages typed this close together are answered as one
-const ok = (b = "ok") => new Response(b, { status: 200 });
+const ok = (b) => { if (b) noteWhy(b); else if (!runTrace().why) noteWhy(`ended at ${callerOf()}`); return new Response(b || "ok", { status: 200 }); }; // L46: the reason is kept for the no-reply log
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // ManyChat gives the Instagram profile name, which is often an emoji or a handle. Use it only if it looks like a name.
@@ -53,7 +54,11 @@ export function chunk(text, max = 900) {
   return out;
 }
 
-export default (req) => withChat(() => runGated(req)); // every message that can leave runs inside the one-rule gate (lib/readgate.mjs)
+// Every message that can leave runs inside the one-rule gate (lib/readgate.mjs). A lead's message that ends with no reply is written to the Agent Log with the reason (L46).
+export default (req) => withChat(async () => {
+  try { const res = await runGated(req); await logNoReply(); return res; }
+  catch (e) { await logNoReply(`error: ${e.message}`); throw e; }
+});
 const runGated = async (req) => {
   const url = new URL(req.url);
   if (url.searchParams.get("key") !== process.env.WEBHOOK_SECRET) return new Response("forbidden", { status: 403 });
@@ -105,6 +110,7 @@ const runGated = async (req) => {
 
   if (!blankText) await addIgHistory(sid, "customer", text); // the chat so far, for Claude
   const label = username ? `@${username}` : `ig:${sid}`;
+  if (!blankText) noteInbound({ channel: "Instagram", contact: label, text });
   let pendingAsk = ""; // the question we were waiting for, repeated after a taught answer
   let vendorChat = false, leadQ = null; // set once the chat is loaded; used to give every real lead a row, even one who asks a question and goes quiet
   const ROW_REASONS = new Set(["lead-question", "money-or-commitment", "pricing-or-availability-question", "call-time-request"]);
@@ -169,6 +175,7 @@ const runGated = async (req) => {
     return h;
   };
   const toHuman = async (reason, ack = true, hold = "") => {
+    noteWhy(`handed to the team: ${reason}`);
     if (reason === "lead-question") { // an answer you have already taught the agent is used before anyone is bothered
       const taught = await answerFromPlaybook(text);
       if (taught) { await send(pendingAsk ? `${taught}\n\n${pendingAsk}` : taught); await incr("playbook_answers"); return; }
