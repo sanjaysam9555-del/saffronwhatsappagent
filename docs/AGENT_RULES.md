@@ -42,3 +42,4 @@ lib/guard.mjs checks every outgoing message on both channels: unfilled values, t
 ## Owner commands (WhatsApp, start with "agent,")
 send_vendor_link, send_message, show_chat, pause_agent, resume_agent, tell_owner, send_call_confirmation, reoffer_call_times, correct_lead_details, missed_call.
 - Process rules are enforced by hooks, not memory (L41): a code commit needs a test, a lessons entry and a rule line here; a push needs Swati's "Push". New rules go in this file, not CLAUDE.md.
+- Our own welcome and thank-you are never "the team" (L42): the words of the fixed texts are recognised in the chat history and in the outbound echo (isOwnFixedText, lib/team.mjs) even when the recorded send time is stale or missing, and the stores that decide who spoke (wa-contacts, the limiter in lib/state.mjs) read with strong consistency. A silent "team-already-in-chat" on a first message from a new lead is a bug, not a hand-over.

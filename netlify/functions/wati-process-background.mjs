@@ -10,7 +10,7 @@ import { findNameCandidate, classify } from "../../lib/match.mjs";
 import { countryOf, extractPhone } from "../../lib/phone.mjs";
 import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playbook.mjs";
 import { sendSessionMessage, updateContactAttributes, getRecentMessages } from "../../lib/wati.mjs";
-import { readChat } from "../../lib/team.mjs";
+import { readChat, isOwnFixedText } from "../../lib/team.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
 import { draftReply, extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail, draftBudgetAnswer } from "../../lib/claude.mjs";
 import { lookupContact } from "../../lib/planning-studio.mjs";
@@ -115,7 +115,7 @@ const runGated = async (req) => {
   if (isOutbound) {
     const c = await getContact(waId);
     // Shortly after the agent's own send it's the agent echoing; otherwise a person spoke.
-    if (Date.now() - (c.agentSent || 0) > AGENT_ECHO_MS) {
+    if (Date.now() - (c.agentSent || 0) > AGENT_ECHO_MS && !isOwnFixedText(evt.text)) { // our own welcome echoing back is never a person (L42)
       await saveContact(waId, { humanSpoke: true, esc: false, lastOut: Date.now() });
     }
     return ok();

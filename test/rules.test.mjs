@@ -15,7 +15,7 @@ import { stage, CFG } from "../netlify/functions/lead-followup.mjs";
 import { isEligible } from "../netlify/functions/quiet-followup.mjs";
 import { summarise } from "../netlify/functions/morning-digest.mjs";
 import { buildSummary } from "../netlify/functions/daily-summary.mjs";
-import { analyse } from "../lib/team.mjs";
+import { analyse, isOwnFixedText } from "../lib/team.mjs";
 import { testAllows, testMode } from "../lib/testmode.mjs";
 
 process.env.VENDOR_SIGNUP_URL = "https://saffron.planningstudio.in/vendor-onboarding";
@@ -1860,4 +1860,30 @@ test("Siddharth: 'It's correct. I'd like to know the property options and costs'
   assert.match(src("netlify/functions/ig-process-background.mjs"), /resumeOnNumber\(c, \{ shared:/);
   assert.match(src("netlify/functions/ig-process-background.mjs"), /r\.kind === "confirmed" && r\.extra/);
   assert.match(src("netlify/functions/wati-process-background.mjs"), /r\.kind === "confirmed" && r\.extra/);
+});
+
+// ---------- Yugdipinder (WhatsApp, 6 Nov): "Hey", our welcome, "Need a decor guy for wedding" got no answer (L42) ----------
+test("Yugdipinder: our own welcome is never mistaken for the team, even when the send record is missing", () => {
+  const T = Date.parse("2026-11-06T05:43:04Z");
+  const welcome = "Hi Yugdipinder!\n\nWelcome to Saffron Collective. \u{1F33C}\n\nHow can we help you?";
+  const chat = [
+    { from: "customer", text: "Hey", t: T },
+    { from: "us", text: welcome, t: T + 9000 },
+    { from: "customer", text: "Need a decor guy for wedding", t: T + 39000 },
+  ];
+  assert.equal(analyse(chat, []).teamSpoke, false, "no send record at all: the words of the welcome are enough");
+  assert.equal(analyse(chat, [T + 9500]).teamSpoke, false);
+  assert.equal(analyse(chat, []).lastAgentAt, T + 9000);
+  for (const t of [welcome, "Hi!\n\nWelcome to Saffron Collective. \u{1F33C}\n\nThank you for sharing this. How can we help you?", "Hello Riya! This is Saffron Collective. How can we help you today?"]) assert.ok(isOwnFixedText(t), t);
+  // a person on the team is still a person, even with a similar greeting
+  const person = [{ from: "customer", text: "Hey", t: T }, { from: "us", text: "Hi Yug, Swati here from Saffron. Tell me what you need.", t: T + 60000 }];
+  assert.equal(analyse(person, []).teamSpoke, true);
+  assert.equal(isOwnFixedText("Welcome to Saffron Collective, call me on 98xxxxxx"), false);
+});
+
+test("Yugdipinder: the stores that decide who spoke are strongly consistent and the echo of our welcome is ignored", async () => {
+  const { readFileSync } = await import("node:fs");
+  for (const f of ["lib/contacts.mjs", "lib/state.mjs"]) assert.match(readFileSync(new URL(`../${f}`, import.meta.url), "utf8"), /consistency: "strong"/, f);
+  const h = readFileSync(new URL("../netlify/functions/wati-process-background.mjs", import.meta.url), "utf8");
+  assert.match(h, /AGENT_ECHO_MS && !isOwnFixedText\(evt\.text\)/);
 });
