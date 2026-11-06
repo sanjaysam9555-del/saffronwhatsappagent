@@ -240,7 +240,7 @@ const runGated = async (req) => {
 
   const lock = await acquireLock(`wa:${waId}`); // one message at a time per chat; a quick follow-up waits for the one before it
   try {
-    const c = await saveContact(waId, { lastIn: Date.now(), followups: 0, nudges: 0, name }); // a reply resets quiet follow-ups and nudges
+    const c = await saveContact(waId, { lastIn: evt.replay && Number(evt.replayLastInAt) > 0 ? Number(evt.replayLastInAt) : Date.now(), followups: 0, nudges: 0, name }); // an owner-ordered replay keeps the message's own time, so the 24-hour window is never stretched (L43) // a reply resets quiet follow-ups and nudges
     // READ FIRST, before any rule answers anything: the real chat is read from Wati and handed to Claude, together with what we saved and the last question.
     // Nothing can be sent to this person otherwise (lib/readgate.mjs). If Wati or Claude cannot be reached the send is blocked and the team is told.
     const chat0 = await getRecentMessages(waId, 12);
