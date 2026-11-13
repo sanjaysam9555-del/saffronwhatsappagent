@@ -2,6 +2,7 @@ import { sendTemplateMessage } from "../../lib/wati.mjs";
 import { listContacts } from "../../lib/contacts.mjs";
 import { getDay, istDay } from "../../lib/metrics.mjs";
 import { sheetsClient, sheetReady, live } from "../../lib/sheet.mjs";
+import { silentChats, silentText } from "../../lib/noreply.mjs";
 
 // 20:30 IST every day. Full breakdown goes on the "Daily Summary" tab; a short WhatsApp headline goes to you.
 // "Daily Summary" headers: Date | New leads | Summaries sent | WA leads started | WA leads completed | WA leads confirmed |
@@ -45,8 +46,17 @@ export default async () => {
     } catch (e) { console.warn("nudge tab:", e.message); }
   }
   const open = { awaiting: awaitingList.length, nudges, urgent };
+  // L47: who wrote in today and got no reply, and why, read back from the Agent Log (its "(no reply: ...)" rows).
+  let silent = "";
+  if (sheetReady()) {
+    try {
+      const { data } = await sheetsClient(true).spreadsheets.values.get({ spreadsheetId: process.env.LEADS_SHEET_ID, range: "Agent Log!A:E" });
+      silent = silentText(silentChats(data.values || [], now));
+    } catch (e) { console.warn("agent log:", e.message); }
+  }
   const details = buildSummary(m, open) +
-    (awaitingList.length ? "\n\nChats waiting on you:\n" + awaitingList.slice(0, 15).map(([id, c]) => `- ${c.name || id}: "${(c.escText || "").slice(0, 80)}"`).join("\n") : "");
+    (awaitingList.length ? "\n\nChats waiting on you:\n" + awaitingList.slice(0, 15).map(([id, c]) => `- ${c.name || id}: "${(c.escText || "").slice(0, 80)}"`).join("\n") : "") +
+    (silent ? `\n\n${silent}` : "");
 
   const n = (k) => m[k] || 0;
   const row = [day, n("new_leads"), n("summaries_sent"), n("wa_leads_started"), n("wa_leads_completed"), n("wa_leads_confirmed"),

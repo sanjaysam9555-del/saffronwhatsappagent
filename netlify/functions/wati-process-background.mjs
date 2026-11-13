@@ -35,6 +35,7 @@ import { findLead, saveLead, live } from "../../lib/sheet.mjs";
 import { GREETING } from "../../lib/rules.mjs";
 import { incr } from "../../lib/metrics.mjs";
 import { acquireLock } from "../../lib/lock.mjs";
+import { teamChatReason } from "../../lib/callflag.mjs";
 
 const HOUR = 3600_000;
 // Wati names these inconsistently (sessionMessageSent, templateMessageSent_v2, ...). Delivery/read/replied status
@@ -291,7 +292,7 @@ const runGated = async (req) => {
     const followOpen = followOpenFor(c, chat);
     if (!missedOpen && !followOpen && (chat?.teamSpoke || (!chat && live()))) {
       await saveContact(waId, { humanSpoke: chat?.teamSpoke ? true : c.humanSpoke, ...(chat ? { lastOut: chat.lastOutAt || c.lastOut } : {}) });
-      await toHuman(chat ? "team-already-in-chat" : "history-unavailable", false);
+      await toHuman(chat ? teamChatReason(text, c) : "history-unavailable", false); // a call asked for here is flagged urgent (L48); nothing is sent either way
       return ok();
     }
     if (!chat) console.warn("chat history unavailable; continuing because DRY_RUN");
