@@ -406,7 +406,7 @@ Entries are in the order they were learned.
 - Went wrong: L46 recorded why a message got no reply, but the rows sat in the Agent Log tab until someone opened it.
 - Rule: the daily summary (20:30 IST) reads the Agent Log back and lists, in plain words, each person who wrote in during the day and got no reply, and why (one line per person; a repeated webhook, a test number or a burst answered by its last message are not counted). It sits in the Details of the Daily Summary tab; the WhatsApp template still carries counts only.
 - Test: silent chats: the daily summary lists who wrote in and got no reply
-- Commit: 8aafd39
+- Commit: e0d0989
 
 ## L48 A lead who asks for a call in a chat the team is in must not look like an ordinary "team is in this chat" row
 - Date: 2026-11-14
@@ -414,7 +414,7 @@ Entries are in the order they were learned.
 - Went wrong: the agent rightly stays out of a team-owned chat, but a request for a call was filed exactly like "Okay", so no alert went out.
 - Rule: in a chat the team is in, a message that asks for a call (call, meeting, zoom, google meet, schedule, appointment, consultation; no loose single word like "discuss") from someone who is not a vendor or job seeker is handed over as lead-wants-call-in-team-chat: URGENT, so the team alert goes out, and the row says how to book it. Still nothing is sent to the lead.
 - Test: team call flag: a lead who asks for a call in a team-owned chat is flagged urgent
-- Commit: 8aafd39
+- Commit: e0d0989
 
 ## L49 The owner can book a call herself for a chat the agent stays out of
 - Date: 2026-11-14
@@ -422,7 +422,7 @@ Entries are in the order they were learned.
 - Went wrong: the agent's booking only ran from its own question flow.
 - Rule: "agent, book <name> <day and time>" (book_call) books through the same calendar rules (call hours, buffer, four a day, never in the past, never without a stated day and time), creates the event with a Meet link (or a phone call if she says so), remembers the call so reminders go out, and tells the lead through the gated send only while their 24-hour window is open. A time that is not free books nothing and shows the nearest free times.
 - Test: book command: books the stated time, remembers the call for reminders
-- Commit: 8aafd39
+- Commit: e0d0989
 
 ## L50 A closed 24-hour window is reopened with the approved check-in template, not left silent
 - Date: 2026-11-14
@@ -430,7 +430,7 @@ Entries are in the order they were learned.
 - Went wrong: the command stopped at the closed window although an approved check-in template exists (REOPEN_TEMPLATE_NAME, or the first of QUIET_TEMPLATES).
 - Rule: `agent, answer <name>` on a chat whose window has closed sends that template (Claude reads the chat first, through the gate), releases the hold, and records followOpen so the lead's reply is answered in context (L44). It does not replay the old message. Never twice within two days; with no template set it refuses as before.
 - Test: reopen: a closed 24-hour window is reopened with the approved check-in template
-- Commit: 8aafd39
+- Commit: e0d0989
 
 ## L51 Something broken in the booking path is found by us in the morning, not by a lead
 - Date: 2026-11-14
@@ -438,7 +438,7 @@ Entries are in the order they were learned.
 - Went wrong: nothing watched the booking path, so a broken calendar, token or setting would only show when a lead was left waiting.
 - Rule: every day at 09:00 IST a self-test checks the question flow, the call hours, a live calendar read, Wati, the leads sheet, the Claude key and the settings the agent relies on. It sends nothing to any lead and calls no paid model; when a check fails the team gets an urgent Needs Team row (self-test-failed) and the usual team alert.
 - Test: self-test: a failing check is reported by name
-- Commit: 8aafd39
+- Commit: e0d0989
 
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
