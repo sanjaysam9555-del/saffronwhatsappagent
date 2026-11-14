@@ -488,5 +488,13 @@ Entries are in the order they were learned.
 - Test: a simple question in the middle of the questions is answered from our facts
 - Commit: 8200291
 
+## L58 The first message must not open with a request for the mobile number
+- Date: 2026-11-14
+- Chat: Pooja Singh (Instagram, from the reel): "Someone in my family is getting married" got a warm welcome and then, straight away, "May I have your mobile number..."; Manisha, mr_and_mrs and others did not answer that first message (Swati: a huge drop-off at the first text)
+- Went wrong: Instagram asked for the number before any easy question, so people who had only said what they wanted stopped there.
+- Rule: on Instagram one easy question comes first (the occasion, or the date when the occasion is already known), then the number, then the rest (orderOf, numAfter in lib/qualify.mjs). The number question explains why in the lead's terms ("so our Founders can share the right details") and no longer says it is required. Chats that began before this change keep the old order. WhatsApp is unchanged (we already have the number there).
+- Test: number second on Instagram: one easy question first
+- Commit: 94f01e3
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.

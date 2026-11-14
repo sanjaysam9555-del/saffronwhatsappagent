@@ -367,12 +367,16 @@ test("Instagram flow: number asked first, any country accepted, deferral handled
 
   let r = advance(newState({}, "Instagram", "instagram"), "hi, need wedding planning", {}, "Riya Shah", "Hello Riya!");
   assert.equal(r.kind, "ask");
+  assert.match(r.reply, /wedding, a reception/); // one easy question first (L58)
+  assert.doesNotMatch(r.reply, /mobile number/);
+  r = advance(r.q, "wedding", { occasion: "Wedding" }, "Riya"); // then the number
+  assert.equal(r.q.asked, "number");
   assert.match(r.reply, /mobile number/);
   assert.match(r.reply, /country code/);
-  // gives a number: moves on to the occasion
+  // gives a number: moves on to the date
   const given = advance(r.q, "+447911123456", { number: "+447911123456" }, "Riya");
   assert.equal(given.q.fields.number, "+447911123456");
-  assert.match(given.reply, /wedding, a reception/);
+  assert.match(given.reply, /What date/);
   // incomplete number: asked once for the country code
   const amb = advance(r.q, "4155550123", { numberAmbiguous: true }, "Riya");
   assert.match(amb.reply, /country code/);
@@ -381,7 +385,7 @@ test("Instagram flow: number asked first, any country accepted, deferral handled
   const d1 = advance(r.q, "I will share it later", {}, "Riya");
   assert.equal(d1.q.fields.number, "Pending");
   assert.match(d1.reply, /Happy to continue here/);
-  assert.match(d1.reply, /wedding, a reception/);
+  assert.match(d1.reply, /What date/);
   // refusal is respected
   const no = advance(r.q, "I don't want to share my number", {}, "Riya");
   assert.equal(no.q.fields.number, "Not shared");
@@ -449,7 +453,7 @@ test("a lead who was already greeted is not welcomed a second time", () => {
   const q = { ...newState({}, "Instagram", "instagram"), greeted: true };
   const r = advance(q, "I am planning a wedding", {}, "Swati", "", "", "");
   assert.doesNotMatch(r.reply, /Hello|Welcome to Saffron/);
-  assert.match(r.reply, /mobile number/);
+  assert.match(r.reply, /wedding, a reception/);
   const r2 = advance(newState({}, "Instagram", "instagram"), "I am planning a wedding", {}, "Swati", "", "", "");
   assert.match(r2.reply, /Hello Swati,/);
 });
@@ -616,7 +620,7 @@ test("the opening answers what the lead asked for, and the number ask explains w
   assert.equal(r.kind, "ask");
   assert.equal(r.reply,
     "Hello Sanjay,\n\nWelcome to Saffron Collective! 🌼\n\nWe would love to help you with the decor.\n\n" +
-    "May I have your mobile number, so we can confirm a few details for the quote/design?\n\nNote: Please include the country code if it is outside India.");
+    "Is this for a wedding, a reception, or another occasion?");
 });
 
 test("serviceLine reads decor, planning, both, or nothing", () => {
@@ -1101,7 +1105,7 @@ test("a first message asking about decor price gets a short reply: one answer, o
   assert.doesNotMatch(r.reply, /https?:\/\//);
   assert.doesNotMatch(r.reply, /few quick questions|This is required/);
   assert.match(r.reply, /Founders will walk you through it on a quick call/);
-  assert.match(r.reply, /mobile number/);
+  assert.match(r.reply, /wedding, a reception/);
   assert.ok(r.reply.length < 460, `reply is ${r.reply.length} characters`);
 });
 
@@ -1148,8 +1152,8 @@ test("the first reply from Claude is short: greeting, welcome plus one line, one
   try {
     const opener = await draftOpening({ text: "Someone in my family is getting married", name: "Puja Jais", greeted: false });
     assert.equal(opener, "Hello Puja,\n\nWelcome to Saffron Collective! 🌼\nCongratulations on the upcoming wedding in your family, what wonderful news.\n\nWe'd be delighted to help bring the celebrations to life.");
-    const r = advance(newState({}, "Instagram", "instagram"), "Someone in my family is getting married", {}, "Puja Jais", opener);
-    assert.equal(r.reply, opener + "\n\nMay I have your mobile number, so we can confirm a few details for the quote/design?\n\nNote: Please include the country code if it is outside India.");
+    const r = advance(newState({}, "Instagram", "instagram"), "Someone in my family is getting married", { occasion: "Wedding" }, "Puja Jais", opener);
+    assert.equal(r.reply, opener + "\n\nWhat date are you planning your event for? An approximate month is fine too."); // the occasion is known, so the date is the one easy question before the number (L58)
     assert.ok(r.reply.length < 340, `first reply is ${r.reply.length} characters`);
     // a long or malformed draft is thrown away and the plain short welcome is used instead
     globalThis.fetch = async () => ({ ok: true, json: async () => ({ content: [{ text: "x ".repeat(100) }] }) });

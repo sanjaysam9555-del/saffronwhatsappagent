@@ -6,30 +6,28 @@
   {
    "lead": "Hi, we want help with our wedding",
    "reply": [
-    "mobile number"
+    "What date"
    ],
    "stage": "asking"
+  },
+  {
+   "lead": "Wedding in november next year",
+   "reply": [
+    "mobile number"
+   ],
+   "fields": {
+    "occasion": "Wedding",
+    "date": "November 2027"
+   }
   },
   {
    "lead": "I would rather not share it",
    "reply": [
     "continue right here",
-    "What date"
+    "city or destination"
    ],
    "fields": {
     "number": "Not shared",
-    "occasion": "Wedding"
-   }
-  },
-  {
-   "lead": "Wedding in november next year",
-   "reply": [
-    "city or destination"
-   ],
-   "notReply": [
-    "What date"
-   ],
-   "fields": {
     "occasion": "Wedding",
     "date": "November 2027"
    }

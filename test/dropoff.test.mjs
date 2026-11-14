@@ -40,7 +40,9 @@ test("resume after our own hand-over: the answer to the open call question is re
 
 // ---- L53 (mr_and_mrs) ----
 test("hi at the number question: a plain hi gets one gentle re-ask, never the 'No spam' speech or a jump to the next question", () => {
-  let q = advance(newState({}, "Instagram", "instagram"), "I am getting married", {}, "Mr", "", "", "").q;
+  let q = advance(newState({}, "Instagram", "instagram"), "I am getting married", { occasion: "Wedding" }, "Mr", "", "", "").q;
+  assert.equal(q.asked, "date");
+  q = advance(q, "December 2026", { date: "December 2026" }, "Mr", "", "", "").q;
   assert.equal(q.asked, "number");
   const r = advance(q, "hi", {}, "Mr", "", "", "");
   assert.equal(r.kind, "ask");
@@ -53,7 +55,7 @@ test("hi at the number question: a plain hi gets one gentle re-ask, never the 'N
   assert.match(ok.reply, /^Thank you!/);
   // the second time, the questions carry on without any speech
   const again = advance(r.q, "hi", {}, "Mr", "", "", "");
-  assert.equal(again.q.asked, "occasion");
+  assert.equal(again.q.asked, "location");
   assert.doesNotMatch(again.reply, /No spam|Happy to continue/i);
   // a real refusal and a real other answer are unchanged
   assert.match(advance(q, "I'm not comfortable sharing my number", {}, "Mr", "", "", "").reply, /No problem, we will continue right here/);
@@ -128,4 +130,36 @@ test("a simple question in the middle of the questions is answered from our fact
     assert.match(f, /\$\{fa\}\\n\\n\$\{pendQ\}/, "the answer is followed by the question we were waiting for");
     assert.match(f, /\["asking", "call"\]\.includes\(leadQ\.stage\)/);
   }
+});
+
+// ---- L58 (Swati: the first message asked for the number before anything else) ----
+import { orderOf, ORDER, pendingQuestion } from "../lib/qualify.mjs";
+test("number second on Instagram: one easy question first (occasion, or the date when the occasion is known), then the number, then the rest", () => {
+  // occasion not known: occasion, number, date
+  let r = advance(newState({}, "Instagram", "instagram"), "Hi, we want help with our event", {}, "Riya", "", "", "");
+  assert.equal(r.q.asked, "occasion");
+  assert.doesNotMatch(r.reply, /mobile number/);
+  r = advance(r.q, "wedding", { occasion: "Wedding" }, "Riya", "", "", "");
+  assert.equal(r.q.asked, "number");
+  assert.match(r.reply, /Founders can share the right details/);
+  assert.doesNotMatch(r.reply, /required/i);
+  r = advance(r.q, "+91 98765 43210", { number: "+919876543210" }, "Riya", "", "", "");
+  assert.equal(r.q.asked, "date");
+  // occasion known from the first message (Pooja: "Someone in my family is getting married"): date, number, location
+  r = advance(newState({}, "Instagram", "instagram"), "Someone in my family is getting married", { occasion: "Wedding" }, "Pooja", "", "", "");
+  assert.equal(r.q.asked, "date");
+  assert.doesNotMatch(r.reply, /mobile number/);
+  r = advance(r.q, "March 2027", { date: "March 2027" }, "Pooja", "", "", "");
+  assert.equal(r.q.asked, "number");
+  r = advance(r.q, "+919876543210", { number: "+919876543210" }, "Pooja", "", "", "");
+  assert.equal(r.q.asked, "location");
+  // everything said at once: the number is already there, so the questions carry on
+  r = advance(newState({}, "Instagram", "instagram"), "Wedding in March 2027, call 9876543210", { occasion: "Wedding", date: "March 2027", number: "+919876543210" }, "Asha", "", "", "");
+  assert.equal(r.q.asked, "location");
+  // order helper: new chats carry the position, chats that began before keep the number first, WhatsApp is unchanged
+  assert.deepEqual(orderOf({ channel: "instagram", numAfter: "occasion" }).slice(0, 3), ["occasion", "number", "date"]);
+  assert.deepEqual(orderOf({ channel: "instagram", numAfter: "date" }).slice(0, 3), ["occasion", "date", "number"]);
+  assert.equal(orderOf({ channel: "instagram" })[0], "number");
+  assert.deepEqual(orderOf({ channel: "whatsapp" }), ORDER);
+  assert.match(pendingQuestion({ asked: "number" }), /^May I have your mobile number, so our Founders can share the right details for the quote\/design\?/);
 });

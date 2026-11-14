@@ -6,23 +6,23 @@
   {
    "lead": "Hi, can we connect on a call to discuss our wedding",
    "reply": [
+    "What date"
+   ]
+  },
+  {
+   "lead": "12 Feb 2027",
+   "reply": [
     "mobile number"
    ]
   },
   {
    "lead": "+91 98765 43210",
    "reply": [
-    "What date"
+    "city"
    ],
    "fields": {
     "number": "\\+919876543210"
    }
-  },
-  {
-   "lead": "12 Feb 2027",
-   "reply": [
-    "city"
-   ]
   },
   {
    "lead": "Jaipur",

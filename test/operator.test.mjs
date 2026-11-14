@@ -177,7 +177,8 @@ test("Instagram: a message ManyChat could not read is recovered from Meta only w
 test("a number that arrives as an unreadable phone card is accepted and the chat moves on", async () => {
   const { newState, advance, numberInChat } = await import("../lib/qualify.mjs");
   let q = newState({}, "Instagram", "instagram");
-  q = advance(q, "Hi I need wedding planning", {}, "Riya").q; // first turn: asks for the number
+  q = advance(q, "Hi I need wedding planning", {}, "Riya").q; // first turn: one easy question
+  q = advance(q, "wedding", { occasion: "Wedding" }, "Riya").q; // then the number (L58)
   assert.equal(q.asked, "number");
   const r = numberInChat(q, "Riya");
   assert.equal(r.q.fields.number, "Shared in this chat");
