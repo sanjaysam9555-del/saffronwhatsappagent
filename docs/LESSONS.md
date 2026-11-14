@@ -446,7 +446,7 @@ Entries are in the order they were learned.
 - Went wrong: the "?" made the answer look like a question for a person (hand-over), and after any hand-over the chat is silent, even when the hand-over was our own failure to read her and her next message answered the question we had asked.
 - Rule: "either", "both", "whichever", "no preference", "depending on who is available" at the call question mean either call is fine: the Meet times are offered and the note says so. When the agent's own hand-over (lead-question) left the call question open and she answers it, and no person has written in the chat since (our last message in the real chat is still our hold line), the chat resumes. A new question still goes to a person.
 - Test: either call: 'either, depending on who is available' is an answer
-- Commit: e0d0989
+- Commit: fbc9b24
 
 ## L53 A plain "hi" at the number question is not a refusal
 - Date: 2026-11-14
@@ -454,7 +454,7 @@ Entries are in the order they were learned.
 - Went wrong: any reply that was not a number, not a refusal and not another answer was treated as "no number", so the explanation and the next question were sent to someone who had only said hello.
 - Rule: a bare greeting or "ok/yes/sure" at the number question gets one short re-ask ("Hello! Whenever you are ready, may I have your mobile number..."), the number stays open, and nothing is saved as Pending. The second time the questions carry on without the "No spam" line. A real refusal and a real other answer behave as before.
 - Test: hi at the number question: a plain hi gets one gentle re-ask
-- Commit: e0d0989
+- Commit: fbc9b24
 
 ## L54 A job enquiry who writes again is never ignored for good
 - Date: 2026-11-14
@@ -462,7 +462,7 @@ Entries are in the order they were learned.
 - Went wrong: once a chat was marked jobSeeker every later message exited silently (both channels).
 - Rule: a message from a job seeker is read by Claude first. If it is really about an event (client or price) the chat becomes a client chat again. Otherwise one short thank-you (once per day) and a Needs Team row (job-seeker-wrote-again, once per six hours) so a person reads it.
 - Test: job seeker writes again: a short thank-you and a row for the team
-- Commit: e0d0989
+- Commit: fbc9b24
 
 ## L55 A reel or photo sent with no words is never lost
 - Date: 2026-11-14
@@ -470,7 +470,7 @@ Entries are in the order they were learned.
 - Went wrong: a message with no text skipped the no-reply log (L46), and a reel sent into a finished chat or one with the team had no reply and no row for the team.
 - Rule: a message with no words is logged as "[shared a reel, post or photo]" like any other. In a chat that is new or in any step of the questions, or finished, it gets the short thank-you (and the pending question). In a chat that is with the team it puts a Needs Team row (lead-shared-media) in front of them.
 - Test: reel with no words: always counted as a message
-- Commit: e0d0989
+- Commit: fbc9b24
 
 ## L56 A new lead's first message always gets the welcome
 - Date: 2026-11-14
@@ -478,7 +478,7 @@ Entries are in the order they were learned.
 - Went wrong: any path that ended a run without sending (a lost exit, a skipped message, a quiet decision) left a brand-new lead with nothing.
 - Rule: when a lead has never been written to by us and the run ends without sending anything and without a deliberate reason (duplicate, hand-over, operator quiet, burst), the standard welcome goes out (once per six hours) and a Needs Team row (first-message-unanswered) says why. Where the first reply asks for the mobile number and nothing else, see the open question to the owner about the order of questions.
 - Test: first message safety net: a new lead whose first message ends with nothing sent gets the welcome
-- Commit: e0d0989
+- Commit: fbc9b24
 
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
