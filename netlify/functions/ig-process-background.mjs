@@ -10,7 +10,7 @@ import { sendTemplateMessage } from "../../lib/wati.mjs";
 import { callBookedParams } from "../../lib/leadfields.mjs";
 import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playbook.mjs";
 import { holdContact, resumeOnNumber, resumeOnCallAnswer } from "../../lib/qualify.mjs";
-import { extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail, draftBudgetAnswer, draftClarify } from "../../lib/claude.mjs";
+import { extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail, draftBudgetAnswer, draftClarify, draftFlowAnswer } from "../../lib/claude.mjs";
 import { newState, advance, numberInChat, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest, slotStillFree } from "../../lib/calendar.mjs";
 import { recordCall, callRecord, touchCall } from "../../lib/calls.mjs";
@@ -179,6 +179,12 @@ const runGated = async (req) => {
     if (reason === "lead-question") { // an answer you have already taught the agent is used before anyone is bothered
       const taught = await answerFromPlaybook(text);
       if (taught) { await send(pendingAsk ? `${taught}\n\n${pendingAsk}` : taught); await incr("playbook_answers"); return; }
+      // A simple question the facts answer ("Do you host events across North India?") is answered by Claude from the real chat, and the question we were waiting for is asked again: the chat is not handed over (Kishancha, L57).
+      const pendQ = pendingAsk || (leadQ?.stage === "call" ? "Would you prefer a Google Meet video call or a phone call?" : "");
+      if (leadQ && ["asking", "call"].includes(leadQ.stage) && !vendorChat && pendQ) {
+        const fa = await draftFlowAnswer({ text, name: who, history: await chatHistory(text), fields: leadQ.fields, pending: pendQ });
+        if (fa) { await send(`${fa}\n\n${pendQ}`); await incr("flow_answers"); noteWhy("answered a simple question in the flow"); return; }
+      }
       await recordQuestion({ channel: "Instagram", text });
     }
     await saveIg(sid, { esc: true, escAt: Date.now(), escReason: reason });

@@ -103,3 +103,29 @@ test("first message safety net: a new lead whose first message ends with nothing
   assert.match(IG, /await runRescue\(\); await logNoReply\(\)/);
   assert.ok(REASONS["first-message-unanswered"]);
 });
+
+// ---- L57 (Kishancha) ----
+import { checkFlowAnswer, SERVICE_FACTS } from "../lib/facts.mjs";
+import { draftFlowAnswer } from "../lib/claude.mjs";
+const withClaude = async (reply, fn) => {
+  const f = globalThis.fetch, k = process.env.ANTHROPIC_API_KEY;
+  process.env.ANTHROPIC_API_KEY = "test"; globalThis.fetch = async () => ({ ok: true, json: async () => ({ content: [{ text: reply }] }) });
+  try { return await fn(); } finally { globalThis.fetch = f; if (k === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = k; }
+};
+test("a simple question in the middle of the questions is answered from our facts and the open question is asked again, not handed to a person", async () => {
+  assert.match(SERVICE_FACTS, /across India, including North India/);
+  assert.equal(checkFlowAnswer("Yes, we do. We are based in Gurugram and plan weddings across Delhi NCR and North India, and destination weddings too."), true);
+  for (const bad of ["HANDOVER", "Yes, from ₹3.5 lakh.", "We are available on 10 March.", "Our team will call you at 4pm.", "Do you want a quote?", "See https://saffronevents.in", "We guarantee the best price.", ""]) assert.equal(checkFlowAnswer(bad), false, bad);
+  const hist = [{ from: "us", text: "Which city or destination are you considering?" }];
+  const args = { text: "Do you host events across North India?", name: "Kishan", history: hist, fields: { occasion: "Wedding", date: "10 March 2027" }, pending: "Which city or destination are you considering?" };
+  const yes = "Yes, we do. We are based in Gurugram and plan weddings and events across Delhi NCR and North India, as well as destination weddings.";
+  assert.equal(await withClaude(yes, () => draftFlowAnswer(args)), yes);
+  assert.equal(await withClaude("HANDOVER", () => draftFlowAnswer({ ...args, text: "Are you free on 10 March and what is the price?" })), "", "not in the facts: a person answers");
+  assert.equal(await withClaude("Yes, from ₹3.5 lakh.", () => draftFlowAnswer(args)), "", "a figure Claude was not given is refused");
+  assert.equal(await draftFlowAnswer(args), "", "no Claude: the old hand-over");
+  for (const f of [IG, WA]) {
+    assert.match(f, /draftFlowAnswer\(\{ text, name: who/);
+    assert.match(f, /\$\{fa\}\\n\\n\$\{pendQ\}/, "the answer is followed by the question we were waiting for");
+    assert.match(f, /\["asking", "call"\]\.includes\(leadQ\.stage\)/);
+  }
+});

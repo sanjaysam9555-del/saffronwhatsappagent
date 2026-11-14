@@ -13,7 +13,7 @@ import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playb
 import { sendSessionMessage, updateContactAttributes, getRecentMessages } from "../../lib/wati.mjs";
 import { readChat, isOwnFixedText, followOpenFor } from "../../lib/team.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
-import { draftReply, extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail, draftBudgetAnswer, draftClarify } from "../../lib/claude.mjs";
+import { draftReply, extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail, draftBudgetAnswer, draftClarify, draftFlowAnswer } from "../../lib/claude.mjs";
 import { lookupContact } from "../../lib/planning-studio.mjs";
 import { allow } from "../../lib/state.mjs";
 import { getContact, saveContact, AGENT_ECHO_MS } from "../../lib/contacts.mjs";
@@ -197,6 +197,12 @@ const runGated = async (req) => {
       const taught = await answerFromPlaybook(text);
       if (taught) {
         await agentSend(pendingAsk ? `${taught}\n\n${pendingAsk}` : taught); await incr("playbook_answers"); return;
+      }
+      // A simple question the facts answer is answered by Claude from the real chat, then the open question is asked again: no hand-over (Kishancha, L57).
+      const pendQ = pendingAsk || (leadQ?.stage === "call" ? "Would you prefer a Google Meet video call or a phone call?" : "");
+      if (leadQ && ["asking", "call"].includes(leadQ.stage) && !vendorChat && pendQ) {
+        const fa = await draftFlowAnswer({ text, name: who, history: withoutCurrent((await getRecentMessages(waId, 12)) || [], text), fields: leadQ.fields, pending: pendQ });
+        if (fa) { await agentSend(`${fa}\n\n${pendQ}`); await incr("flow_answers"); noteWhy("answered a simple question in the flow"); return; }
       }
       await recordQuestion({ channel: "WhatsApp", text });
     }
