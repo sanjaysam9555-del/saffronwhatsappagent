@@ -1,7 +1,7 @@
 import { withChat, noteInbound, noteWhy, runTrace, callerOf } from "../../lib/readgate.mjs";
 import { logNoReply } from "../../lib/noreply.mjs";
 import { contextCheck } from "../../lib/presend.mjs";
-import { decide, ESCALATION_ACK, CLIENT, vendorWelcome, vendorReminder, jobReply, RESUME_FILE, maybeOptOut } from "../../lib/rules.mjs";
+import { decide, ESCALATION_ACK, CLIENT, vendorWelcome, vendorReminder, jobReply, jobFollowReply, RESUME_FILE, maybeOptOut } from "../../lib/rules.mjs";
 import { operatorOn, routeMessage, ownerCommand, isOwner, COMMAND_PREFIX } from "../../lib/operator.mjs";
 import { ownerDeps } from "../../lib/operatordeps.mjs";
 import { hardMoney, isPriceQuestion, priceAnswer, isInclusionsQuestion, inclusionsAnswer, budgetLakhs, MIN_BUDGET_LAKHS, budgetQuestionKind } from "../../lib/facts.mjs";
@@ -296,7 +296,15 @@ const runGated = async (req) => {
       return ok();
     }
     if (!chat) console.warn("chat history unavailable; continuing because DRY_RUN");
-    if (c.jobSeeker) return ok(); // already thanked: a person reads the rest
+    if (c.jobSeeker) { // thanked already, and writes again: never ignored for good (Vanshita, L53). Claude reads it; an event enquiry makes it a client chat again.
+      const act = operatorOn() ? await routeMessage({ channel: "WhatsApp", profileName: name, text, history: withoutCurrent(chat0 || [], text), state: { kind: "vendor", jobSeeker: true, greeted: true } }) : null;
+      if (act && (act.kind === "client" || act.kind === "price")) { await saveContact(waId, { jobSeeker: false, kind: "" }); Object.assign(c, { jobSeeker: false, kind: "" }); noteWhy("job seeker wrote about an event: read as a client again"); }
+      else {
+        if (await allow(`reply:${waId}:jobfollow`, 24 * HOUR)) { await agentSend(jobFollowReply({ name: who })); await incr("job_followups"); }
+        if (await allow(`jobteam:${waId}`, 6 * HOUR)) await logNeedsTeam({ waId, name, reason: "job-seeker-wrote-again", lastMsg: text, reply: "(short thank-you sent)" });
+        return ok("job seeker: thanked again, the team reads it");
+      }
+    }
     if (missedOpen && mc.state === "asked") {
       const r = missedReply(text);
       const call = await getCall(mc.callId);

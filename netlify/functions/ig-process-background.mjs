@@ -1,15 +1,15 @@
-import { withChat, noteRead, exemptFromGate, noteInbound, noteWhy, runTrace, callerOf } from "../../lib/readgate.mjs";
+import { withChat, noteRead, exemptFromGate, noteInbound, noteWhy, runTrace, callerOf, setRescue, runRescue } from "../../lib/readgate.mjs";
 import { logNoReply } from "../../lib/noreply.mjs";
 import { contextCheck } from "../../lib/presend.mjs";
 import { getRecentMessages } from "../../lib/wati.mjs";
-import { decide, ESCALATION_ACK, CLIENT, GREETING, OPTOUT, vendorWelcome, vendorReminder, jobReply, isOptOut, maybeOptOut } from "../../lib/rules.mjs";
+import { decide, ESCALATION_ACK, CLIENT, GREETING, OPTOUT, vendorWelcome, vendorReminder, jobReply, jobFollowReply, isOptOut, maybeOptOut } from "../../lib/rules.mjs";
 import { hardMoney, isPriceQuestion, priceAnswer, isInclusionsQuestion, inclusionsAnswer, budgetLakhs, MIN_BUDGET_LAKHS, budgetQuestionKind } from "../../lib/facts.mjs";
 import { guidesFor, guideText, readingFor } from "../../lib/guides.mjs";
 import { extractPhone } from "../../lib/phone.mjs";
 import { sendTemplateMessage } from "../../lib/wati.mjs";
 import { callBookedParams } from "../../lib/leadfields.mjs";
 import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playbook.mjs";
-import { holdContact, resumeOnNumber } from "../../lib/qualify.mjs";
+import { holdContact, resumeOnNumber, resumeOnCallAnswer } from "../../lib/qualify.mjs";
 import { extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail, draftBudgetAnswer, draftClarify } from "../../lib/claude.mjs";
 import { newState, advance, numberInChat, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest, slotStillFree } from "../../lib/calendar.mjs";
@@ -56,8 +56,8 @@ export function chunk(text, max = 900) {
 
 // Every message that can leave runs inside the one-rule gate (lib/readgate.mjs). A lead's message that ends with no reply is written to the Agent Log with the reason (L46).
 export default (req) => withChat(async () => {
-  try { const res = await runGated(req); await logNoReply(); return res; }
-  catch (e) { await logNoReply(`error: ${e.message}`); throw e; }
+  try { const res = await runGated(req); await runRescue(); await logNoReply(); return res; }
+  catch (e) { await runRescue(); await logNoReply(`error: ${e.message}`); throw e; }
 });
 const runGated = async (req) => {
   const url = new URL(req.url);
@@ -110,7 +110,7 @@ const runGated = async (req) => {
 
   if (!blankText) await addIgHistory(sid, "customer", text); // the chat so far, for Claude
   const label = username ? `@${username}` : `ig:${sid}`;
-  if (!blankText) noteInbound({ channel: "Instagram", contact: label, text });
+  noteInbound({ channel: "Instagram", contact: label, text: blankText ? "[shared a reel, post or photo]" : text }); // a reel with no words is still a message that needs an answer (L53)
   let pendingAsk = ""; // the question we were waiting for, repeated after a taught answer
   let vendorChat = false, leadQ = null; // set once the chat is loaded; used to give every real lead a row, even one who asks a question and goes quiet
   const ROW_REASONS = new Set(["lead-question", "money-or-commitment", "pricing-or-availability-question", "call-time-request"]);
@@ -258,6 +258,15 @@ const runGated = async (req) => {
     if (await allow(`igreply:${sid}:job`, 24 * HOUR)) { await send(jobReply({ name: who0 || who })); await incr("job_enquiries"); }
     await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "job-enquiry", lastMsg: text, reply: "(thank-you sent, no link)" });
   };
+  // A job enquiry writes again. The chat is not closed for good (Vanshita, L53): Claude reads the message; if it is really about an event, the chat becomes
+  // a client chat again. Otherwise one short thank-you and a row for the team. Returns true when the chat carries on as a client chat.
+  const jobFollowUp = async (history) => {
+    const act = operatorOn() ? await routeMessage({ channel: "Instagram", profileName: name || username, text, history, state: { kind: "vendor", jobSeeker: true, greeted: true } }) : null;
+    if (act && (act.kind === "client" || act.kind === "price")) { await saveIg(sid, { jobSeeker: false, kind: "" }); noteWhy("job seeker wrote about an event: read as a client again"); return true; }
+    if (await allow(`igreply:${sid}:jobfollow`, 24 * HOUR)) { await send(jobFollowReply({ name: who })); await incr("job_followups"); }
+    if (await allow(`igjobteam:${sid}`, 6 * HOUR)) await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "job-seeker-wrote-again", lastMsg: text, reply: "(short thank-you sent)" });
+    return false;
+  };
   const lock = await acquireLock(`ig:${sid}`); // one message at a time per chat; a quick follow-up waits for the one before it
   try {
     // The same message handled a moment ago by the run we just waited for (ManyChat fires twice, a little more than 15 seconds apart): already answered, so
@@ -276,6 +285,20 @@ const runGated = async (req) => {
     if (c.q?.numCard && [PLACEHOLDER, "Pending"].includes(c.q.fields?.number) && (await fillNumberFromChat(1))) c = await getIg(sid); // still unread from an earlier turn: check the chat once more
     pendingAsk = c.q?.stage === "asking" ? pendingQuestion(c.q) : "";
     leadQ = c.q || null;
+    // A brand-new lead's first message must never end with nothing sent: if the run below ends without a reply and without a deliberate reason, the welcome goes (L54).
+    if (!c.lastOut && !c.greeted && !c.q && !c.esc && !c.dnc && !c.kind && !c.jobSeeker && !c.humanSpoke) {
+      setRescue(async (why) => {
+        if (!(await allow(`igreply:${sid}:open`, 6 * HOUR))) return;
+        await saveIg(sid, { greeted: true });
+        const msg = greetingText(who);
+        await sendInstagramText(sid, msg);
+        await addIgHistory(sid, "us", msg);
+        await saveIg(sid, { lastOut: Date.now(), lastOutText: msg.slice(0, 600) });
+        await logExchange({ channel: "Instagram", contact: label, lead: text, agent: msg });
+        await incr("first_message_rescues");
+        await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "first-message-unanswered", lastMsg: `${text.slice(0, 100)} (${why})`, reply: "(welcome sent)" });
+      });
+    }
     const d = decide(text, { name });
 
     if (isOptOut(text)) {
@@ -285,7 +308,7 @@ const runGated = async (req) => {
     }
     if (c.dnc) return ok();
     if (maybeOptOut(text)) await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "possible-opt-out", lastMsg: text }); // the words of a stop inside a longer message: read like any message, the team is told
-    if (c.jobSeeker) return ok("job seeker: a person reads the rest"); // already thanked
+    if (c.jobSeeker) { if (!(await jobFollowUp(chat0))) return ok("job seeker: thanked again, the team reads it"); c = await getIg(sid); }
     if (d.intent === "job_seeker") { await jobSeekerNow(); return ok(); }
 
       // Photos, reels and links. Shared on their own they are references ("we want something like this"): say thank you and carry on.
@@ -323,6 +346,13 @@ const runGated = async (req) => {
         await saveIg(sid, { q: held }); // could not offer times: the number is kept and the chat stays with the team (below)
       }
     }
+    // Our own hand-over (a call question we could not read) is not the end of the chat: their answer to the call question that was still open resumes it (L52).
+    if (c.esc && c.q?.stage === "call" && calendarEnabled() && !mediaCount && resumeOnCallAnswer(c, text, chat0)) {
+      c = await saveIg(sid, { esc: false });
+      console.log(`ig ${sid}: answered the open call question after our hand-over; the chat resumes`);
+    }
+    // A reel, post or photo sent into a chat that is with the team is never lost: the team gets a row (L53).
+    if (mediaCount && !message && (c.esc || c.q?.stage === "paused") && c.kind !== "vendor" && (await allow(`igmediateam:${sid}`, HOUR))) await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "lead-shared-media", lastMsg: "[shared a reel, post or photo]" });
     if (c.esc || c.q?.stage === "paused" || (c.kind === "vendor" && mediaCount && !message)) {
       // Quiet after a hand-over, but a number or email they send is still kept for the team.
       const p0 = extractPhone(text), e0 = extractEmail(text);
@@ -342,7 +372,7 @@ const runGated = async (req) => {
     }
     if (mediaCount && !message) {
       if (!c.q) { if (await allow(`igreply:${sid}:open`, 6 * HOUR)) { await saveIg(sid, { greeted: true }); await send(refOpen(who)); } }
-      else if (["asking", "confirm", "call", "slots", "email"].includes(c.q.stage) && (await allow(`igmediaack:${sid}`, blankText ? 90_000 : 10 * 60_000))) {
+      else if (["new", "asking", "confirm", "call", "slots", "email", "done"].includes(c.q.stage) && (await allow(`igmediaack:${sid}`, blankText ? 90_000 : 10 * 60_000))) {
         const again = c.q.stage === "asking" ? pendingQuestion(c.q) : "";
         const thanks = blankText ? REF_UNSURE : REF_THANKS; // blank text: it may have been their answer, so ask again instead of just thanking
         await send(again ? `${thanks}\n\n${again}` : thanks);
@@ -458,7 +488,7 @@ const runGated = async (req) => {
       }
       if (act?.kind === "reply") { await saveIg(sid, { greeted: true }); if (await allow(`igreply:${sid}:operator`, 20_000)) { await send(act.text, { near: true }); await incr("operator_replies"); } return ok(); }
       if (act?.kind === "handover") { await toHuman(HANDOVER_REASON[act.reason] || "unclear", true, act.hold); return ok(); }
-      if (act?.kind === "quiet") { console.log(`operator stayed quiet for ig ${sid}: ${act.why}`); return ok(); }
+      if (act?.kind === "quiet") { console.log(`operator stayed quiet for ig ${sid}: ${act.why}`); return ok(`operator stayed quiet: ${String(act.why || "").slice(0, 80)}`); }
       if (!act) {
         const found = await classifySenderDetail({ text, name });
         if (found.who === "vendor") { await vendorWelcomeNow(found); return ok(); }
