@@ -486,7 +486,7 @@ Entries are in the order they were learned.
 - Went wrong: any reply with a "?" or starting with "do you / can you / what" during the questions was treated as a question for a person. A single character decided, which is what the agent must never do (it is also what turned Anjana's "either?" into a hand-over, L52).
 - Rule: in the asking and call steps, a question is first read by Claude from the real chat and answered only from SERVICE_FACTS (lib/facts.mjs: where we are based, where we work, what we do, what the Founders' call is). The answer is followed by the question we were waiting for, and the chat is not handed over. Anything about prices, dates, availability, a person or vendor, or a promise is "HANDOVER": the team takes it as before. Every answer is checked (checkFlowAnswer: no figures, links, times, promises or questions); a failed check, no Claude or any error means the old hand-over.
 - Test: a simple question in the middle of the questions is answered from our facts
-- Commit: 6f804c7
+- Commit: 8200291
 
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
