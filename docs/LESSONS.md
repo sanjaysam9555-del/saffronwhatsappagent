@@ -502,7 +502,7 @@ Entries are in the order they were learned.
 - Went wrong: a bare year was treated as a whole, too-vague date, so the month she had given was lost and the next month-only answer got a guessed year.
 - Rule: a message whose last line is a year on its own ("2028*") keeps the month from the same burst or from the date already held: March 2027 then 2028* is March 2028. A bare year with no month anywhere asks only for the month ("Noted, 2028! Roughly which month are you thinking of?"), and the next answer is joined to that year (datePatch, partialYear in lib/qualify.mjs). A date with no year at all still gets the old gentle question.
 - Test: a year correction keeps the month she gave
-- Commit: 53236f4
+- Commit: 7634980
 
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
