@@ -163,3 +163,32 @@ test("number second on Instagram: one easy question first (occasion, or the date
   assert.deepEqual(orderOf({ channel: "whatsapp" }), ORDER);
   assert.match(pendingQuestion({ asked: "number" }), /^May I have your mobile number, so our Founders can share the right details for the quote\/design\?/);
 });
+
+// ---- L59 (Monisha: "March 2027" then "2028*") ----
+import { datePatch } from "../lib/qualify.mjs";
+test("a year correction keeps the month she gave: 'March 2027' then '2028*' is March 2028, and a bare year asks only for the month", () => {
+  const asking = () => ({ ...newState({}, "Instagram", "instagram"), stage: "asking", asked: "date", numAfter: "occasion", fields: { occasion: "Wedding" } });
+  // both messages arrive together; Claude kept only the year, or kept the old date
+  for (const ex of [{ date: "2028" }, { date: "March 2027" }]) {
+    const r = advance(asking(), "March 2027\n2028*", ex, "Monisha", "", "", "");
+    assert.equal(r.q.fields.date, "March 2028");
+    assert.doesNotMatch(r.reply, /Roughly which month|approximate month/);
+    assert.equal(r.q.asked, "number");
+  }
+  // the first answer was saved, then the correction arrives on its own
+  let q = advance(asking(), "March 2027", { date: "March 2027" }, "Monisha", "", "", "").q;
+  assert.equal(q.fields.date, "March 2027");
+  q = advance(q, "2028*", { date: "2028" }, "Monisha", "", "", "").q;
+  assert.equal(q.fields.date, "March 2028");
+  // a bare year: only the month is asked for, and her next answer is joined to the year, never to a guessed one
+  let r = advance(asking(), "2028", { date: "2028" }, "Monisha", "", "", "");
+  assert.match(r.reply, /^Noted, 2028! Roughly which month/);
+  assert.equal(r.q.fields.date, undefined);
+  r = advance(r.q, "March", {}, "Monisha", "", "", "");
+  assert.equal(r.q.fields.date, "March 2028");
+  assert.equal(r.q.partialYear, undefined);
+  // unchanged: a vague date without a year still gets the old gentle question, and a normal date is left as it is
+  assert.match(advance(asking(), "next year", { date: "next year" }, "A", "", "", "").reply, /Even an approximate month works/);
+  assert.equal(advance(asking(), "12 Feb 2027", { date: "12 Feb 2027" }, "A", "", "", "").q.fields.date, "12 Feb 2027");
+  assert.equal(datePatch("hello", "March 2027"), "");
+});
