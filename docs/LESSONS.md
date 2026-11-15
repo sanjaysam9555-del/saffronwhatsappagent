@@ -521,5 +521,13 @@ Entries are in the order they were learned.
 - Test: an ordered message is not blocked because Claude answered the pre-send check once in words
 - Commit: 33ec349
 
+## L62 "Can you share the details here?" gets "which details?", not a hand-over
+- Date: 2026-11-15
+- Chat: Ash (Instagram): she answered "Wedding ceremony." and, asked for her mobile number, wrote "Can you share the details here?". The agent replied "Thank you for your message. A member of our team will get back to you shortly." and paused the chat.
+- Went wrong: any message starting "can you" at a question counts as a question for a person. The simple-question answer (L57) found nothing in the facts to say, so it gave up and the generic holding reply went out. The lead had asked for something vague; the useful move is to ask what she wants.
+- Rule: a lead who asks us to send or share "the details" / "info" without saying which (the whole message is only that request) is asked once which details she wants (our services, how we work, or something else). Nothing is paused, the question we were waiting for stays open, and nothing is promised. A second such message goes to a person. A request that names something ("the details of the venue in Goa") is not caught.
+- Test: Ash: 'Can you share the details here?' is answered by asking which details she wants
+- Commit: 53236f4
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.

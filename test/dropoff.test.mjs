@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { advance, newState, resumeOnCallAnswer, teamSpokeSince, EITHER_CALL, resumeAfterAddition } from "../lib/qualify.mjs";
+import { advance, newState, resumeOnCallAnswer, teamSpokeSince, EITHER_CALL, resumeAfterAddition, ASKS_DETAILS } from "../lib/qualify.mjs";
 import { jobFollowReply } from "../lib/rules.mjs";
 import { REASONS } from "../lib/needsteam.mjs";
 import { withChat, setRescue, runRescue, noteWhy, assertContext, noteRead, claudeSaw, exemptFromGate, runTrace } from "../lib/readgate.mjs";
@@ -242,4 +242,20 @@ test("an ordered message is not blocked because Claude answered the pre-send che
     assert.equal(f.send, false);
     assert.equal(n, 2);
   } finally { process.env.ANTHROPIC_API_KEY = keep.key; if (keep.key === undefined) delete process.env.ANTHROPIC_API_KEY; globalThis.fetch = keep.fetch; console.error = keep.err; }
+});
+
+test("Ash: 'Can you share the details here?' is answered by asking which details she wants, once, not by a hand-over", () => {
+  for (const yes of ["Can you share the details here?", "share details", "Please send the details", "details?", "what are the details", "send me more info here"]) assert.match(yes, ASKS_DETAILS, yes);
+  for (const no of ["Can you share the details of the venue in Goa?", "I will share the details here", "Wedding ceremony.", "What is the price?"]) assert.doesNotMatch(no, ASKS_DETAILS, no);
+  let r = advance(newState(), "hi", {}, "Ash");
+  r = advance(r.q, "Wedding ceremony.", { occasion: "Wedding" }, "Ash");
+  const asked = r.q.asked;
+  const a = advance(r.q, "Can you share the details here?", {}, "Ash");
+  assert.equal(a.kind, "details-ask");
+  assert.match(a.reply, /Which details would you like to know/);
+  assert.doesNotMatch(a.reply, /team will get back/i);
+  assert.equal(a.q.stage, "asking");
+  assert.equal(a.q.asked, asked, "the question we were waiting for stays open");
+  // asked once: the same request again goes to a person as before
+  assert.equal(advance(a.q, "Can you share the details here?", {}, "Ash").kind, "escalate");
 });
