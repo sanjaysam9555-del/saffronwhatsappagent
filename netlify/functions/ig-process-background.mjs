@@ -587,7 +587,7 @@ const runGated = async (req) => {
     { // every real lead gets a row, even one who has not answered a question yet
       await upsertInstagramLead(sid, name || label, r.q, {
         notes: r.q.notes, lastMsg: text.slice(0, 200),
-        done: ["confirmed", "call-pref", "call-declined"].includes(r.kind), // stops the 5-minute follow-up job from also messaging them
+        done: ["confirmed", "addition", "call-pref", "call-declined"].includes(r.kind), // stops the 5-minute follow-up job from also messaging them
       });
     }
     // A quick follow-up that left the same question outstanding (the lead sent two messages in a row): it is already asked, do not ask twice.
@@ -599,7 +599,7 @@ const runGated = async (req) => {
     if (r.kind === "confirmed") await incr("ig_leads_confirmed");
     if (r.kind === "confirmed" && r.extra) await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "lead-question", lastMsg: r.extra, reply: "(confirmed the summary and asked this; the call was offered, the agent stays on the chat)" });
     if (r.kind === "call-pref") { await incr("calls_requested"); await toHuman("ready-for-call", false); }
-    else if (r.kind === "addition") await toHuman("lead-added-details", false);
+    else if (r.kind === "addition") await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "lead-added-details", lastMsg: text, reply: "(added details after the summary; the call was offered, the agent stays on the chat)" });
     else if (firstTouch && moneyish) await toHuman("pricing-or-availability-question", false);
   } catch (e) {
     console.error("ig webhook error", e);

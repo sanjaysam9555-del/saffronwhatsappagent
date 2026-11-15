@@ -1808,8 +1808,7 @@ test("Zainab: 'I didn't get you' is never an answer or an addition; it is said a
   // twice in a row: a person reads it
   assert.equal(advance(c1.q, "still don't get it", {}, "Zainab").kind, "escalate");
   // after the summary: not "Thank you, we have noted this", and not a person; the summary is asked about again in plain words
-  const sum = advance(ok.q, "x", { requirement: "both" }, "Zainab");
-  const conf = sum.q.stage === "confirm" ? sum : null;
+  const conf = ok.q.stage === "confirm" ? ok : null; // her "both" completed the last question, so the summary is already out
   assert.ok(conf, "the summary stage was reached");
   const c2 = advance(conf.q, "I didn't get you", {}, "Zainab");
   assert.equal(c2.kind, "clarify");

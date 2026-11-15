@@ -192,3 +192,18 @@ test("a year correction keeps the month she gave: 'March 2027' then '2028*' is M
   assert.equal(advance(asking(), "12 Feb 2027", { date: "12 Feb 2027" }, "A", "", "", "").q.fields.date, "12 Feb 2027");
   assert.equal(datePatch("hello", "March 2027"), "");
 });
+
+test("extra details after the summary still get the call offer: 'Fooding photography decoration each and every thing' is noted and we ask Google Meet or phone", () => {
+  const filled = newState({ occasion: "Wedding", date: "June 2027", location: "Kolkata", guests: "400", requirement: "Planning and Decoration" });
+  const sum = advance(filled, "hi", {});
+  assert.equal(sum.kind, "summary");
+  const add = advance(sum.q, "Fooding photography decoration each and every thing", {}, "Rahul", "", "Catering, photography and decoration all in one place, that sounds like a wonderful plan! \u{1F33C}");
+  assert.equal(add.kind, "addition");
+  assert.equal(add.q.stage, "call");
+  assert.match(add.q.notes, /photography/);
+  assert.match(add.reply, /Google Meet video call or a phone call\?/);
+  assert.doesNotMatch(add.reply, /be in touch shortly/);
+  // and the answer to that question is then read as a call answer
+  const pick = advance(add.q, "Phone call sounds good.", {}, "Rahul");
+  assert.equal(pick.kind, "call-pref");
+});
