@@ -510,7 +510,7 @@ Entries are in the order they were learned.
 - Went wrong: only a "yes" (or "It's correct, ...") moved the chat to the call question. Anything else after the summary, even a plain extra detail that disputed nothing, was an "addition": noted, "our planner will be in touch", the agent paused (soft hand-over). The lead who adds detail is the warmest one and got the least.
 - Rule: an addition that corrects nothing and asks nothing is noted for the team (Needs Team row, agent stays) and the chat moves to the call stage in the same message: our short acknowledgement, then the Google Meet or phone call question. His answer is then read like any call answer. Corrections still redo the summary; questions still go to a person.
 - Test: extra details after the summary still get the call offer
-- Commit: 53236f4
+- Commit: 1012e96
 
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
