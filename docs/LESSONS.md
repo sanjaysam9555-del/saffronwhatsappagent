@@ -513,5 +513,13 @@ Entries are in the order they were learned.
 - Test: extra details after the summary still get the call offer
 - Commit: 1012e96
 
+## L61 The pre-send check is tried twice before an ordered message is blocked
+- Date: 2026-11-15
+- Chat: Sonal (Instagram): the owner ordered "agent, offer call times to Sonal Parikh, say we have noted destination wedding too" and got "I did not send it: Claude could not check the chat". The same order for Prachi, a minute earlier, went through.
+- Went wrong: the check before every send (lib/presend.mjs) makes one call to Claude; if that one call fails (busy, an error) or Claude answers in words instead of choosing send or do-not-send, the message is blocked as "could not check the chat". No log line said which. Cause for Sonal not verified: the Netlify logs held no "operator" error line, so it was most likely an answer in words or a one-off failure.
+- Rule: the pre-send check is tried a second time before it fails closed (still no send if both fail). When Claude answers without choosing, the log says what it said ("operator: Claude gave no tool call; it said: ..."). The one rule is unchanged: nothing is sent unless Claude read the real chat.
+- Test: an ordered message is not blocked because Claude answered the pre-send check once in words
+- Commit: 53236f4
+
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.

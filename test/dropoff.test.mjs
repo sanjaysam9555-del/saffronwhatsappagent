@@ -224,3 +224,22 @@ test("Sonal: 'That sounds perfect.' after our soft hand-over on the summary resu
   assert.equal(resumeAfterAddition({ ...paused, escReason: "lead-question" }, ours), false);
   assert.equal(resumeAfterAddition({ ...paused, q: { ...sum.q, callBooked: { eventId: "e1" } } }, ours), false);
 });
+
+test("an ordered message is not blocked because Claude answered the pre-send check once in words or not at all: the check is tried a second time (Sonal)", async () => {
+  const { contextCheck } = await import("../lib/presend.mjs");
+  const keep = { key: process.env.ANTHROPIC_API_KEY, fetch: globalThis.fetch, err: console.error };
+  console.error = () => {};
+  try {
+    process.env.ANTHROPIC_API_KEY = "test";
+    let n = 0;
+    globalThis.fetch = async () => ({ ok: true, json: async () => ({ content: ++n === 1 ? [{ type: "text", text: "Let me look at this chat." }] : [{ type: "tool_use", name: "send_it", input: { why: "fits" } }] }) });
+    const r = await contextCheck({ channel: "Instagram", to: "sid-sonal", history: [{ from: "customer", text: "That sounds perfect." }], planned: "Here are a few times", ordered: true });
+    assert.equal(r.send, true);
+    assert.equal(n, 2, "tried twice");
+    // two failures in a row still fail closed
+    n = 0; globalThis.fetch = async () => { n++; return { ok: false, status: 529, text: async () => "overloaded" }; };
+    const f = await contextCheck({ channel: "Instagram", to: "sid-sonal", history: [], planned: "x", ordered: true });
+    assert.equal(f.send, false);
+    assert.equal(n, 2);
+  } finally { process.env.ANTHROPIC_API_KEY = keep.key; if (keep.key === undefined) delete process.env.ANTHROPIC_API_KEY; globalThis.fetch = keep.fetch; console.error = keep.err; }
+});
