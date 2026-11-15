@@ -9,7 +9,7 @@ import { extractPhone } from "../../lib/phone.mjs";
 import { sendTemplateMessage } from "../../lib/wati.mjs";
 import { callBookedParams } from "../../lib/leadfields.mjs";
 import { recordQuestion, answerFromPlaybook, logExchange } from "../../lib/playbook.mjs";
-import { holdContact, resumeOnNumber, resumeOnCallAnswer } from "../../lib/qualify.mjs";
+import { holdContact, resumeOnNumber, resumeOnCallAnswer, resumeAfterAddition } from "../../lib/qualify.mjs";
 import { extractFields, understandChat, draftOpening, draftAck, draftHold, draftAfter, classifySenderDetail, draftBudgetAnswer, draftClarify, draftFlowAnswer } from "../../lib/claude.mjs";
 import { newState, advance, numberInChat, pendingQuestion, serviceLine, ORDER, doneContext, applyAfter, CORRECTION } from "../../lib/qualify.mjs";
 import { calendarEnabled, offerSlots, bookConsult, moveConsult, addGuest, slotStillFree } from "../../lib/calendar.mjs";
@@ -356,6 +356,11 @@ const runGated = async (req) => {
     if (c.esc && c.q?.stage === "call" && calendarEnabled() && !mediaCount && resumeOnCallAnswer(c, text, chat0)) {
       c = await saveIg(sid, { esc: false });
       console.log(`ig ${sid}: answered the open call question after our hand-over; the chat resumes`);
+    }
+    // Paused by our own soft hand-over after "extra details" (the old behaviour): their next message resumes the chat and the call is offered (Sonal, L60).
+    if (c.esc && c.q?.stage === "confirm" && !mediaCount && resumeAfterAddition(c, chat0)) {
+      c = await saveIg(sid, { esc: false });
+      console.log(`ig ${sid}: wrote again after a soft hand-over on the summary and nobody replied; the chat resumes`);
     }
     // A reel, post or photo sent into a chat that is with the team is never lost: the team gets a row (L53).
     if (mediaCount && !message && (c.esc || c.q?.stage === "paused") && c.kind !== "vendor" && (await allow(`igmediateam:${sid}`, HOUR))) await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "lead-shared-media", lastMsg: "[shared a reel, post or photo]" });

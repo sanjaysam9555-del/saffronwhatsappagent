@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { advance, newState, resumeOnCallAnswer, teamSpokeSince, EITHER_CALL } from "../lib/qualify.mjs";
+import { advance, newState, resumeOnCallAnswer, teamSpokeSince, EITHER_CALL, resumeAfterAddition } from "../lib/qualify.mjs";
 import { jobFollowReply } from "../lib/rules.mjs";
 import { REASONS } from "../lib/needsteam.mjs";
 import { withChat, setRescue, runRescue, noteWhy, assertContext, noteRead, claudeSaw, exemptFromGate, runTrace } from "../lib/readgate.mjs";
@@ -206,4 +206,21 @@ test("extra details after the summary still get the call offer: 'Fooding photogr
   // and the answer to that question is then read as a call answer
   const pick = advance(add.q, "Phone call sounds good.", {}, "Rahul");
   assert.equal(pick.kind, "call-pref");
+});
+
+test("Sonal: 'That sounds perfect.' after our soft hand-over on the summary resumes the chat, and the call is offered", () => {
+  const filled = newState({ occasion: "Wedding", date: "Dec 2027", location: "Delhi NCR area", guests: "200", requirement: "Planning and Decoration" });
+  const sum = advance(filled, "hi", {});
+  const last = "Lovely, Sonal, a destination wedding is a wonderful option to keep open!\n\nOur planner will review everything and be in touch shortly.";
+  const paused = { esc: true, escReason: "lead-added-details", q: sum.q, lastOutText: last };
+  const ours = [{ from: "lead", text: "I mean Destination wedding" }, { from: "us", text: last }];
+  assert.equal(resumeAfterAddition(paused, ours), true);
+  // she then agrees: that is a confirmation, so the call question follows
+  const r = advance(paused.q, "That sounds perfect.", {}, "Sonal");
+  assert.equal(r.kind, "confirmed");
+  assert.match(r.reply, /Google Meet video call or a phone call\?/);
+  // never once a person wrote, a handover for another reason, or the call is booked
+  assert.equal(resumeAfterAddition(paused, [...ours, { from: "us", text: "Hi Sonal, this is Swati" }]), false);
+  assert.equal(resumeAfterAddition({ ...paused, escReason: "lead-question" }, ours), false);
+  assert.equal(resumeAfterAddition({ ...paused, q: { ...sum.q, callBooked: { eventId: "e1" } } }, ours), false);
 });
