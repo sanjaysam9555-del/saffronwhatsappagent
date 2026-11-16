@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { advance, newState, resumeOnCallAnswer, teamSpokeSince, EITHER_CALL, resumeAfterAddition, ASKS_DETAILS } from "../lib/qualify.mjs";
+import { advance, newState, resumeOnCallAnswer, teamSpokeSince, EITHER_CALL, resumeAfterAddition, ASKS_DETAILS, yearWords } from "../lib/qualify.mjs";
 import { jobFollowReply } from "../lib/rules.mjs";
 import { REASONS } from "../lib/needsteam.mjs";
 import { withChat, setRescue, runRescue, noteWhy, assertContext, noteRead, claudeSaw, exemptFromGate, runTrace } from "../lib/readgate.mjs";
@@ -258,4 +258,20 @@ test("Ash: 'Can you share the details here?' is answered by asking which details
   assert.equal(a.q.asked, asked, "the question we were waiting for stays open");
   // asked once: the same request again goes to a person as before
   assert.equal(advance(a.q, "Can you share the details here?", {}, "Ash").kind, "escalate");
+});
+
+test("Nancy: a date given with a question mark ('Around mid december two thousand twenty six?') is an answer, saved as 2026, not a question for a person", () => {
+  assert.equal(yearWords("Around mid december two thousand twenty six"), "Around mid december 2026");
+  assert.equal(yearWords("twenty twenty seven"), "2027");
+  let r = advance(newState(), "Someone in my family is getting married", { occasion: "Wedding" }, "Nancy");
+  assert.equal(r.q.asked, "date");
+  const a = advance(r.q, "Around mid december two thousand twenty six?", {}, "Nancy");
+  assert.notEqual(a.kind, "escalate");
+  assert.equal(a.q.fields.date, "Around mid december 2026");
+  assert.equal(a.q.asked, "location", "the next question follows");
+  assert.notEqual(advance(r.q, "Around mid december 2026?", { date: "mid December 2026" }, "Nancy").kind, "escalate");
+  // real questions still go to a person
+  assert.equal(advance(r.q, "Is 15 December fine?", {}, "Nancy").kind, "escalate");
+  assert.equal(advance(r.q, "Mid december? or january?", {}, "Nancy").kind, "escalate");
+  assert.equal(advance(r.q, "What dates do you have?", {}, "Nancy").kind, "escalate");
 });
