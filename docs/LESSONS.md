@@ -535,7 +535,7 @@ Entries are in the order they were learned.
 - Went wrong: any "?" in a reply made it a question for a person, even when the whole message was the answer we had asked for, said tentatively. The year was also written in words.
 - Rule: a short reply (one "?" at the end, no question word first, at most 10 words) that gives what we asked for (a date with a month or year, a guest count, or anything the reader extracted) has the "?" dropped and is taken as the answer. A message that starts with a question word, asks "or", or has several "?" is still a question. A year written in words ("two thousand twenty six", "twenty twenty seven") is saved as digits (tentativeAnswer, yearWords in lib/qualify.mjs).
 - Test: Nancy: a date given with a question mark
-- Commit: 53236f4
+- Commit: e3bf902
 
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
