@@ -559,7 +559,7 @@ Entries are in the order they were learned.
 - Went wrong: ManyChat fires twice for one message. The check for that (L37) only worked when the second run had to wait for the first one's lock. When the second firing came after the first run had finished (the runs in the logs were 11 and 38 seconds apart), the same words were read as a NEW message, and since the chat had moved on they answered the next question: a date answered the number question's step, "Planning" became an addition, a price question became a hand-over, a phone preference chose a time. The cause was read from the logs and the screenshots, not reproduced.
 - Rule: the same words within two minutes of a run that already answered them are never read again (lib/dupe.mjs), whether or not the second run waited. The one exception is a real second message with the same words, which Instagram shows after one of our replies. The log says how many seconds after, so the next case can be checked. Instagram only; WhatsApp keeps its own check.
 - Test: the same message fired twice is answered once
-- Commit: 53236f4
+- Commit: 1312d98
 
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
