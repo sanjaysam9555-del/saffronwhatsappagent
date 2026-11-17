@@ -275,3 +275,19 @@ test("Nancy: a date given with a question mark ('Around mid december two thousan
   assert.equal(advance(r.q, "Mid december? or january?", {}, "Nancy").kind, "escalate");
   assert.equal(advance(r.q, "What dates do you have?", {}, "Nancy").kind, "escalate");
 });
+
+test("Ananya: 'Planning includes all aspects!?' after the call question is answered from the published inclusions, not handed over", async () => {
+  const { isInclusionsQuestion, inclusionsAnswer } = await import("../lib/facts.mjs");
+  for (const yes of ["Planning includes all aspects!?", "Does planning include catering?", "Does full planning cover everything?"]) assert.equal(isInclusionsQuestion(yes), true, yes);
+  for (const no of ["What is the weather?", "Planning includes all aspects", "Phone call works better for me."]) assert.equal(isInclusionsQuestion(no), false, no);
+  assert.match(inclusionsAnswer("Planning includes all aspects!?"), /saffroncollective\.in\/pricing/);
+});
+
+test("Rishav: a first message that is only a date ('Nov 2027') is kept as the date and not asked again", () => {
+  const r = advance(newState(), "Nov 2027", {}, "Rishav", "Hello Rishav,");
+  assert.equal(r.q.fields.date, "Nov 2027");
+  assert.notEqual(r.q.asked, "date");
+  assert.doesNotMatch(r.reply, /What date/);
+  assert.equal(advance(newState(), "May I know the price?", {}, "X").q.fields.date, undefined);
+  assert.equal(advance(newState(), "15 Dec", {}, "X").q.fields.date, "15 Dec 2026");
+});
