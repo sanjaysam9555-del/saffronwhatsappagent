@@ -543,7 +543,7 @@ Entries are in the order they were learned.
 - Went wrong: the inclusions answer (L40/L57, word for word from the pricing page) only fired for "what does X include". A tier named plus "includes / covers / all aspects / everything" asked with a "?" fell through to a question for a person.
 - Rule: a short message with a "?" that names a tier or "planning" and asks whether it includes or covers all aspects, everything, catering, stages, venue or vendors is answered with the published inclusions and the pricing link (isInclusionsQuestion in lib/facts.mjs). Nothing is paused.
 - Test: Ananya: 'Planning includes all aspects!?'
-- Commit: 53236f4
+- Commit: a232a5b
 
 ## L65 A first message that is only a date is kept
 - Date: 2026-11-17
@@ -551,7 +551,7 @@ Entries are in the order they were learned.
 - Went wrong: the date in a first message was left to the reader (Claude) to pick out; when it did not, the question was asked as if nothing had been said.
 - Rule: a message of at most four words that is only a date (a month with a year or a day number: "Nov 2027", "15 Dec") is saved as the date at any step of the questions, including the first message, whether or not the reader found it. A "?" or no month means it is not (qualify.mjs, before datePatch).
 - Test: Rishav: a first message that is only a date
-- Commit: 53236f4
+- Commit: a232a5b
 
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
