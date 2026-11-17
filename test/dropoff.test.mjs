@@ -291,3 +291,19 @@ test("Rishav: a first message that is only a date ('Nov 2027') is kept as the da
   assert.equal(advance(newState(), "May I know the price?", {}, "X").q.fields.date, undefined);
   assert.equal(advance(newState(), "15 Dec", {}, "X").q.fields.date, "15 Dec 2026");
 });
+
+test("the same message fired twice is answered once, even when the second run starts after the first has finished (Rishav, Ananya, Pallavi, Priya, charasgan)", async () => {
+  const { isRepeatRun } = await import("../lib/dupe.mjs");
+  const now = 1_000_000_000;
+  const before = { lastInKey: "Nov 2027", lastIn: now - 38_000, lastOut: now - 10_000 };
+  // 38 seconds later, first run finished and replied: the same words are NOT a new message
+  assert.equal(isRepeatRun({ before, text: "Nov 2027", now }), true);
+  // Instagram shows our reply as the newest message: still a repeat
+  assert.equal(isRepeatRun({ before, text: "Nov 2027", now, real: [{ from: "customer", text: "Nov 2027" }, { from: "us", text: "Hello" }] }), true);
+  // a real second message with the same words arrives after our reply: read as new
+  assert.equal(isRepeatRun({ before, text: "Nov 2027", now, real: [{ from: "customer", text: "Nov 2027" }, { from: "us", text: "Hello" }, { from: "customer", text: "Nov 2027" }] }), false);
+  // different words, too late, or not answered yet
+  assert.equal(isRepeatRun({ before, text: "March", now }), false);
+  assert.equal(isRepeatRun({ before: { ...before, lastIn: now - 300_000 }, text: "Nov 2027", now }), false);
+  assert.equal(isRepeatRun({ before: { ...before, lastOut: now - 60_000 }, text: "Nov 2027", now }), false);
+});

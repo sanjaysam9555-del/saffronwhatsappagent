@@ -18,6 +18,7 @@ import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEm
 import { isMediaOnly, recordMedia, REF_THANKS, REF_UNSURE, REF_NOTE, refOpen, greetingText } from "../../lib/media.mjs";
 import { greetName } from "../../lib/leadfields.mjs";
 import { sendInstagramText, getInstagramLastText, parseManychatEvent } from "../../lib/manychat.mjs";
+import { isRepeatRun, DUP_WINDOW_MS } from "../../lib/dupe.mjs";
 import { getIg, saveIg, queueMessage, claimQueue, queuedTexts, resetIg, addIgHistory, getIgHistory } from "../../lib/igstate.mjs";
 import { upsertInstagramLead } from "../../lib/sheet.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
@@ -278,9 +279,14 @@ const runGated = async (req) => {
     // The same message handled a moment ago by the run we just waited for (ManyChat fires twice, a little more than 15 seconds apart): already answered, so
     // it must not be read again as a NEW message, which is how "I didn't get you" became a second "Thank you, we have noted this" (Zainab, L37).
     const before = await getIg(sid), sameKey = String(text).trim().slice(0, 120);
-    if (lock.waited && before.lastInKey === sameKey && Date.now() - (before.lastIn || 0) < 90_000 && (before.lastOut || 0) > (before.lastIn || 0)) {
-      console.log(`ig ${sid}: the same message was just answered by the run before; not answering it twice`);
-      return ok("answered by the run before");
+    // Not only when this run had to wait for the one before: the second firing can come after the first has finished (Rishav, Ananya, Pallavi, L66).
+    if (before.lastInKey === sameKey && Date.now() - (before.lastIn || 0) < DUP_WINDOW_MS && (before.lastOut || 0) > (before.lastIn || 0)) {
+      const real = igApiOn() && username ? await getInstagramHistory({ username }) : null;
+      if (isRepeatRun({ before, text, real })) {
+        console.log(`ig ${sid}: the same message was answered ${Math.round((Date.now() - (before.lastIn || 0)) / 1000)}s ago (lock waited=${Boolean(lock.waited)}); not answering it twice`);
+        return ok("answered by the run before");
+      }
+      console.log(`ig ${sid}: the same words again ${Math.round((Date.now() - (before.lastIn || 0)) / 1000)}s after the last run, but a new message from them follows our reply: read as new`);
     }
     let c = await saveIg(sid, { lastIn: Date.now(), lastInKey: sameKey, name: name || undefined, username: username || undefined });
     // READ FIRST, before any rule answers anything: the chat (Instagram's own when it can be read, else our record) is handed to Claude with what we saved
