@@ -19,7 +19,7 @@ import { isMediaOnly, recordMedia, REF_THANKS, REF_UNSURE, REF_NOTE, refOpen, gr
 import { greetName } from "../../lib/leadfields.mjs";
 import { sendInstagramText, getInstagramLastText, parseManychatEvent } from "../../lib/manychat.mjs";
 import { isRepeatRun, DUP_WINDOW_MS } from "../../lib/dupe.mjs";
-import { getIg, saveIg, queueMessage, claimQueue, queuedTexts, resetIg, addIgHistory, getIgHistory } from "../../lib/igstate.mjs";
+import { getIg, saveIg, queueMessage, claimQueue, queuedTexts, newerLeadTexts, resetIg, addIgHistory, getIgHistory } from "../../lib/igstate.mjs";
 import { upsertInstagramLead } from "../../lib/sheet.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
 import { testAllows } from "../../lib/testmode.mjs";
@@ -109,7 +109,7 @@ const runGated = async (req) => {
     if (!text) return ok("later message will answer");
   }
 
-  if (!blankText) await addIgHistory(sid, "customer", text); // the chat so far, for Claude
+  const ownAt = blankText ? Date.now() : ((await addIgHistory(sid, "customer", text)) || Date.now()); // the chat so far, for Claude; ownAt marks which messages are newer than this run
   const label = username ? `@${username}` : `ig:${sid}`;
   noteInbound({ channel: "Instagram", contact: label, text: blankText ? "[shared a reel, post or photo]" : text }); // a reel with no words is still a message that needs an answer (L53)
   let pendingAsk = ""; // the question we were waiting for, repeated after a taught answer
@@ -122,7 +122,7 @@ const runGated = async (req) => {
   // we are about to ask (Tulsi: her city, while we were noting her number), that question is left out and her newer message gets the next one.
   const dropAnswered = async (msg) => {
     try {
-      const queued = await queuedTexts(sid);
+      const queued = [...new Set([...(await queuedTexts(sid)), ...(await newerLeadTexts(sid, ownAt))])]; // newer messages may already be claimed by a run that waits for the lock (Abhishek, L68)
       if (!queued.length) return msg;
       const cur = await getIg(sid), asked = cur.q?.asked;
       if (!asked || !FIELD_KEYS.includes(asked) || cur.q?.stage !== "asking") return msg;

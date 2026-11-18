@@ -324,3 +324,19 @@ test("Jatin: a first message that mentions availability flags the team but never
     assert.match(src, /firstTouch && moneyish\) await logNeedsTeam\(/, `${f} still flags the team`);
   }
 });
+
+test("Abhishek: a run that waited for the chat lock sees the newer messages another run already took from the queue, so it does not ask the date again", async () => {
+  const { leadTextsAfter } = await import("../lib/igstate.mjs");
+  const { readFileSync } = await import("node:fs");
+  const history = [
+    { from: "customer", text: "I am getting married.", t: 1000 },
+    { from: "customer", text: "Please connect me on 9430096306", t: 2000 }, // the run answering this one is the older run
+    { from: "us", text: "Hello Abhishek, ... What date are you planning your event for?", t: 2500 },
+    { from: "customer", text: "Wedding 15th Dec 2027\n100 guests", t: 3000 }, // arrived while the older run was working; its own run is waiting for the lock
+  ];
+  assert.deepEqual(leadTextsAfter(history, 2000), ["Wedding 15th Dec 2027\n100 guests"]);
+  assert.deepEqual(leadTextsAfter(history, 3000), []);
+  assert.deepEqual(leadTextsAfter(history, 0), []);
+  const src = readFileSync(new URL("../netlify/functions/ig-process-background.mjs", import.meta.url), "utf8");
+  assert.match(src, /newerLeadTexts\(sid, ownAt\)/, "the stale-question check must look at newer messages, not only the queue");
+});
