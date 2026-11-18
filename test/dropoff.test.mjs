@@ -307,3 +307,20 @@ test("the same message fired twice is answered once, even when the second run st
   assert.equal(isRepeatRun({ before: { ...before, lastIn: now - 300_000 }, text: "Nov 2027", now }), false);
   assert.equal(isRepeatRun({ before: { ...before, lastOut: now - 60_000 }, text: "Nov 2027", now }), false);
 });
+
+test("Anjora: a typo in 'what is inclued in the 3.5 lakh' still gets the published inclusions", async () => {
+  const { isInclusionsQuestion, inclusionsAnswer } = await import("../lib/facts.mjs");
+  assert.equal(isInclusionsQuestion("What is inclued in the 3.5 lakh"), true);
+  assert.equal(isInclusionsQuestion("what is incl in 3.5 lakh?"), true);
+  assert.match(inclusionsAnswer("What is inclued in the 3.5 lakh"), /Full Wedding Planning \(starts at ₹3\.5 lakh/);
+  assert.equal(isInclusionsQuestion("Do you work in Jaipur?"), false);
+});
+
+test("Jatin: a first message that mentions availability flags the team but never pauses the chat, so the number we ask for is not ignored", async () => {
+  const { readFileSync } = await import("node:fs");
+  for (const f of ["netlify/functions/ig-process-background.mjs", "netlify/functions/wati-process-background.mjs"]) {
+    const src = readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
+    assert.doesNotMatch(src, /toHuman\(\s*"pricing-or-availability-question"/, `${f} must not pause the chat for the first-message availability flag`);
+    assert.match(src, /firstTouch && moneyish\) await logNeedsTeam\(/, `${f} still flags the team`);
+  }
+});

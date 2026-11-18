@@ -563,3 +563,13 @@ Entries are in the order they were learned.
 
 ## Mistakes the guard watches for in every message
 These are checked in lib/guard.mjs just before any message is sent on either channel: an unfilled value (undefined, null, {{name}}), the number text sent to someone who answered something else, the sign-up link or the welcome sent twice within 24 hours, the vendor link sent to someone sharing a CV, and the same question as our last message with nothing new around it. Blocked messages hand the chat to a person (reason message-blocked) or are skipped quietly.
+
+## L67 A typo in an inclusions question, and a first message that mentions availability must not pause the chat
+- Date: 2026-11-18
+- Chat: Anjora (Instagram): "What is inclued in the 3.5 lakh" got "Thank you for your message. A member of our team will get back to you shortly." Jatin (Instagram): a long first message with date, guests, place and functions, asking for a quote and "availability for Feb 2027". We answered with the inclusions and asked for his mobile number; he sent +918950211370 and a phone card, and nothing came back.
+- Went wrong: (1) The inclusions check looked for "includ…", so "inclued" was an unknown question and went to the team (the L64 fix did not cover typos). (2) The word "availability" in a first message made the agent hand the chat to the team right AFTER it had sent its reply. The pause was saved later than our reply, so when he sent the number we had asked for, the chat counted as paused after a hand-over and the number was only stored, not answered (no call times, no reply). The same shape as Rishav's chat.
+- Rule: "inclu…" and "incl" count as the inclusions question. A first message that mentions availability, booking or money flags the team in Needs Team but the questions carry on and the agent stays on the chat (both channels).
+- Test: Anjora: a typo in 'what is inclued
+- Test: Jatin: a first message that mentions availability
+- Commit: 92174f3
+

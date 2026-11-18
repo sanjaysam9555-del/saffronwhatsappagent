@@ -68,3 +68,4 @@ send_vendor_link, send_message, show_chat, pause_agent, resume_agent, answer_lea
 - "Planning includes all aspects!?" (a tier or "planning" + includes/covers/all aspects/everything + "?") is answered with the published inclusions and the pricing link, never a hand-over (L64).
 - A message that is only a date ("Nov 2027", "15 Dec"), even the first message, is saved as the date and not asked again (L65).
 - The same words twice within two minutes, after a run that already answered them, are never read as a new message, whether or not the second run waited for the first (lib/dupe.mjs isRepeatRun); a real repeat shown after our reply in Instagram is still read as new (L66).
+- A first message that mentions availability, booking or money only flags the team; the questions carry on and the chat is never paused after our own reply, so the number we ask for is answered (both channels, L67). Typos such as "inclued" still count as the inclusions question (L67).

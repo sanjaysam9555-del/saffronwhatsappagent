@@ -611,7 +611,7 @@ const runGated = async (req) => {
     if (r.kind === "confirmed" && r.extra) await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "lead-question", lastMsg: r.extra, reply: "(confirmed the summary and asked this; the call was offered, the agent stays on the chat)" });
     if (r.kind === "call-pref") { await incr("calls_requested"); await toHuman("ready-for-call", false); }
     else if (r.kind === "addition") await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "lead-added-details", lastMsg: text, reply: "(added details after the summary; the call was offered, the agent stays on the chat)" });
-    else if (firstTouch && moneyish) await toHuman("pricing-or-availability-question", false);
+    else if (firstTouch && moneyish) await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "pricing-or-availability-question", lastMsg: text, reply: "(the questions carry on; the agent stays on the chat)" }); // flag the team only: pausing here made the agent ignore the number we had just asked for (Jatin, L67)
   } catch (e) {
     console.error("ig webhook error", e);
     await logNeedsTeam({ channel: "Instagram", contact: label, name: name || label, reason: "send-failed", lastMsg: text }).catch(() => {});
