@@ -571,5 +571,5 @@ These are checked in lib/guard.mjs just before any message is sent on either cha
 - Rule: "inclu…" and "incl" count as the inclusions question. A first message that mentions availability, booking or money flags the team in Needs Team but the questions carry on and the agent stays on the chat (both channels).
 - Test: Anjora: a typo in 'what is inclued
 - Test: Jatin: a first message that mentions availability
-- Commit: 92174f3
+- Commit: 77ee901
 
