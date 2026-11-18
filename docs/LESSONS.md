@@ -579,5 +579,5 @@ These are checked in lib/guard.mjs just before any message is sent on either cha
 - Went wrong: the number message was answered by an older run. His date message was taken by a newer run that was only waiting for the chat lock. The check that leaves out a question the lead has just answered (dropAnswered) only looked at the waiting queue, and the newer run had already emptied it, so the older run saw nothing newer and asked the date.
 - Rule: before our reply is sent, every message the lead sent after the one this run is answering is read, whether it is still queued or already taken by a run that waits for the lock; a question those messages answer is left out (Instagram; WhatsApp has no such check yet).
 - Test: Abhishek: a run that waited for the chat lock
-- Commit: f29d05a
+- Commit: 20594f3
 
