@@ -614,3 +614,11 @@ These are checked in lib/guard.mjs just before any message is sent on either cha
 - Rule: "agent, catch up" reads every recent chat on both channels (not a chat a person on the team is in, held, opted out, or a vendor), Claude decides per chat whether we got something wrong or never answered it, and drafts a short corrective message. It first only PREVIEWS to the owner; "agent, catch up send" sends what was previewed, after a fresh read and the one-rule gate, once per chat, and leaves out anyone the owner names. Prices, availability and promises go to the team, never into a draft.
 - Test: catch-up: send goes only to what was previewed
 - Commit: da4a43e
+
+## L73 The operator is a connector Claude can use, not only a WhatsApp command
+- Date: 2026-11-21
+- Chat: Swati: "How do we build an operator within Claude, where I tell you and you do whatever needs to be done, instead of me messaging from the WhatsApp?"
+- Went wrong: the only way to give the agent an order was a WhatsApp text starting "agent,". Claude in the owner's own chat could not reach Wati, Instagram, the saved chats or the Anthropic key, which live inside the Netlify site.
+- Rule: netlify/functions/operator-mcp.mjs speaks MCP so Claude can use it as a custom connector. It is READ-ONLY for now: list the chats, read one, start and read the catch-up preview (the review itself runs in catchup-background.mjs). No tool sends to a lead; sending stays with the owner's order. It needs OPERATOR_MCP_KEY (16+ characters, compared in constant time) and answers 503 without it.
+- Test: operator connector: speaks the protocol and offers only read tools
+- Commit: 95c8a34
