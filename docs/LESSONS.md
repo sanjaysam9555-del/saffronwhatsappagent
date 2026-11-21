@@ -621,4 +621,4 @@ These are checked in lib/guard.mjs just before any message is sent on either cha
 - Went wrong: the only way to give the agent an order was a WhatsApp text starting "agent,". Claude in the owner's own chat could not reach Wati, Instagram, the saved chats or the Anthropic key, which live inside the Netlify site.
 - Rule: netlify/functions/operator-mcp.mjs speaks MCP so Claude can use it as a custom connector. It is READ-ONLY for now: list the chats, read one, start and read the catch-up preview (the review itself runs in catchup-background.mjs). No tool sends to a lead; sending stays with the owner's order. It needs OPERATOR_MCP_KEY (16+ characters, compared in constant time) and answers 503 without it.
 - Test: operator connector: speaks the protocol and offers only read tools
-- Commit: 95c8a34
+- Commit: a43a4aa
