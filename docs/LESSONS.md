@@ -605,4 +605,4 @@ These are checked in lib/guard.mjs just before any message is sent on either cha
 - Went wrong: L67 and L70 patched spellings with word lists and a letter-distance check. The agent already hands the whole chat to Claude before it answers, but Claude's reading was thrown away and the exact-word check alone decided whether the inclusions were asked.
 - Rule: Claude's reading of the chat now says whether the lead is asking what a package or price includes (asks_inclusions: any spelling, Hinglish, broken English). That reading counts as much as the word check; the word check stays only as a fallback if Claude cannot be reached. The answer text still comes only from lib/facts.mjs.
 - Test: Swati: Claude's reading of the chat decides the inclusions question
-- Commit: 2b98dfa
+- Commit: 0cf03b7
