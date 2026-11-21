@@ -95,8 +95,9 @@ test("Swati: Radhika gets the published inclusions with the website link and a c
 
 test("Swati: a package request without a kind gets the clarifying question, in catch-up and in the live agent, even after a call is booked", async () => {
   const { isPackageAsk, PACKAGE_CLARIFY } = await import("../lib/facts.mjs");
-  for (const t of ["Can you send the package details?", "Please share packages", "Package details before our call on Friday"]) assert.equal(isPackageAsk(t), true, t);
-  for (const t of ["What is the price of the package?", "full planning package", "decor package please", "how much for packages", "Hello"]) assert.equal(isPackageAsk(t), false, t);
+  for (const t of ["Can you send the package details?", "Please share packages", "Package details before our call on Friday", "What is the cost?", "what is the price of the package?", "How much for packages", "please send me the details", "Need the amount and details", "pls share details"]) assert.equal(isPackageAsk(t), true, t);
+  // a named service gets the published answer; a total-budget question, an amount, money words, or the lead's own details are something else
+  for (const t of ["full planning package", "decor package please", "What is the price for partial planning?", "What does full planning include?", "I will share my details", "Please share your contact details", "budget is 40 lakh, what is the cost?", "what is the advance payment", "Hello", "We are looking for a Rishikesh wedding"]) assert.equal(isPackageAsk(t), false, t);
   assert.match(PACKAGE_CLARIFY, /entire wedding, a décor package, or a planning package/);
   assert.match(PACKAGE_CLARIFY, /what details you need/);
   claudeSays("send_package_question", { went_wrong: "She asked twice for package details and got a hold message", apology: "Sorry for the wait, Hansika." });
@@ -105,7 +106,7 @@ test("Swati: a package request without a kind gets the clarifying question, in c
   assert.equal(r.text, `Sorry for the wait, Hansika.\n\n${PACKAGE_CLARIFY}`);
   for (const f of ["ig-process-background", "wati-process-background"]) {
     const src = readFileSync(new URL(`../netlify/functions/${f}.mjs`, import.meta.url), "utf8");
-    assert.match(src, /const packageQ = !inclQ && isPackageAsk\(text\)/);
+    assert.match(src, /const packageQ = !inclQ && !hardMoney\(text\) && !budgetQuestionKind\(text\) && budgetLakhs\(text\) === null && \(isPackageAsk\(text\) \|\| read0\?\.asksPackage === true\)/);
     assert.match(src, /packageQ && \(await allow\(/); // the finished chat (call booked)
     assert.match(src, /packageQ && \["confirm", "call"\]/); // after the summary
     assert.match(src, /packageQ \? PACKAGE_CLARIFY : priceQ \? priceAnswer\(text\)/); // while the questions are asked
@@ -121,4 +122,12 @@ test("Swati: Niraj, who keeps asking for a call at his own time, is asked to cho
   assert.match(r.text, /strict timeline/); assert.match(r.text, /one of the time slots offered/);
   claudeSays("send_call_slot_reminder", { went_wrong: "x" });
   assert.match((await reviewForCatchUp({ history: chat })).text, /^Our team works to a strict timeline/); // no name: no guess
+});
+
+test("Swati: Claude's reading of the chat also decides whether a general cost, price or details ask needs the package question", async () => {
+  const u = await import("../lib/understand.mjs");
+  assert.equal(u.normalizeRead({ intent: "question", asks_package: true }).asksPackage, true);
+  assert.equal(u.normalizeRead({ intent: "question", asks_package: "yes" }).asksPackage, false);
+  assert.equal(u.normalizeRead({ intent: "other" }).asksPackage, false);
+  assert.match(u.READ_SYSTEM, /asks_package/);
 });

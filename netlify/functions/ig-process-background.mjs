@@ -407,7 +407,7 @@ const runGated = async (req) => {
     const priceQ = isPriceQuestion(text);
     const totalKind = budgetQuestionKind(text); // "what is the total / starting budget?", "can you do it in 30 lakh?": Claude answers from the budget facts (L40)
     const inclQ = isInclusionsQuestion(text) || read0?.asksInclusions === true; // "what does 3 lakh include?": the published inclusions answer (lib/facts.mjs), not a hand-over
-    const packageQ = !inclQ && isPackageAsk(text); // "send the package details": ask which package they mean, never guess (Hansika, L74)
+    const packageQ = !inclQ && !hardMoney(text) && !budgetQuestionKind(text) && budgetLakhs(text) === null && (isPackageAsk(text) || read0?.asksPackage === true); // "send the package details": ask which package they mean, never guess (Hansika, L74)
     const guides = guidesFor(text).filter((g) => !(inclQ && g.url.endsWith("/wedding-services"))); // a page on the website answers this in detail: share the link
     const moneyish = (hardMoney(text) && !guides.length) || (!inFlow && /\b(available|availability|book|booking)\b/i.test(text));
     // Sign-up link on words alone only for an unmistakable offer of services (see the WhatsApp handler, L34).
