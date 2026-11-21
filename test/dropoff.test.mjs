@@ -360,3 +360,10 @@ test("Paavni: a newer question from the lead stops an older run adding the next 
   const src = readFileSync(new URL("../netlify/functions/ig-process-background.mjs", import.meta.url), "utf8");
   assert.match(src, /hasWaitingQuestion\(queued\)/);
 });
+
+test("Radhika: 'What does full wedding planning incudes??' gets the published inclusions, typos of include are read as the word", async () => {
+  const { isInclusionsQuestion, fixIncludeTypos } = await import("../lib/facts.mjs");
+  for (const t of ["What does full wedding planning incudes??", "What is inclued in the 3.5 lakh", "what does partial inclds?", "What does full planning includes?"]) assert.equal(isInclusionsQuestion(t), true, t);
+  // words that only look like it are left alone
+  for (const t of ["Our guests are incoming", "What is the income for full planning?", "incoming guests for full planning?"]) { assert.equal(fixIncludeTypos(t), t, t); assert.equal(isInclusionsQuestion(t), false, t); }
+});
