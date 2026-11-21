@@ -637,4 +637,4 @@ These are checked in lib/guard.mjs just before any message is sent on either cha
 - Went wrong: the connector (L73) was read-only, so the owner still had to switch to WhatsApp. Skip names were matched on the exact spelling. The review could pick the inclusions reply for a "package details" ask and ask two questions in one message.
 - Rule: the connector has write tools: catch_up_send (only a fresh preview, 12 hours, with skips), send_message (the same safety rules as a WhatsApp order, a closed window refused, one message per lead every five minutes), answer_lead, pause_agent, resume_agent. Each is marked as a write so the client asks the owner before the call, and each send reads the chat and hands it to Claude first. Booking and corrections stay with the WhatsApp orders. Skip names match styled spellings. A package, cost or details ask is the package question, not the inclusions reply; a catch-up message asks at most one question.
 - Test: operator connector: write tools send only a fresh previewed plan
-- Commit: 4e48e91
+- Commit: c258cb9
