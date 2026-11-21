@@ -77,3 +77,48 @@ test("catch-up: the owner command exists, always previews first, and every send 
   assert.match(deps, /purpose: "the owner approved a catch-up message/);
   assert.match(deps, /ownerDeps\.send\(it\.id, it\.text, \{ ordered: true \}\)/); // WhatsApp goes through contextCheck in send()
 });
+
+test("Swati: Radhika gets the published inclusions with the website link and a call offer, never Claude's own description of planning", async () => {
+  const { inclusionsAnswer } = await import("../lib/facts.mjs");
+  claudeSays("send_inclusions", { went_wrong: "She asked what full planning includes and got a hold message", apology: "Sorry for the generic reply, Radhika.", which: "full" });
+  const r = await reviewForCatchUp({ channel: "Instagram", name: "Radhika", history: chat });
+  assert.equal(r.kind, "send");
+  assert.match(r.text, /^Sorry for the generic reply, Radhika\./);
+  assert.ok(r.text.includes(inclusionsAnswer("full planning").split("\n\n")[0])); // the website's own words for the tier
+  assert.match(r.text, /https:\/\/saffroncollective\.in\/pricing/);
+  assert.match(r.text, /how each planning option differs/);
+  assert.match(r.text, /Would you like more details\? Just let us know/);
+  claudeSays("send_inclusions", { went_wrong: "x", apology: "Sorry!", which: "all" });
+  const all = await reviewForCatchUp({ history: chat });
+  assert.match(all.text, /Partial Planning/); assert.match(all.text, /Wedding Day Coordination/);
+});
+
+test("Swati: a package request without a kind gets the clarifying question, in catch-up and in the live agent, even after a call is booked", async () => {
+  const { isPackageAsk, PACKAGE_CLARIFY } = await import("../lib/facts.mjs");
+  for (const t of ["Can you send the package details?", "Please share packages", "Package details before our call on Friday"]) assert.equal(isPackageAsk(t), true, t);
+  for (const t of ["What is the price of the package?", "full planning package", "decor package please", "how much for packages", "Hello"]) assert.equal(isPackageAsk(t), false, t);
+  assert.match(PACKAGE_CLARIFY, /entire wedding, a décor package, or a planning package/);
+  assert.match(PACKAGE_CLARIFY, /what details you need/);
+  claudeSays("send_package_question", { went_wrong: "She asked twice for package details and got a hold message", apology: "Sorry for the wait, Hansika." });
+  const r = await reviewForCatchUp({ channel: "Instagram", name: "Hansika", history: chat });
+  assert.equal(r.kind, "send");
+  assert.equal(r.text, `Sorry for the wait, Hansika.\n\n${PACKAGE_CLARIFY}`);
+  for (const f of ["ig-process-background", "wati-process-background"]) {
+    const src = readFileSync(new URL(`../netlify/functions/${f}.mjs`, import.meta.url), "utf8");
+    assert.match(src, /const packageQ = !inclQ && isPackageAsk\(text\)/);
+    assert.match(src, /packageQ && \(await allow\(/); // the finished chat (call booked)
+    assert.match(src, /packageQ && \["confirm", "call"\]/); // after the summary
+    assert.match(src, /packageQ \? PACKAGE_CLARIFY : priceQ \? priceAnswer\(text\)/); // while the questions are asked
+  }
+});
+
+test("Swati: Niraj, who keeps asking for a call at his own time, is asked to choose one of the offered slots", async () => {
+  const { STRICT_TIMELINE } = await import("../lib/catchup.mjs");
+  claudeSays("send_call_slot_reminder", { went_wrong: "He keeps asking for a call right now; we only repeat the slots", first_name: "Niraj" });
+  const r = await reviewForCatchUp({ channel: "Instagram", name: "Niraj", history: chat });
+  assert.equal(r.kind, "send");
+  assert.equal(r.text, `Niraj, ${STRICT_TIMELINE}`);
+  assert.match(r.text, /strict timeline/); assert.match(r.text, /one of the time slots offered/);
+  claudeSays("send_call_slot_reminder", { went_wrong: "x" });
+  assert.match((await reviewForCatchUp({ history: chat })).text, /^Our team works to a strict timeline/); // no name: no guess
+});

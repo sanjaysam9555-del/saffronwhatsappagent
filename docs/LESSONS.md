@@ -622,3 +622,11 @@ These are checked in lib/guard.mjs just before any message is sent on either cha
 - Rule: netlify/functions/operator-mcp.mjs speaks MCP so Claude can use it as a custom connector. It is READ-ONLY for now: list the chats, read one, start and read the catch-up preview (the review itself runs in catchup-background.mjs). No tool sends to a lead; sending stays with the owner's order. It needs OPERATOR_MCP_KEY (16+ characters, compared in constant time) and answers 503 without it.
 - Test: operator connector: speaks the protocol and offers only read tools
 - Commit: a43a4aa
+
+## L74 Inclusions come with the website link, repeated call requests get the timeline reply, a package ask is a question
+- Date: 2026-11-22
+- Chat: catch-up preview. Radhika (asked what full planning includes), Niraj (keeps asking for a call right now), Hansika Bhushan (asked twice for package details before her booked call).
+- Went wrong: the draft for Radhika described full planning in its own words instead of the website's published inclusions and link. Niraj's repeated call requests were left to the team although the chat already offered times. Hansika's "package details" got a hold message (and, in an unbooked chat, the full price list) without asking which package she meant.
+- Rule: (1) an inclusions answer is the published text, the link that shows how the options differ and what is received, then "Would you like more details? Just let us know" with the call offer. (2) A lead who keeps asking for a call at a time we did not offer is told "our team works to a strict timeline and would love to accommodate your call, please choose one of the time slots offered above" when times were offered. (3) Anyone who asks for a package without saying which kind (and without naming a tier or asking the fee) is asked: the entire wedding, a décor package or a planning package, and what details they need. The catch-up uses Claude only to choose which and to write the apology.
+- Test: Swati: a package request without a kind gets the clarifying question
+- Commit: 615dfb6

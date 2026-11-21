@@ -3,7 +3,7 @@ import { logNoReply } from "../../lib/noreply.mjs";
 import { contextCheck } from "../../lib/presend.mjs";
 import { getRecentMessages } from "../../lib/wati.mjs";
 import { decide, ESCALATION_ACK, CLIENT, GREETING, OPTOUT, vendorWelcome, vendorReminder, jobReply, jobFollowReply, isOptOut, maybeOptOut } from "../../lib/rules.mjs";
-import { hardMoney, isPriceQuestion, priceAnswer, isInclusionsQuestion, inclusionsAnswer, budgetLakhs, MIN_BUDGET_LAKHS, budgetQuestionKind } from "../../lib/facts.mjs";
+import { hardMoney, isPriceQuestion, priceAnswer, isInclusionsQuestion, inclusionsAnswer, isPackageAsk, PACKAGE_CLARIFY, budgetLakhs, MIN_BUDGET_LAKHS, budgetQuestionKind } from "../../lib/facts.mjs";
 import { guidesFor, guideText, readingFor } from "../../lib/guides.mjs";
 import { extractPhone } from "../../lib/phone.mjs";
 import { sendTemplateMessage } from "../../lib/wati.mjs";
@@ -407,6 +407,7 @@ const runGated = async (req) => {
     const priceQ = isPriceQuestion(text);
     const totalKind = budgetQuestionKind(text); // "what is the total / starting budget?", "can you do it in 30 lakh?": Claude answers from the budget facts (L40)
     const inclQ = isInclusionsQuestion(text) || read0?.asksInclusions === true; // "what does 3 lakh include?": the published inclusions answer (lib/facts.mjs), not a hand-over
+    const packageQ = !inclQ && isPackageAsk(text); // "send the package details": ask which package they mean, never guess (Hansika, L74)
     const guides = guidesFor(text).filter((g) => !(inclQ && g.url.endsWith("/wedding-services"))); // a page on the website answers this in detail: share the link
     const moneyish = (hardMoney(text) && !guides.length) || (!inFlow && /\b(available|availability|book|booking)\b/i.test(text));
     // Sign-up link on words alone only for an unmistakable offer of services (see the WhatsApp handler, L34).
@@ -441,6 +442,7 @@ const runGated = async (req) => {
     // The chat is finished (call booked, declined, ...). Whatever they send now is answered in context by Claude, like a person would.
     if (!isVendor && c.q?.stage === "done") {
       if (inclQ && (await allow(`igguide:${sid}:inclusions`, 6 * HOUR))) { await send(inclusionsAnswer(text)); await incr("inclusions_answered"); return ok(); } // what is included: the website's own answer
+      if (packageQ && (await allow(`igpkg:${sid}`, 6 * HOUR))) { await send(PACKAGE_CLARIFY); await incr("package_clarified"); return ok(); } // which package do they mean (L74)
       if (c.q.callBooked?.eventId && calendarEnabled()) {
         if (wantsCancel(text)) { await toHuman("call-cancel-request"); return ok(); }
         if (wantsReschedule(text)) {
@@ -533,8 +535,9 @@ const runGated = async (req) => {
     if (read?.intent === "confused") extracted.confused = true; // they did not understand us: said again in simpler words (L37)
     let opener = "";
     if (firstTouch && !GREETING.test(text)) opener = (await draftOpening({ text, name: who, greeted: c.greeted })) || "";
-    const priceText = inclQ ? inclusionsAnswer(text) : totalKind ? await draftBudgetAnswer({ text, name: who, history: await chatHistory(text), kind: totalKind }) : priceQ ? priceAnswer(text) : "";
+    const priceText = inclQ ? inclusionsAnswer(text) : totalKind ? await draftBudgetAnswer({ text, name: who, history: await chatHistory(text), kind: totalKind }) : packageQ ? PACKAGE_CLARIFY : priceQ ? priceAnswer(text) : "";
     const pre = asking ? [priceText, guides.length ? guideText(guides) : ""].filter(Boolean).join("\n\n") : "";
+    if (packageQ && ["confirm", "call"].includes(q.stage) && (await allow(`igpkg:${sid}`, 6 * HOUR))) { await send(PACKAGE_CLARIFY); await incr("package_clarified"); return ok(); } // after the summary: ask which package, state unchanged (L74)
     if ((guides.length || inclQ) && ["confirm", "call"].includes(q.stage) && (await allow(`igguide:${sid}:${inclQ ? "inclusions" : guides[0].url}`, 6 * HOUR))) {
       await send(inclQ ? inclusionsAnswer(text) : guideText(guides)); await incr(inclQ ? "inclusions_answered" : "guide_links_sent"); return ok(); // after the summary: just the link, state unchanged
     }

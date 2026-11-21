@@ -4,7 +4,7 @@ import { contextCheck } from "../../lib/presend.mjs";
 import { decide, ESCALATION_ACK, CLIENT, vendorWelcome, vendorReminder, jobReply, jobFollowReply, RESUME_FILE, maybeOptOut } from "../../lib/rules.mjs";
 import { operatorOn, routeMessage, ownerCommand, isOwner, COMMAND_PREFIX } from "../../lib/operator.mjs";
 import { ownerDeps } from "../../lib/operatordeps.mjs";
-import { hardMoney, isPriceQuestion, priceAnswer, isInclusionsQuestion, inclusionsAnswer, budgetLakhs, MIN_BUDGET_LAKHS, budgetQuestionKind } from "../../lib/facts.mjs";
+import { hardMoney, isPriceQuestion, priceAnswer, isInclusionsQuestion, inclusionsAnswer, isPackageAsk, PACKAGE_CLARIFY, budgetLakhs, MIN_BUDGET_LAKHS, budgetQuestionKind } from "../../lib/facts.mjs";
 import { guidesFor, guideText } from "../../lib/guides.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
 import { findNameCandidate, classify } from "../../lib/match.mjs";
@@ -371,6 +371,7 @@ const runGated = async (req) => {
     const priceQ = isPriceQuestion(text);
     const totalKind = budgetQuestionKind(text); // "what is the total / starting budget?", "can you do it in 30 lakh?": Claude answers from the budget facts (L40)
     const inclQ = isInclusionsQuestion(text) || read0?.asksInclusions === true; // "what does 3 lakh include?": the published inclusions answer (lib/facts.mjs), not a hand-over
+    const packageQ = !inclQ && isPackageAsk(text); // "send the package details": ask which package they mean, never guess (Hansika, L74)
     const guides = guidesFor(text).filter((g) => !(inclQ && g.url.endsWith("/wedding-services"))); // a page on the website answers this in detail: share the link
     const moneyish = (hardMoney(text) && !guides.length) || (!inFlow && /\b(available|availability|book|booking)\b/i.test(text));
     // A lead we wrote to first (Instagram lead, a template sent from the sheet) whose state was not saved is not a stranger: their reply answers our message.
@@ -407,6 +408,7 @@ const runGated = async (req) => {
     // 3b. The chat is finished (call booked, declined, ...). Whatever they send now is answered in context by Claude, like a person would.
     if (!c.humanSpoke && !c.esc && !isVendor && c.q?.stage === "done") {
       if (inclQ && (await allow(`guide:${waId}:inclusions`, 6 * HOUR))) { await agentSend(inclusionsAnswer(text)); await incr("inclusions_answered"); return ok(); } // what is included: the website's own answer
+      if (packageQ && (await allow(`pkg:${waId}`, 6 * HOUR))) { await agentSend(PACKAGE_CLARIFY); await incr("package_clarified"); return ok(); } // which package do they mean (L74)
       if (c.q.callBooked?.eventId && calendarEnabled()) {
         if (wantsCancel(text)) { await toHuman("call-cancel-request"); return ok(); }
         if (wantsReschedule(text)) {
@@ -498,8 +500,9 @@ const runGated = async (req) => {
       if (read?.intent === "confused") extracted.confused = true; // they did not understand us: said again in simpler words (L37)
       let opener = "";
       if (firstTouch && !GREETING.test(text)) opener = (await draftOpening({ text, name: who, greeted: c.greeted })) || "";
-      const priceText = !(asking && !dupAnswered) ? "" : inclQ ? inclusionsAnswer(text) : totalKind ? await draftBudgetAnswer({ text, name: who, history: withoutCurrent((await getRecentMessages(waId, 12)) || [], text), kind: totalKind }) : priceQ ? priceAnswer(text) : "";
+      const priceText = !(asking && !dupAnswered) ? "" : inclQ ? inclusionsAnswer(text) : totalKind ? await draftBudgetAnswer({ text, name: who, history: withoutCurrent((await getRecentMessages(waId, 12)) || [], text), kind: totalKind }) : packageQ ? PACKAGE_CLARIFY : priceQ ? priceAnswer(text) : "";
       const pre = asking && !dupAnswered ? [priceText, guides.length ? guideText(guides) : ""].filter(Boolean).join("\n\n") : "";
+      if (packageQ && ["confirm", "call"].includes(q.stage) && (await allow(`pkg:${waId}`, 6 * HOUR))) { await agentSend(PACKAGE_CLARIFY); await incr("package_clarified"); return ok(); } // after the summary: ask which package (L74)
       if ((guides.length || inclQ) && ["confirm", "call"].includes(q.stage) && (await allow(`guide:${waId}:${inclQ ? "inclusions" : guides[0].url}`, 6 * HOUR))) {
         await agentSend(inclQ ? inclusionsAnswer(text) : guideText(guides)); await incr(inclQ ? "inclusions_answered" : "guide_links_sent"); return ok(); // after the summary: just the link, state unchanged
       }
@@ -594,7 +597,7 @@ const runGated = async (req) => {
     // decides. Chats already handed to the team are left alone unless it is a vendor. If it cannot decide, the older rules below do.
     if (operatorOn() && (isVendor || (!c.esc && !c.humanSpoke))) {
       const act = await routeMessage({ channel: "WhatsApp", profileName: name, text, history: (await getRecentMessages(waId, 12)) || [], state: { kind: isVendor ? "vendor" : c.kind, stage: c.q?.stage, greeted: c.greeted, fields: c.q?.fields } });
-      if (act?.kind === "price") { if (await allow(`reply:${waId}:price`, 6 * HOUR)) await agentSend(inclQ ? inclusionsAnswer(text) : totalKind ? await draftBudgetAnswer({ text, name: who, history: (await getRecentMessages(waId, 12)) || [], kind: totalKind }) : priceAnswer(text)); return ok(); }
+      if (act?.kind === "price") { if (await allow(`reply:${waId}:price`, 6 * HOUR)) await agentSend(inclQ ? inclusionsAnswer(text) : packageQ ? PACKAGE_CLARIFY : totalKind ? await draftBudgetAnswer({ text, name: who, history: (await getRecentMessages(waId, 12)) || [], kind: totalKind }) : priceAnswer(text)); return ok(); }
       if (act && act.kind !== "client" && (await applyRoute(act))) return ok();
     }
     // Older rules: simple rules, then Claude for light replies, otherwise a human.
