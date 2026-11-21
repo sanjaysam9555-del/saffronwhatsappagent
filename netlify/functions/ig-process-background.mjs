@@ -18,7 +18,7 @@ import { startConsult, consultTurn, detailsText, fastTrack, wantsCall, extractEm
 import { isMediaOnly, recordMedia, REF_THANKS, REF_UNSURE, REF_NOTE, refOpen, greetingText } from "../../lib/media.mjs";
 import { greetName } from "../../lib/leadfields.mjs";
 import { sendInstagramText, getInstagramLastText, parseManychatEvent } from "../../lib/manychat.mjs";
-import { isRepeatRun, DUP_WINDOW_MS } from "../../lib/dupe.mjs";
+import { isRepeatRun, DUP_WINDOW_MS, hasWaitingQuestion } from "../../lib/dupe.mjs";
 import { getIg, saveIg, queueMessage, claimQueue, queuedTexts, newerLeadTexts, resetIg, addIgHistory, getIgHistory } from "../../lib/igstate.mjs";
 import { upsertInstagramLead } from "../../lib/sheet.mjs";
 import { logNeedsTeam } from "../../lib/needsteam.mjs";
@@ -124,6 +124,7 @@ const runGated = async (req) => {
     try {
       const queued = [...new Set([...(await queuedTexts(sid)), ...(await newerLeadTexts(sid, ownAt))])]; // newer messages may already be claimed by a run that waits for the lock (Abhishek, L68)
       if (!queued.length) return msg;
+      if (hasWaitingQuestion(queued)) { console.log(`ig ${sid}: a newer question from the lead is waiting; our next question is left out of this reply`); await incr("answered_questions_dropped"); return dropQuestion(msg); }
       const cur = await getIg(sid), asked = cur.q?.asked;
       if (!asked || !FIELD_KEYS.includes(asked) || cur.q?.stage !== "asking") return msg;
       const read = await understandChat({ text: queued.join("\n"), name: who, history: await getIgHistory(sid), q: cur.q, asked });

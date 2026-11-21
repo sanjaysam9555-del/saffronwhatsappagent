@@ -581,3 +581,12 @@ These are checked in lib/guard.mjs just before any message is sent on either cha
 - Test: Abhishek: a run that waited for the chat lock
 - Commit: 20594f3
 
+## L69 Two numbers in a row are a number, and a waiting question stops the next flow question
+- Date: 2026-11-21
+- Chat: Paavni Ratra (Instagram), 18:36. We asked for her mobile number. She sent 8750300030 and 9953630749 (text and phone cards) and then "You can contact on both". We replied "Happy to continue here. A number simply helps our Founders reach you ... No spam" and asked the city, as if she had refused. Later, "We have just started looking / So not sure yet / Can you share details of both Delhi and Rishikesh ?" got "perfectly fine to begin without a location in mind. Roughly how many guests?" AND, from the run for the question, "A member of our team will personally get back to you shortly".
+- Went wrong: (1) Messages sent in a burst are joined with a new line, and the phone reader let a number run across the new line, so "8750300030" + "9953630749" became one 20-digit run and read as no number at all. Reproduced: extractPhone gave "none". (2) The older run for "We have just started looking" did not know the newer question was waiting, so it added the next flow question while the other run handed the question to the team.
+- Rule: each line is read for a number on its own and the first usable number wins; two numbers side by side count as the first. An older run leaves out its next question when a newer message from the lead asks something (Instagram).
+- Test: Paavni: two numbers sent one after the other
+- Test: Paavni: a newer question from the lead stops
+- Commit: 57869ec
+

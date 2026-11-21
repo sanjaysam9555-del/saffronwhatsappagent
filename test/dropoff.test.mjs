@@ -340,3 +340,23 @@ test("Abhishek: a run that waited for the chat lock sees the newer messages anot
   const src = readFileSync(new URL("../netlify/functions/ig-process-background.mjs", import.meta.url), "utf8");
   assert.match(src, /newerLeadTexts\(sid, ownAt\)/, "the stale-question check must look at newer messages, not only the queue");
 });
+
+test("Paavni: two numbers sent one after the other are read as a number, the first one", async () => {
+  const { extractPhone } = await import("../lib/phone.mjs");
+  for (const t of ["8750300030\n9953630749\nYou can contact on both", "8750300030 9953630749", "8750300030, 9953630749", "My number 8750300030\nand 9953630749"]) {
+    assert.deepEqual(extractPhone(t), { status: "ok", number: "918750300030" }, t);
+  }
+  assert.deepEqual(extractPhone("98765\n43210"), { status: "ok", number: "919876543210" }); // one number split over two lines still reads
+  assert.equal(extractPhone("You can contact on both").status, "none");
+  assert.equal(extractPhone("986251968").status, "ambiguous"); // a number a digit short is still asked again
+});
+
+test("Paavni: a newer question from the lead stops an older run adding the next flow question on top of the hold", async () => {
+  const { hasWaitingQuestion } = await import("../lib/dupe.mjs");
+  const { readFileSync } = await import("node:fs");
+  assert.equal(hasWaitingQuestion(["Can you share details of both Delhi and Rishikesh ?"]), true);
+  assert.equal(hasWaitingQuestion(["So not sure yet", "We have just started looking"]), false);
+  assert.equal(hasWaitingQuestion([]), false);
+  const src = readFileSync(new URL("../netlify/functions/ig-process-background.mjs", import.meta.url), "utf8");
+  assert.match(src, /hasWaitingQuestion\(queued\)/);
+});
