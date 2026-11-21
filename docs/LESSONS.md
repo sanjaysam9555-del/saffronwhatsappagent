@@ -620,7 +620,7 @@ These are checked in lib/guard.mjs just before any message is sent on either cha
 - Chat: Swati: "How do we build an operator within Claude, where I tell you and you do whatever needs to be done, instead of me messaging from the WhatsApp?"
 - Went wrong: the only way to give the agent an order was a WhatsApp text starting "agent,". Claude in the owner's own chat could not reach Wati, Instagram, the saved chats or the Anthropic key, which live inside the Netlify site.
 - Rule: netlify/functions/operator-mcp.mjs speaks MCP so Claude can use it as a custom connector. It is READ-ONLY for now: list the chats, read one, start and read the catch-up preview (the review itself runs in catchup-background.mjs). No tool sends to a lead; sending stays with the owner's order. It needs OPERATOR_MCP_KEY (16+ characters, compared in constant time) and answers 503 without it.
-- Test: operator connector: speaks the protocol and offers only read tools
+- Test: operator connector: speaks the protocol
 - Commit: a43a4aa
 
 ## L74 Inclusions come with the website link, repeated call requests get the timeline reply, a package ask is a question
@@ -630,3 +630,11 @@ These are checked in lib/guard.mjs just before any message is sent on either cha
 - Rule: (1) an inclusions answer is the published text, the link that shows how the options differ and what is received, then "Would you like more details? Just let us know" with the call offer. (2) A lead who keeps asking for a call at a time we did not offer is told "our team works to a strict timeline and would love to accommodate your call, please choose one of the time slots offered above" when times were offered. (3) Anyone who asks for the cost, price, amount, charges, a package or just "details" without saying which kind of service (and without naming a tier, giving an amount or asking about payment) is asked: the entire wedding, a décor package or a planning package, and what details they need. Claude's reading of the chat (asks_package) decides first; the word check is the fallback. Swati widened it from "package" to cost, amount, price and details. The catch-up uses Claude only to choose which and to write the apology.
 - Test: Swati: a package request without a kind gets the clarifying question
 - Commit: c495dcc
+
+## L75 The connector can send, so the owner does not have to text the agent from WhatsApp
+- Date: 2026-11-22
+- Chat: Swati: "make it read and write so that you can send it from here as well. That was the entire point." The catch-up preview could only be sent by texting "agent, catch up send" from WhatsApp. Her skip name for a lead whose profile name is in small capitals (ʀᴀᴊᴇᴇᴠ) would not have matched "Rajeev", and Hansika's draft used the inclusions reply where the package question was wanted.
+- Went wrong: the connector (L73) was read-only, so the owner still had to switch to WhatsApp. Skip names were matched on the exact spelling. The review could pick the inclusions reply for a "package details" ask and ask two questions in one message.
+- Rule: the connector has write tools: catch_up_send (only a fresh preview, 12 hours, with skips), send_message (the same safety rules as a WhatsApp order, a closed window refused, one message per lead every five minutes), answer_lead, pause_agent, resume_agent. Each is marked as a write so the client asks the owner before the call, and each send reads the chat and hands it to Claude first. Booking and corrections stay with the WhatsApp orders. Skip names match styled spellings. A package, cost or details ask is the package question, not the inclusions reply; a catch-up message asks at most one question.
+- Test: operator connector: write tools send only a fresh previewed plan
+- Commit: 4e48e91
