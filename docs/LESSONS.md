@@ -613,4 +613,4 @@ These are checked in lib/guard.mjs just before any message is sent on either cha
 - Went wrong: nothing could re-read a finished chat, judge whether we had erred, and write to the lead. "agent, answer" covers one chat the lead wrote last in; the nudges only chase silence after our own message.
 - Rule: "agent, catch up" reads every recent chat on both channels (not a chat a person on the team is in, held, opted out, or a vendor), Claude decides per chat whether we got something wrong or never answered it, and drafts a short corrective message. It first only PREVIEWS to the owner; "agent, catch up send" sends what was previewed, after a fresh read and the one-rule gate, once per chat, and leaves out anyone the owner names. Prices, availability and promises go to the team, never into a draft.
 - Test: catch-up: send goes only to what was previewed
-- Commit: 5fae879
+- Commit: da4a43e
