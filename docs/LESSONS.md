@@ -606,3 +606,11 @@ These are checked in lib/guard.mjs just before any message is sent on either cha
 - Rule: Claude's reading of the chat now says whether the lead is asking what a package or price includes (asks_inclusions: any spelling, Hinglish, broken English). That reading counts as much as the word check; the word check stays only as a fallback if Claude cannot be reached. The answer text still comes only from lib/facts.mjs.
 - Test: Swati: Claude's reading of the chat decides the inclusions question
 - Commit: 0cf03b7
+
+## L72 The agent can go back and put right the chats it got wrong
+- Date: 2026-11-21
+- Chat: Paavni, Radhika, Abhishek, Anjora, Jatin. Every fix reached only the NEXT lead; the leads we had already handled badly (answered as if they refused, held with no reply, asked the date twice) stayed that way until someone noticed.
+- Went wrong: nothing could re-read a finished chat, judge whether we had erred, and write to the lead. "agent, answer" covers one chat the lead wrote last in; the nudges only chase silence after our own message.
+- Rule: "agent, catch up" reads every recent chat on both channels (not a chat a person on the team is in, held, opted out, or a vendor), Claude decides per chat whether we got something wrong or never answered it, and drafts a short corrective message. It first only PREVIEWS to the owner; "agent, catch up send" sends what was previewed, after a fresh read and the one-rule gate, once per chat, and leaves out anyone the owner names. Prices, availability and promises go to the team, never into a draft.
+- Test: catch-up: send goes only to what was previewed
+- Commit: 5fae879
