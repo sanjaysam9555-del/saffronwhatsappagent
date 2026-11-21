@@ -598,3 +598,11 @@ These are checked in lib/guard.mjs just before any message is sent on either cha
 - Test: Radhika: 'What does full wedding planning incudes
 - Commit: 1895822
 
+
+## L71 Claude's reading of the chat decides what she is asking, not a list of spellings
+- Date: 2026-11-21
+- Chat: Radhika and Anjora (Instagram). "incudes" and "inclued" both went to the team. Swati: "If the agent is not able to read even one or two or three letter misspelled, what's the point of having an agent? ... That's why we gave you the Anthropic key, so that you can understand the context."
+- Went wrong: L67 and L70 patched spellings with word lists and a letter-distance check. The agent already hands the whole chat to Claude before it answers, but Claude's reading was thrown away and the exact-word check alone decided whether the inclusions were asked.
+- Rule: Claude's reading of the chat now says whether the lead is asking what a package or price includes (asks_inclusions: any spelling, Hinglish, broken English). That reading counts as much as the word check; the word check stays only as a fallback if Claude cannot be reached. The answer text still comes only from lib/facts.mjs.
+- Test: Swati: Claude's reading of the chat decides the inclusions question
+- Commit: 2b98dfa

@@ -367,3 +367,15 @@ test("Radhika: 'What does full wedding planning incudes??' gets the published in
   // words that only look like it are left alone
   for (const t of ["Our guests are incoming", "What is the income for full planning?", "incoming guests for full planning?"]) { assert.equal(fixIncludeTypos(t), t, t); assert.equal(isInclusionsQuestion(t), false, t); }
 });
+
+test("Swati: Claude's reading of the chat decides the inclusions question, not exact words (asks_inclusions)", async () => {
+  const u = await import("../lib/understand.mjs");
+  assert.equal(u.normalizeRead({ intent: "question", asks_inclusions: true }).asksInclusions, true);
+  assert.equal(u.normalizeRead({ intent: "question", asks_inclusions: "yes" }).asksInclusions, false); // only a real true counts
+  assert.equal(u.normalizeRead({ intent: "other" }).asksInclusions, false);
+  assert.match(u.READ_SYSTEM, /asks_inclusions/);
+  for (const f of [IG, WA]) {
+    assert.match(f, /const read0 = /);
+    assert.match(f, /isInclusionsQuestion\(text\) \|\| read0\?\.asksInclusions === true/);
+  }
+});

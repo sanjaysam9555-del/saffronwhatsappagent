@@ -259,7 +259,7 @@ const runGated = async (req) => {
     // READ FIRST, before any rule answers anything: the real chat is read from Wati and handed to Claude, together with what we saved and the last question.
     // Nothing can be sent to this person otherwise (lib/readgate.mjs). If Wati or Claude cannot be reached the send is blocked and the team is told.
     const chat0 = await getRecentMessages(waId, 12);
-    if (chat0) await understandChat({ text, name: who, history: withoutCurrent(chat0, text), q: c.q, asked: c.q?.asked });
+    const read0 = chat0 ? await understandChat({ text, name: who, history: withoutCurrent(chat0, text), q: c.q, asked: c.q?.asked }) : null; // Claude's reading decides what she is asking, spelling and all (L70)
     pendingAsk = c.q?.stage === "asking" ? pendingQuestion(c.q) : "";
     leadQ = c.q || null;
     const contact = await lookupContact(waId); // null until Planning Studio is wired
@@ -370,7 +370,7 @@ const runGated = async (req) => {
     // and availability questions are still for a person.
     const priceQ = isPriceQuestion(text);
     const totalKind = budgetQuestionKind(text); // "what is the total / starting budget?", "can you do it in 30 lakh?": Claude answers from the budget facts (L40)
-    const inclQ = isInclusionsQuestion(text); // "what does 3 lakh include?": the published inclusions answer (lib/facts.mjs), not a hand-over
+    const inclQ = isInclusionsQuestion(text) || read0?.asksInclusions === true; // "what does 3 lakh include?": the published inclusions answer (lib/facts.mjs), not a hand-over
     const guides = guidesFor(text).filter((g) => !(inclQ && g.url.endsWith("/wedding-services"))); // a page on the website answers this in detail: share the link
     const moneyish = (hardMoney(text) && !guides.length) || (!inFlow && /\b(available|availability|book|booking)\b/i.test(text));
     // A lead we wrote to first (Instagram lead, a template sent from the sheet) whose state was not saved is not a stranger: their reply answers our message.

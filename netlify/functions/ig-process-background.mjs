@@ -294,7 +294,7 @@ const runGated = async (req) => {
     // and the last question. Nothing can be sent to this person otherwise (lib/readgate.mjs).
     const chat0 = await chatHistory(text);
     noteRead(sid);
-    await understandChat({ text, name: who, history: chat0, q: c.q, asked: c.q?.asked });
+    const read0 = await understandChat({ text, name: who, history: chat0, q: c.q, asked: c.q?.asked }); // Claude's reading decides what she is asking, spelling and all (L70)
     if (c.q?.numCard && [PLACEHOLDER, "Pending"].includes(c.q.fields?.number) && (await fillNumberFromChat(1))) c = await getIg(sid); // still unread from an earlier turn: check the chat once more
     pendingAsk = c.q?.stage === "asking" ? pendingQuestion(c.q) : "";
     leadQ = c.q || null;
@@ -406,7 +406,7 @@ const runGated = async (req) => {
     const canQualify = !isVendor && c.q?.stage !== "done";
     const priceQ = isPriceQuestion(text);
     const totalKind = budgetQuestionKind(text); // "what is the total / starting budget?", "can you do it in 30 lakh?": Claude answers from the budget facts (L40)
-    const inclQ = isInclusionsQuestion(text); // "what does 3 lakh include?": the published inclusions answer (lib/facts.mjs), not a hand-over
+    const inclQ = isInclusionsQuestion(text) || read0?.asksInclusions === true; // "what does 3 lakh include?": the published inclusions answer (lib/facts.mjs), not a hand-over
     const guides = guidesFor(text).filter((g) => !(inclQ && g.url.endsWith("/wedding-services"))); // a page on the website answers this in detail: share the link
     const moneyish = (hardMoney(text) && !guides.length) || (!inFlow && /\b(available|availability|book|booking)\b/i.test(text));
     // Sign-up link on words alone only for an unmistakable offer of services (see the WhatsApp handler, L34).
