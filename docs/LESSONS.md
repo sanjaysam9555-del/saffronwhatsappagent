@@ -596,5 +596,5 @@ These are checked in lib/guard.mjs just before any message is sent on either cha
 - Went wrong: the inclusions check looked for the exact words "include / includes / included", with one extra spelling added for Anjora. Another typo ("incudes") went to the team. Fixing one spelling at a time never ends.
 - Rule: a word that is at most two letters away from include / includes / included / including (and starts "inc", six letters or more) is read as that word before the inclusions check. Words that are their own words (income, incoming, inclusive) are left alone.
 - Test: Radhika: 'What does full wedding planning incudes
-- Commit: 504489e
+- Commit: 1895822
 
