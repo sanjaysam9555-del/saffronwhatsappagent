@@ -588,5 +588,5 @@ These are checked in lib/guard.mjs just before any message is sent on either cha
 - Rule: each line is read for a number on its own and the first usable number wins; two numbers side by side count as the first. An older run leaves out its next question when a newer message from the lead asks something (Instagram).
 - Test: Paavni: two numbers sent one after the other
 - Test: Paavni: a newer question from the lead stops
-- Commit: 57869ec
+- Commit: ccd23d4
 
